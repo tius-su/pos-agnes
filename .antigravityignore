@@ -1,0 +1,72 @@
+# Antigravity IDE ignore file
+# Folders dan files yang tidak perlu diindeks
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+dist/
+build/
+.vite/
+out/
+
+# Cache
+.cache/
+.parcel-cache/
+*.cache
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Git
+.git/
+.gitignore
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+
+# Lock files (besar, tidak perlu diindeks)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Large binary
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg
+*.woff
+*.woff2
+*.ttf
+*.eot
+*.mp4
+*.mp3
+
+# Coverage
+coverage/
+
+# Temp
+.tmp/
+tmp/

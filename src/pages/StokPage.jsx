@@ -1,0 +1,308 @@
+import React, { useState } from 'react';
+import { useData } from '../context/DataContext';
+
+const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
+const CAT_EMOJI = { 'Pakaian Wanita': '👗', 'Pakaian Pria': '👕', 'Hijab': '🧕', 'Aksesoris': '💍', 'Lainnya': '📦' };
+const CATEGORIES = ['Pakaian Wanita', 'Pakaian Pria', 'Hijab', 'Aksesoris', 'Lainnya'];
+
+const emptyForm = {
+  r_date: new Date().toISOString().slice(0, 10),
+  r_supplier: '',
+  r_name: '',
+  r_category: 'Pakaian Wanita',
+  r_qty: '',
+  r_cost: '',
+  r_price: ''
+};
+
+const StokPage = () => {
+  const { appData, saveAndSync, toast } = useData();
+  const [search, setSearch] = useState('');
+  const [catFilter, setCatFilter] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState(null); // for edit
+  const [form, setForm] = useState(emptyForm);
+  const [deleting, setDeleting] = useState(null);
+
+  const filtered = (appData.stok || []).filter(i =>
+    i.nama_barang.toLowerCase().includes(search.toLowerCase()) &&
+    (!catFilter || i.kategori === catFilter)
+  );
+
+  const handleFormChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+
+  const openRestock = () => {
+    setEditItem(null);
+    setForm(emptyForm);
+    setShowModal(true);
+  };
+
+  const openEdit = (item) => {
+    setEditItem(item.nama_barang);
+    setForm({
+      r_date: new Date().toISOString().slice(0, 10),
+      r_supplier: item.supplierList?.[0] || '',
+      r_name: item.nama_barang,
+      r_category: item.kategori,
+      r_qty: '',
+      r_cost: String(item.hargaModal),
+      r_price: String(item.hargaJual)
+    });
+    setShowModal(true);
+  };
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    const qty = parseInt(form.r_qty) || 0;
+    const cost = parseFloat(form.r_cost) || 0;
+    const price = parseFloat(form.r_price) || 0;
+
+    if (!form.r_name.trim()) { toast('Nama barang harus diisi', 'error'); return; }
+
+    let newStok = [...(appData.stok || [])];
+    let newPembelian = [...(appData.pembelian || [])];
+
+    const existIdx = newStok.findIndex(s => s.nama_barang.toLowerCase() === form.r_name.toLowerCase());
+
+    if (existIdx >= 0) {
+      // Update existing stock
+      newStok[existIdx] = {
+        ...newStok[existIdx],
+        hargaModal: cost || newStok[existIdx].hargaModal,
+        hargaJual: price || newStok[existIdx].hargaJual,
+        stokTersedia: newStok[existIdx].stokTersedia + qty,
+        kategori: form.r_category,
+        supplierList: [...new Set([...(newStok[existIdx].supplierList || []), form.r_supplier].filter(Boolean))]
+      };
+    } else {
+      // Add new product
+      newStok.push({
+        nama_barang: form.r_name.trim(),
+        kategori: form.r_category,
+        hargaModal: cost,
+        hargaJual: price,
+        stokTersedia: qty,
+        supplierList: form.r_supplier ? [form.r_supplier] : []
+      });
+    }
+
+    // Log purchase if qty > 0
+    if (qty > 0 && form.r_supplier) {
+      newPembelian.push({
+        id: Date.now(),
+        tanggal: form.r_date,
+        waktu: new Date().toLocaleTimeString('id-ID'),
+        supplier: form.r_supplier,
+        barang: form.r_name.trim(),
+        kategori: form.r_category,
+        jumlah: qty,
+        hargaModal: cost,
+        totalModal: cost * qty
+      });
+    }
+
+    await saveAndSync({ ...appData, stok: newStok, pembelian: newPembelian });
+    setShowModal(false);
+  };
+
+  const handleDelete = async (name) => {
+    if (!confirm(`Hapus produk "${name}"? Riwayat penjualan tetap tersimpan.`)) return;
+    const newStok = appData.stok.filter(s => s.nama_barang !== name);
+    await saveAndSync({ ...appData, stok: newStok });
+  };
+
+  // Summary stats
+  const totalSkus = appData.stok?.length || 0;
+  const totalItems = (appData.stok || []).reduce((s, i) => s + i.stokTersedia, 0);
+  const nilaiStok = (appData.stok || []).reduce((s, i) => s + i.hargaModal * i.stokTersedia, 0);
+  const habis = (appData.stok || []).filter(i => i.stokTersedia <= 0).length;
+  const menipis = (appData.stok || []).filter(i => i.stokTersedia > 0 && i.stokTersedia <= 5).length;
+
+  return (
+    <div className="tab-page active fade-up">
+      {/* Stat Cards */}
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5,1fr)' }}>
+        <div className="stat-card violet">
+          <i className="stat-icon fa-solid fa-tags" />
+          <div className="stat-label">Total SKU</div>
+          <div className="stat-value">{totalSkus}</div>
+          <div className="stat-meta">Jenis produk</div>
+        </div>
+        <div className="stat-card sky">
+          <i className="stat-icon fa-solid fa-boxes-stacked" />
+          <div className="stat-label">Total Item</div>
+          <div className="stat-value">{totalItems}</div>
+          <div className="stat-meta">Stok tersedia</div>
+        </div>
+        <div className="stat-card emerald">
+          <i className="stat-icon fa-solid fa-coins" />
+          <div className="stat-label">Nilai Stok</div>
+          <div className="stat-value" style={{ fontSize: 16 }}>{formatRp(nilaiStok)}</div>
+          <div className="stat-meta">Harga modal</div>
+        </div>
+        <div className="stat-card amber">
+          <i className="stat-icon fa-solid fa-triangle-exclamation" />
+          <div className="stat-label">Stok Menipis</div>
+          <div className="stat-value">{menipis}</div>
+          <div className="stat-meta">≤ 5 unit</div>
+        </div>
+        <div className="stat-card" style={{ borderLeft: '3px solid var(--rose)' }}>
+          <i className="stat-icon fa-solid fa-ban" style={{ color: 'var(--rose)' }} />
+          <div className="stat-label" style={{ color: 'var(--rose)' }}>Stok Habis</div>
+          <div className="stat-value">{habis}</div>
+          <div className="stat-meta">Perlu restock</div>
+        </div>
+      </div>
+
+      {/* Table Card */}
+      <div className="card">
+        <div className="card-header">
+          <div>
+            <div className="card-title"><i className="fa-solid fa-boxes-stacked" /> Daftar Stok Barang</div>
+            <div className="card-subtitle">{filtered.length} produk ditemukan</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div className="form-input-icon" style={{ width: 180 }}>
+              <i className="fa-solid fa-search" />
+              <input className="form-input" placeholder="Cari barang..." value={search} onChange={e => setSearch(e.target.value)} id="stok-search" />
+            </div>
+            <select className="form-input" style={{ width: 150 }} value={catFilter} onChange={e => setCatFilter(e.target.value)}>
+              <option value="">Semua Kategori</option>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <button className="btn btn-purple btn-sm" onClick={openRestock} id="btn-restock">
+              <i className="fa-solid fa-plus" /> Restock / Tambah
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Produk</th>
+                <th>Kategori</th>
+                <th>Stok</th>
+                <th>Harga Modal</th>
+                <th>Harga Jual</th>
+                <th>Margin</th>
+                <th>Nilai Stok</th>
+                <th>Supplier</th>
+                <th style={{ textAlign: 'center' }}>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
+                  <i className="fa-solid fa-box-open" style={{ fontSize: 24, marginBottom: 8, display: 'block' }} />
+                  Belum ada produk. Klik "Restock / Tambah" untuk mulai.
+                </td></tr>
+              ) : filtered.map(item => {
+                const margin = item.hargaJual > 0 ? ((item.hargaJual - item.hargaModal) / item.hargaJual * 100).toFixed(0) : 0;
+                const statusColor = item.stokTersedia <= 0 ? 'badge-red' : item.stokTersedia <= 5 ? 'badge-amber' : 'badge-green';
+                return (
+                  <tr key={item.nama_barang}>
+                    <td>
+                      <span style={{ marginRight: 8 }}>{CAT_EMOJI[item.kategori] || '📦'}</span>
+                      <span className="cell-main">{item.nama_barang}</span>
+                    </td>
+                    <td><span className="badge badge-violet">{item.kategori}</span></td>
+                    <td><span className={`badge ${statusColor}`}>{item.stokTersedia} pcs</span></td>
+                    <td className="cell-amount">{formatRp(item.hargaModal)}</td>
+                    <td className="cell-amount cell-violet">{formatRp(item.hargaJual)}</td>
+                    <td><span className={`badge ${parseInt(margin) >= 30 ? 'badge-green' : 'badge-amber'}`}>{margin}%</span></td>
+                    <td className="cell-amount cell-sky">{formatRp(item.hargaModal * item.stokTersedia)}</td>
+                    <td style={{ fontSize: 11 }}>{item.supplierList?.join(', ') || '—'}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(item)} title="Edit / Restock">
+                          <i className="fa-solid fa-pen-to-square" />
+                        </button>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item.nama_barang)} title="Hapus">
+                          <i className="fa-solid fa-trash" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Restock Modal */}
+      {showModal && (
+        <div className="modal-overlay" onClick={e => e.target.classList.contains('modal-overlay') && setShowModal(false)}>
+          <div className="modal">
+            <div className="modal-header">
+              <div className="modal-title">
+                <i className="fa-solid fa-box-archive" style={{ color: 'var(--brand)' }} />
+                {editItem ? `Edit: ${editItem}` : 'Input Restock / Barang Baru'}
+              </div>
+              <button className="modal-close" onClick={() => setShowModal(false)}>
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit}>
+              <div className="modal-body">
+                <div className="form-grid form-grid-2" style={{ marginBottom: 12 }}>
+                  <div className="form-group">
+                    <label className="form-label">Tanggal Pembelian</label>
+                    <input type="date" className="form-input" name="r_date" value={form.r_date} onChange={handleFormChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Nama Supplier</label>
+                    <input type="text" className="form-input" name="r_supplier" value={form.r_supplier} onChange={handleFormChange} placeholder="Grosir Bandung..." />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Nama Barang / Produk</label>
+                  <input type="text" className="form-input" name="r_name" value={form.r_name} onChange={handleFormChange} required placeholder="Gamis Silk Premium..." readOnly={!!editItem} />
+                </div>
+                <div className="form-grid form-grid-2" style={{ marginBottom: 12 }}>
+                  <div className="form-group">
+                    <label className="form-label">Kategori</label>
+                    <select className="form-input" name="r_category" value={form.r_category} onChange={handleFormChange}>
+                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Jumlah Tambah (Qty)</label>
+                    <input type="number" className="form-input" name="r_qty" value={form.r_qty} onChange={handleFormChange} min="0" placeholder="0 = hanya update harga" />
+                  </div>
+                </div>
+                <div className="form-grid form-grid-2">
+                  <div className="form-group">
+                    <label className="form-label">Harga Modal / Unit (Rp)</label>
+                    <input type="number" className="form-input" name="r_cost" value={form.r_cost} onChange={handleFormChange} min="0" placeholder="100000" required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Harga Jual / Unit (Rp)</label>
+                    <input type="number" className="form-input" name="r_price" value={form.r_price} onChange={handleFormChange} min="0" placeholder="150000" required />
+                  </div>
+                </div>
+                {form.r_cost && form.r_price && (
+                  <div style={{ background: 'var(--emerald-dim)', border: '1px solid rgba(5,150,105,.2)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--emerald)' }}>
+                    <i className="fa-solid fa-chart-line" /> Margin:{' '}
+                    <b>{form.r_price > 0 ? (((form.r_price - form.r_cost) / form.r_price) * 100).toFixed(1) : 0}%</b>
+                    {' '} | Laba/unit: <b>{formatRp(form.r_price - form.r_cost)}</b>
+                    {form.r_qty ? <> | Total modal: <b>{formatRp(form.r_cost * form.r_qty)}</b></> : ''}
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Batal</button>
+                <button type="submit" className="btn btn-purple">
+                  <i className="fa-solid fa-floppy-disk" /> Simpan & Sync
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default StokPage;
