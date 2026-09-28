@@ -687,10 +687,11 @@ body {
   .sidebar.open { transform:translateX(0); }
   .sidebar-overlay { display:block; }
   .topbar-menu-btn { display:flex; }
-  .bottom-nav { display:grid; }
-  .page-content { padding:12px; padding-bottom:72px; }
+  .bottom-nav { display:grid; padding-bottom:env(safe-area-inset-bottom); }
+  .page-content { padding:12px; padding-bottom:90px; }
   .pos-layout { grid-template-columns:1fr; height:auto; }
-  .cart-panel { height:auto; max-height:none; }
+  .cart-panel { height:auto; max-height:none; margin-bottom:85px; }
+  .cart-footer { padding-bottom:24px; }
   .stats-grid { grid-template-columns:1fr 1fr; }
   .form-grid-3 { grid-template-columns:1fr 1fr; }
   .form-grid-2 { grid-template-columns:1fr; }
@@ -2037,35 +2038,44 @@ async function pullFromGitHub(manual=false) {
   const token=getToken(), repo=getRepo();
   let remoteData=null;
 
-  // 1. Tarik dari raw github / relative file terlebih dahulu (tanpa token, tidak akan 401)
+  // 1. Tarik via GitHub API Realtime (Bebas dari cache 5 menit raw CDN GitHub)
   if(repo) {
+    try {
+      const headers = { 'Accept': 'application/vnd.github.v3+json' };
+      if(token) headers['Authorization'] = `token ${token}`;
+
+      const res = await fetch(`https://api.github.com/repos/${repo}/contents/github.json?t=${Date.now()}`, { headers });
+      if(res.ok) {
+        const json = await res.json();
+        const binStr = atob(json.content.replace(/\s/g,''));
+        const bytes = Uint8Array.from(binStr, c => c.codePointAt(0));
+        remoteData = JSON.parse(new TextDecoder().decode(bytes));
+      } else if(res.status === 401 && token) {
+        // Jika token di HP invalid/401, coba tarik ulang via Public GET tanpa token
+        const pubRes = await fetch(`https://api.github.com/repos/${repo}/contents/github.json?t=${Date.now()}`, {
+          headers: { 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if(pubRes.ok) {
+          const json = await pubRes.json();
+          const binStr = atob(json.content.replace(/\s/g,''));
+          const bytes = Uint8Array.from(binStr, c => c.codePointAt(0));
+          remoteData = JSON.parse(new TextDecoder().decode(bytes));
+        }
+      }
+    } catch(e) { console.warn('API pull error:', e); }
+  }
+
+  // 2. Fallback jika API limit (HTTP 403): Tarik dari raw github / relative file
+  if(!remoteData && repo) {
     try {
       const rawRes=await fetch(`https://raw.githubusercontent.com/${repo}/main/github.json?t=${Date.now()}`);
       if(rawRes.ok) remoteData=await rawRes.json();
-    } catch(e) {}
-  }
-
-  // 2. Jika raw gagal, coba via GitHub API (menggunakan token jika tersedia)
-  if(!remoteData && token && repo) {
-    try {
-      const res=await fetch(`https://api.github.com/repos/${repo}/contents/github.json?t=${Date.now()}`,{
-        headers:{'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json'}
-      });
-      if(res.ok) {
-        const json=await res.json();
-        const binStr=atob(json.content.replace(/\s/g,''));
-        const bytes=Uint8Array.from(binStr,c=>c.codePointAt(0));
-        remoteData=JSON.parse(new TextDecoder().decode(bytes));
-      }
-    } catch(e) {}
-  }
-
-  // 3. Fallback lokal
-  if(!remoteData) {
-    try {
-      const localRaw=await fetch(`./github.json?t=${Date.now()}`);
-      if(localRaw.ok) remoteData=await localRaw.json();
-    } catch(err){}
+    } catch(e) {
+      try {
+        const localRaw=await fetch(`./github.json?t=${Date.now()}`);
+        if(localRaw.ok) remoteData=await localRaw.json();
+      } catch(err){}
+    }
   }
 
   if(remoteData && Array.isArray(remoteData.stok)) {
