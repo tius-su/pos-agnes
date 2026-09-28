@@ -1,6 +1,6 @@
 {
   "appName": "Agnes Fashion POS",
-  "lastUpdated": "2026-09-28T11:14:12.184Z",
+  "lastUpdated": "2026-09-28T11:14:40.379Z",
   "stok": [
     {
       "nama_barang": "Hijab Voal Premium Curve",
@@ -12,9 +12,30 @@
         "Hijab Center"
       ],
       "lastUpdated": "2026-09-28 12:15:00"
+    },
+    {
+      "nama_barang": "Gamis Silk",
+      "kategori": "Pakaian Wanita",
+      "hargaModal": 85000,
+      "hargaJual": 150000,
+      "stokTersedia": 10,
+      "supplierList": [
+        "Cilla Busana"
+      ]
     }
   ],
   "pembelian": [
+    {
+      "id": 1790594080379,
+      "tanggal": "2026-09-28",
+      "waktu": "18:14:40",
+      "supplier": "Cilla Busana",
+      "barang": "Gamis Silk",
+      "kategori": "Pakaian Wanita",
+      "jumlah": 10,
+      "hargaModal": 85000,
+      "totalModal": 850000
+    },
     {
       "id": 1,
       "tanggal": "2026-09-28",
