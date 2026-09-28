@@ -1,15 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Deteksi apakah sedang di GitHub Actions atau local
-const isGitHubPages = process.env.GITHUB_ACTIONS === 'true';
-// Repo name untuk GitHub Pages base path (ubah sesuai nama repo kamu)
-const repoName = 'pos-agnes'; // sesuai https://tius-su.github.io/pos-agnes/
-
 export default defineConfig({
   plugins: [react()],
-  // Base path: '/' di local, '/pos-agnes/' di GitHub Pages
-  base: isGitHubPages ? `/${repoName}/` : '/',
+  // Base path '/pos-agnes/' untuk GitHub Pages di mode produksi
+  base: process.env.NODE_ENV === 'production' ? '/pos-agnes/' : '/',
   server: {
     port: 3000,
     open: true
