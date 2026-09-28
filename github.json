@@ -1,18 +1,7 @@
 {
   "appName": "Agnes Fashion POS",
-  "lastUpdated": "2026-09-28T11:09:54.933Z",
+  "lastUpdated": "2026-09-28T11:10:10.708Z",
   "stok": [
-    {
-      "nama_barang": "Gamis Elegant Silk Premium",
-      "kategori": "Pakaian Wanita",
-      "hargaModal": 120000,
-      "hargaJual": 185000,
-      "stokTersedia": 15,
-      "supplierList": [
-        "Supplier Silk Utama"
-      ],
-      "lastUpdated": "2026-09-28 10:00:00"
-    },
     {
       "nama_barang": "Kemeja Unisex Linen Casual",
       "kategori": "Pakaian Pria",
