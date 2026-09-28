@@ -59,7 +59,7 @@
       "tanggal": "2026-09-28",
       "waktu": "14:20:00",
       "pelanggan": "Ibu Rahma",
-      "noWa": "6281234567890",
+      "noWa": "6285117021",
       "metodeBayar": "Tunai",
       "items": [
         {
@@ -77,8 +77,8 @@
   ],
   "settings": {
     "storeName": "Agnes Fashion",
-    "storeAddress": "Jl. Raya Fashion No. 88, Bandung",
-    "storePhone": "0812-3456-7890",
+    "storeAddress": "Pasar Baru Cikarang Blok C",
+    "storePhone": "0851-1702-1168",
     "receiptFooter": "Terima Kasih Telah Berbelanja di Agnes Fashion! Barang yang sudah dibeli tidak dapat ditukar."
   }
 }
