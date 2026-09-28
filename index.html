@@ -1589,7 +1589,12 @@ function handleRestock(e) {
   else appData.stok.push({ nama_barang:name, kategori:category, hargaModal:cost, hargaJual:price, stokTersedia:qty, supplierList:[supplier] });
 
   saveLocal(); syncToGitHub(); closeModal('modal-restock'); renderStokTable(); renderPosCatalog();
-  alert('✅ Restock berhasil disimpan!');
+  const token = getToken();
+  if(!token) {
+    alert('✅ Restock berhasil disimpan di perangkat ini!\n\n⚠️ PERHATIAN (Multi-Device):\nToken GitHub di menu Pengaturan belum diisi, sehingga stok baru ini BELUM ter-upload ke server GitHub.\n\nAgar stok ini muncul di HP/perangkat lain:\n1. Masuk ke menu Pengaturan & Sinkronisasi\n2. Isi Token GitHub dan Klik Simpan\n3. Atau gunakan tombol "Unduh github.json" lalu Import di HP.');
+  } else {
+    alert('✅ Restock berhasil disimpan dan otomatis di-sync ke GitHub!');
+  }
 }
 
 function editStok(enc) {
