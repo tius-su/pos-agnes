@@ -1,6 +1,6 @@
 {
   "appName": "Agnes Fashion POS",
-  "lastUpdated": "2026-09-28T17:00:00.000Z",
+  "lastUpdated": "2026-09-28T10:53:25.001Z",
   "stok": [
     {
       "nama_barang": "Gamis Elegant Silk Premium",
@@ -8,7 +8,9 @@
       "hargaModal": 120000,
       "hargaJual": 185000,
       "stokTersedia": 15,
-      "supplierList": ["Supplier Silk Utama"],
+      "supplierList": [
+        "Supplier Silk Utama"
+      ],
       "lastUpdated": "2026-09-28 10:00:00"
     },
     {
@@ -17,7 +19,9 @@
       "hargaModal": 85000,
       "hargaJual": 135000,
       "stokTersedia": 24,
-      "supplierList": ["Konveksi Bandung"],
+      "supplierList": [
+        "Konveksi Bandung"
+      ],
       "lastUpdated": "2026-09-28 11:30:00"
     },
     {
@@ -26,7 +30,9 @@
       "hargaModal": 25000,
       "hargaJual": 45000,
       "stokTersedia": 50,
-      "supplierList": ["Hijab Center"],
+      "supplierList": [
+        "Hijab Center"
+      ],
       "lastUpdated": "2026-09-28 12:15:00"
     }
   ],
