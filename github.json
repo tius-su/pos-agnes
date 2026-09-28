@@ -1,6 +1,6 @@
 {
   "appName": "Agnes Fashion POS",
-  "lastUpdated": "2026-09-28T10:53:28.260Z",
+  "lastUpdated": "2026-09-28T10:53:53.930Z",
   "stok": [
     {
       "nama_barang": "Gamis Elegant Silk Premium",
@@ -34,9 +34,30 @@
         "Hijab Center"
       ],
       "lastUpdated": "2026-09-28 12:15:00"
+    },
+    {
+      "nama_barang": "Gamis Silk",
+      "kategori": "Pakaian Wanita",
+      "hargaModal": 85000,
+      "hargaJual": 150000,
+      "stokTersedia": 10,
+      "supplierList": [
+        "Cilla Busana"
+      ]
     }
   ],
   "pembelian": [
+    {
+      "id": 1790592833930,
+      "tanggal": "2026-09-28",
+      "waktu": "17:53:53",
+      "supplier": "Cilla Busana",
+      "barang": "Gamis Silk",
+      "kategori": "Pakaian Wanita",
+      "jumlah": 10,
+      "hargaModal": 85000,
+      "totalModal": 850000
+    },
     {
       "id": 1,
       "tanggal": "2026-09-28",
