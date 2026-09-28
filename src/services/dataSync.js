@@ -10,90 +10,9 @@ const DEFAULT_TOKEN = import.meta.env.VITE_GITHUB_TOKEN || '';
 export const INITIAL_DATA = {
   appName: 'Agnes Fashion POS',
   lastUpdated: new Date().toISOString(),
-  stok: [
-    {
-      nama_barang: 'Gamis Silk',
-      kategori: 'Pakaian Wanita',
-      hargaModal: 85000,
-      hargaJual: 150000,
-      stokTersedia: 10,
-      supplierList: ['Cilla Busana']
-    },
-    {
-      nama_barang: 'Gamis Elegant Silk Premium',
-      kategori: 'Pakaian Wanita',
-      hargaModal: 120000,
-      hargaJual: 185000,
-      stokTersedia: 15,
-      supplierList: ['Supplier Silk Utama']
-    },
-    {
-      nama_barang: 'Kemeja Unisex Linen Casual',
-      kategori: 'Pakaian Pria',
-      hargaModal: 85000,
-      hargaJual: 135000,
-      stokTersedia: 24,
-      supplierList: ['Konveksi Bandung']
-    }
-  ],
-  pembelian: [
-    {
-      id: 1790594080379,
-      tanggal: '2026-09-28',
-      waktu: '18:14:40',
-      supplier: 'Cilla Busana',
-      barang: 'Gamis Silk',
-      kategori: 'Pakaian Wanita',
-      jumlah: 10,
-      hargaModal: 85000,
-      totalModal: 850000
-    },
-    {
-      id: 1,
-      tanggal: '2026-09-28',
-      waktu: '10:00:00',
-      supplier: 'Supplier Silk Utama',
-      barang: 'Gamis Elegant Silk Premium',
-      kategori: 'Pakaian Wanita',
-      jumlah: 15,
-      hargaModal: 120000,
-      totalModal: 1800000
-    },
-    {
-      id: 2,
-      tanggal: '2026-09-28',
-      waktu: '11:30:00',
-      supplier: 'Konveksi Bandung',
-      barang: 'Kemeja Unisex Linen Casual',
-      kategori: 'Pakaian Pria',
-      jumlah: 24,
-      hargaModal: 85000,
-      totalModal: 2040000
-    }
-  ],
-  penjualan: [
-    {
-      id: 1,
-      kodeTrx: 'TRX-882101',
-      tanggal: '2026-09-28',
-      waktu: '14:20:00',
-      pelanggan: 'Ibu Rahma',
-      noWa: '6285117021',
-      metodeBayar: 'Tunai',
-      items: [
-        {
-          barang: 'Gamis Elegant Silk Premium',
-          jumlah: 1,
-          hargaModal: 120000,
-          hargaJual: 185000,
-          subtotal: 185000
-        }
-      ],
-      totalPenjualan: 185000,
-      totalModal: 120000,
-      laba: 65000
-    }
-  ],
+  stok: [],
+  pembelian: [],
+  penjualan: [],
   settings: {
     storeName: 'Agnes Fashion',
     storeAddress: 'Pasar Baru Cikarang Blok C',
