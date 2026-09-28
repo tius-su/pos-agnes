@@ -688,8 +688,8 @@
         });
 
         function initApp() {
-            // Load Settings & GitHub Token
-            const savedToken = localStorage.getItem('agnes_gh_token') || DEFAULT_TOKEN;
+            // Load Settings & GitHub Token from localStorage
+            const savedToken = localStorage.getItem('agnes_gh_token') || '';
             const savedRepo = localStorage.getItem('agnes_gh_repo') || DEFAULT_REPO;
             document.getElementById('gh-token-input').value = savedToken;
             document.getElementById('gh-repo-input').value = savedRepo;
