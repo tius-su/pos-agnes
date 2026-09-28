@@ -1,18 +1,7 @@
 {
   "appName": "Agnes Fashion POS",
-  "lastUpdated": "2026-09-28T11:14:10.456Z",
+  "lastUpdated": "2026-09-28T11:14:12.184Z",
   "stok": [
-    {
-      "nama_barang": "Kemeja Unisex Linen Casual",
-      "kategori": "Pakaian Pria",
-      "hargaModal": 85000,
-      "hargaJual": 135000,
-      "stokTersedia": 24,
-      "supplierList": [
-        "Konveksi Bandung"
-      ],
-      "lastUpdated": "2026-09-28 11:30:00"
-    },
     {
       "nama_barang": "Hijab Voal Premium Curve",
       "kategori": "Aksesoris",
