@@ -10,7 +10,12 @@ const LoginPage = () => {
     setError('');
     const { error: err } = await loginWithGoogle();
     if (err) {
-      setError('Login gagal. Coba lagi.');
+      console.error("Google Auth Error:", err);
+      if (err.code === 'auth/unauthorized-domain' || err.message?.includes('unauthorized-domain')) {
+        setError('Domain (tius-su.github.io) belum didaftarkan di Firebase Console. Silakan tambahkan tius-su.github.io di Firebase -> Authentication -> Settings -> Authorized Domains.');
+      } else {
+        setError(err.message || 'Login gagal. Coba lagi.');
+      }
       setLoading(false);
     }
   };
