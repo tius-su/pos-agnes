@@ -1082,7 +1082,7 @@ body {
               </div>
               <div class="form-group">
                 <label class="form-label">Alamat Toko</label>
-                <input type="text" class="form-input" id="store-address" placeholder="Jl. Raya Fashion No. 88, Bandung">
+                <input type="text" class="form-input" id="store-address" placeholder="">
               </div>
               <div class="form-group">
                 <label class="form-label">Pesan Footer Struk</label>
@@ -1235,7 +1235,6 @@ body {
 'use strict';
 
 const REPO          = 'tius-su/pos-agnes';
-const DEFAULT_TOKEN = atob('Z2hwX09MVk1KSGlwNTlJVnJFWFVCQzlnZ3VOSVBKQjI4M1VJUEtI');
 const TOKEN_KEY     = 'agnes_token';
 const REPO_KEY      = 'agnes_repo';
 const DATA_KEY      = 'agnes_data';
@@ -1281,7 +1280,7 @@ function loadLocal()  { try { const r = localStorage.getItem(DATA_KEY); if(r) ap
 function saveLocal()  { appData.lastUpdated = new Date().toISOString(); localStorage.setItem(DATA_KEY, JSON.stringify(appData)); }
 
 function initSettingsUI() {
-  document.getElementById('gh-token').value      = localStorage.getItem(TOKEN_KEY) || DEFAULT_TOKEN;
+  document.getElementById('gh-token').value      = localStorage.getItem(TOKEN_KEY) || '';
   document.getElementById('gh-repo').value       = localStorage.getItem(REPO_KEY)  || REPO;
   document.getElementById('store-name').value    = appData.settings.storeName    || '';
   document.getElementById('store-address').value = appData.settings.storeAddress || '';
@@ -1345,7 +1344,7 @@ function closeSidebar() {
 
 /* ============================================================ HELPERS ============================================================ */
 const formatRp = v => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(v||0);
-function getToken() { return localStorage.getItem(TOKEN_KEY) || DEFAULT_TOKEN; }
+function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
 function getRepo()  { return localStorage.getItem(REPO_KEY)||REPO; }
 function openModal(id)  { document.getElementById(id).classList.add('show'); }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
@@ -1933,29 +1932,58 @@ function setSyncUI(state) {
 
 async function syncToGitHub(manual=false) {
   const token=getToken(), repo=getRepo();
-  if(!token) { if(manual) alert('⚠️ Token GitHub belum diisi. Masukkan di menu Pengaturan.'); return; }
+  if(!token) {
+    setSyncUI('error');
+    if(manual) alert('⚠️ Token GitHub belum diisi. Masukkan Personal Access Token di menu Pengaturan.');
+    return;
+  }
   setSyncUI('syncing'); saveLocal();
   try {
     const url=`https://api.github.com/repos/${repo}/contents/github.json`;
     let sha=null;
     const getRes=await fetch(url,{headers:{'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json'}});
+    if(getRes.status===401) {
+      throw new Error('Token GitHub tidak valid atau telah dicabut (401 Unauthorized). Buat token baru di GitHub.');
+    }
     if(getRes.ok) { const j=await getRes.json(); sha=j.sha; }
+
     const bytes=new TextEncoder().encode(JSON.stringify(appData,null,2));
     const b64=btoa(Array.from(bytes,b=>String.fromCharCode(b)).join(''));
     const body={message:`Agnes Fashion POS sync (${new Date().toLocaleString('id-ID')})`,content:b64,branch:'main'};
     if(sha) body.sha=sha;
+
     const putRes=await fetch(url,{method:'PUT',headers:{'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(body)});
-    if(putRes.ok) { setSyncUI('ok'); if(manual) alert('✅ Data berhasil di-sync ke GitHub!'); }
-    else { const err=await putRes.json(); throw new Error(err.message||'GitHub API Error'); }
-  } catch(err) { console.warn('Sync error:',err); setSyncUI('error'); if(manual) alert('❌ Gagal sync ke GitHub:\n'+err.message); }
+    if(putRes.ok) {
+      setSyncUI('ok');
+      if(manual) alert('✅ Data berhasil di-sync ke GitHub!');
+    } else {
+      const err=await putRes.json();
+      if(putRes.status===401) {
+        throw new Error('Token GitHub tidak valid (401 Unauthorized). Silakan buat token (Classic) baru di GitHub.');
+      }
+      throw new Error(err.message||'GitHub API Error');
+    }
+  } catch(err) {
+    console.warn('Sync error:',err);
+    setSyncUI('error');
+    if(manual) alert('❌ Gagal sync ke GitHub:\n'+err.message);
+  }
 }
 
 async function pullFromGitHub(manual=false) {
   const token=getToken(), repo=getRepo();
   let remoteData=null;
 
-  // 1. Coba tarik via GitHub API
-  if(token && repo) {
+  // 1. Tarik dari raw github / relative file terlebih dahulu (tanpa token, tidak akan 401)
+  if(repo) {
+    try {
+      const rawRes=await fetch(`https://raw.githubusercontent.com/${repo}/main/github.json?t=${Date.now()}`);
+      if(rawRes.ok) remoteData=await rawRes.json();
+    } catch(e) {}
+  }
+
+  // 2. Jika raw gagal, coba via GitHub API (menggunakan token jika tersedia)
+  if(!remoteData && token && repo) {
     try {
       const res=await fetch(`https://api.github.com/repos/${repo}/contents/github.json?t=${Date.now()}`,{
         headers:{'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json'}
@@ -1966,24 +1994,18 @@ async function pullFromGitHub(manual=false) {
         const bytes=Uint8Array.from(binStr,c=>c.codePointAt(0));
         remoteData=JSON.parse(new TextDecoder().decode(bytes));
       }
-    } catch(e) { console.warn('API pull failed:', e); }
+    } catch(e) {}
   }
 
-  // 2. Fallback: tarik dari raw github / relative file jika API bermasalah atau tanpa token
-  if(!remoteData && repo) {
+  // 3. Fallback lokal
+  if(!remoteData) {
     try {
-      const rawRes=await fetch(`https://raw.githubusercontent.com/${repo}/main/github.json?t=${Date.now()}`);
-      if(rawRes.ok) { remoteData=await rawRes.json(); }
-    } catch(e) {
-      try {
-        const localRaw=await fetch(`./github.json?t=${Date.now()}`);
-        if(localRaw.ok) remoteData=await localRaw.json();
-      } catch(err){}
-    }
+      const localRaw=await fetch(`./github.json?t=${Date.now()}`);
+      if(localRaw.ok) remoteData=await localRaw.json();
+    } catch(err){}
   }
 
   if(remoteData && Array.isArray(remoteData.stok)) {
-    // Hindari render ulang berlebihan jika data tidak berubah
     const isNewData = JSON.stringify(appData) !== JSON.stringify(remoteData);
     appData = remoteData;
     saveLocal();
@@ -1992,7 +2014,7 @@ async function pullFromGitHub(manual=false) {
       renderAll();
     }
     setSyncUI('ok');
-    if(manual) alert('✅ Data terbaru berhasil ditarik dari GitHub!');
+    if(manual) alert('✅ Data terbaru berhasil ditarik!');
   } else if(manual) {
     alert('⚠️ Tidak dapat terhubung ke GitHub. Menggunakan data lokal.');
   }
