@@ -1,0 +1,84 @@
+{
+  "appName": "Agnes Fashion POS",
+  "lastUpdated": "2026-09-28T17:00:00.000Z",
+  "stok": [
+    {
+      "nama_barang": "Gamis Elegant Silk Premium",
+      "kategori": "Pakaian Wanita",
+      "hargaModal": 120000,
+      "hargaJual": 185000,
+      "stokTersedia": 15,
+      "supplierList": ["Supplier Silk Utama"],
+      "lastUpdated": "2026-09-28 10:00:00"
+    },
+    {
+      "nama_barang": "Kemeja Unisex Linen Casual",
+      "kategori": "Pakaian Pria",
+      "hargaModal": 85000,
+      "hargaJual": 135000,
+      "stokTersedia": 24,
+      "supplierList": ["Konveksi Bandung"],
+      "lastUpdated": "2026-09-28 11:30:00"
+    },
+    {
+      "nama_barang": "Hijab Voal Premium Curve",
+      "kategori": "Aksesoris",
+      "hargaModal": 25000,
+      "hargaJual": 45000,
+      "stokTersedia": 50,
+      "supplierList": ["Hijab Center"],
+      "lastUpdated": "2026-09-28 12:15:00"
+    }
+  ],
+  "pembelian": [
+    {
+      "id": 1,
+      "tanggal": "2026-09-28",
+      "waktu": "10:00:00",
+      "supplier": "Supplier Silk Utama",
+      "barang": "Gamis Elegant Silk Premium",
+      "jumlah": 15,
+      "hargaModal": 120000,
+      "totalModal": 1800000
+    },
+    {
+      "id": 2,
+      "tanggal": "2026-09-28",
+      "waktu": "11:30:00",
+      "supplier": "Konveksi Bandung",
+      "barang": "Kemeja Unisex Linen Casual",
+      "jumlah": 24,
+      "hargaModal": 85000,
+      "totalModal": 2040000
+    }
+  ],
+  "penjualan": [
+    {
+      "id": 1,
+      "kodeTrx": "TRX-882101",
+      "tanggal": "2026-09-28",
+      "waktu": "14:20:00",
+      "pelanggan": "Ibu Rahma",
+      "noWa": "6281234567890",
+      "metodeBayar": "Tunai",
+      "items": [
+        {
+          "barang": "Gamis Elegant Silk Premium",
+          "jumlah": 1,
+          "hargaModal": 120000,
+          "hargaJual": 185000,
+          "subtotal": 185000
+        }
+      ],
+      "totalPenjualan": 185000,
+      "totalModal": 120000,
+      "laba": 65000
+    }
+  ],
+  "settings": {
+    "storeName": "Agnes Fashion",
+    "storeAddress": "Jl. Raya Fashion No. 88, Bandung",
+    "storePhone": "0812-3456-7890",
+    "receiptFooter": "Terima Kasih Telah Berbelanja di Agnes Fashion! Barang yang sudah dibeli tidak dapat ditukar."
+  }
+}
