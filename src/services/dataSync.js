@@ -131,7 +131,6 @@ export const subscribeToFirebaseCloud = (onDataReceived) => {
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const cloudData = docSnap.data();
-        saveLocalData(cloudData);
         onDataReceived(cloudData);
       }
     }, (error) => {
@@ -182,7 +181,6 @@ export const pullFromGitHub = async () => {
     const fileMeta = await res.json();
     const contentUtf8 = decodeURIComponent(escape(atob(fileMeta.content.replace(/\n/g, ''))));
     const data = JSON.parse(contentUtf8);
-    saveLocalData(data);
     return { success: true, data, sha: fileMeta.sha };
   } catch (e) {
     console.warn("GitHub Pull failed, using local/firebase cache", e.message);

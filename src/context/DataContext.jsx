@@ -29,14 +29,20 @@ export const DataProvider = ({ children }) => {
     setSyncStatus('ok');
   }, []);
 
-  // Subscribe to Firebase realtime
+  // Subscribe to Firebase & pull GitHub safely using timestamp comparison
   useEffect(() => {
     setSyncStatus('syncing');
     const unsub = subscribeToFirebaseCloud((cloudData) => {
-      if (cloudData && cloudData.stok && cloudData.stok.length > 0) {
+      if (cloudData && cloudData.stok) {
         setAppData(prev => {
-          const merged = saveLocalData({ ...prev, ...cloudData });
-          return merged;
+          const localTime = new Date(prev.lastUpdated || 0).getTime();
+          const cloudTime = new Date(cloudData.lastUpdated || 0).getTime();
+          // Only accept cloud data if it is newer or equal to local data
+          if (cloudTime >= localTime) {
+            const saved = saveLocalData(cloudData);
+            return saved;
+          }
+          return prev;
         });
         setLastSync(new Date());
         setSyncStatus('ok');
@@ -44,12 +50,13 @@ export const DataProvider = ({ children }) => {
     });
     unsubRef.current = unsub;
 
-    // Pull from GitHub fallback safely
+    // Pull from GitHub fallback safely (ONLY if GitHub has newer timestamp)
     pullFromGitHub().then(({ success, data }) => {
-      if (success && data && data.stok && data.stok.length > 0) {
+      if (success && data && data.stok) {
         setAppData(prev => {
-          // Only use GitHub data if local has less items or GitHub has newer timestamp
-          if (!prev.stok || prev.stok.length <= data.stok.length) {
+          const localTime = new Date(prev.lastUpdated || 0).getTime();
+          const ghTime = new Date(data.lastUpdated || 0).getTime();
+          if (ghTime > localTime) {
             const saved = saveLocalData(data);
             return saved;
           }
@@ -58,7 +65,7 @@ export const DataProvider = ({ children }) => {
         setLastSync(new Date());
         setSyncStatus('ok');
       } else {
-        setSyncStatus('ok'); // keep ok for local mode
+        setSyncStatus('ok');
       }
     });
 
@@ -86,7 +93,7 @@ export const DataProvider = ({ children }) => {
       setSyncStatus('ok');
       setLastSync(new Date());
     } else {
-      setSyncStatus('ok'); // local mode is healthy
+      setSyncStatus('ok'); // Local data is permanently saved
     }
 
     return saved;
