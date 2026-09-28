@@ -1093,12 +1093,18 @@ body {
           </div>
 
           <div class="card">
-            <div class="card-header"><div class="card-title"><i class="fa-solid fa-database"></i> Backup Data</div></div>
+            <div class="card-header"><div class="card-title"><i class="fa-solid fa-database"></i> Backup & Restore Data</div></div>
             <div class="card-body">
-              <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Unduh salinan lengkap data toko dalam format JSON.</p>
-              <button class="btn btn-ghost" onclick="downloadBackup()">
-                <i class="fa-solid fa-download" style="color:var(--emerald)"></i> Unduh github.json
-              </button>
+              <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Unduh atau pulihkan salinan lengkap data toko (github.json).</p>
+              <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <button class="btn btn-ghost" onclick="downloadBackup()">
+                  <i class="fa-solid fa-download" style="color:var(--emerald)"></i> Unduh github.json
+                </button>
+                <label class="btn btn-ghost" style="cursor:pointer;margin:0">
+                  <i class="fa-solid fa-upload" style="color:var(--sky)"></i> Import github.json
+                  <input type="file" accept=".json" onchange="restoreBackup(event)" style="display:none">
+                </label>
+              </div>
             </div>
           </div>
 
@@ -1908,6 +1914,29 @@ function downloadBackup() {
   a.setAttribute('download','github.json'); a.click();
 }
 
+function restoreBackup(e) {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    try {
+      const data = JSON.parse(evt.target.result);
+      if(data && Array.isArray(data.stok)) {
+        appData = data;
+        saveLocal();
+        renderAll();
+        syncToGitHub();
+        alert('✅ Data github.json berhasil dipulihkan!');
+      } else {
+        alert('❌ Format file JSON tidak valid.');
+      }
+    } catch(err) {
+      alert('❌ Gagal membaca file JSON: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
 /* ============================================================ GITHUB SYNC ============================================================ */
 function setSyncUI(state) {
   const dot=document.getElementById('sync-dot'), lm=document.getElementById('sync-label-main'), ls=document.getElementById('sync-label-sub');
@@ -2006,15 +2035,26 @@ async function pullFromGitHub(manual=false) {
   }
 
   if(remoteData && Array.isArray(remoteData.stok)) {
-    const isNewData = JSON.stringify(appData) !== JSON.stringify(remoteData);
-    appData = remoteData;
-    saveLocal();
-    initSettingsUI();
-    if(isNewData || manual) {
+    const remoteTime = remoteData.lastUpdated ? new Date(remoteData.lastUpdated).getTime() : 0;
+    const localTime  = appData.lastUpdated ? new Date(appData.lastUpdated).getTime() : 0;
+
+    // Hanya timpa data lokal jika data di GitHub BENAR-BENAR LEBIH BARU daripada data di perangkat ini
+    if (remoteTime > localTime || (!appData.stok || appData.stok.length === 0)) {
+      appData = remoteData;
+      saveLocal();
+      initSettingsUI();
       renderAll();
+      setSyncUI('ok');
+      if(manual) alert('✅ Data terbaru berhasil ditarik dari GitHub!');
+    } else if (localTime > remoteTime) {
+      // Data di perangkat lokal lebih baru daripada di GitHub (misal baru tambah stok)
+      console.log('Data lokal lebih baru dari GitHub. Mengabaikan data remote lama.');
+      setSyncUI('ok');
+      if(manual) alert('✅ Data di perangkat Anda sudah yang paling baru.');
+    } else {
+      setSyncUI('ok');
+      if(manual) alert('✅ Data sudah sinkron.');
     }
-    setSyncUI('ok');
-    if(manual) alert('✅ Data terbaru berhasil ditarik!');
   } else if(manual) {
     alert('⚠️ Tidak dapat terhubung ke GitHub. Menggunakan data lokal.');
   }
