@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agnes-fashion-pos-v1';
+const CACHE_NAME = 'agnes-fashion-pos-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -6,18 +6,17 @@ const ASSETS_TO_CACHE = [
   './github.json',
   './icon-192.png',
   './icon-512.png',
-  'https://cdn.tailwindcss.com',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
+  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap'
 ];
 
-// Install Event
+// Install Event - Safe Caching via Promise.allSettled
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Caching App Shell');
-      return cache.addAll(ASSETS_TO_CACHE).catch(err => {
-        console.warn('[SW] Caching warning (some remote assets may fetch dynamically):', err);
-      });
+      return Promise.allSettled(
+        ASSETS_TO_CACHE.map(url => cache.add(url).catch(err => console.warn('[SW] Failed caching asset:', url, err)))
+      );
     })
   );
   self.skipWaiting();
