@@ -1060,7 +1060,8 @@ body {
               <div class="flex items-center gap-8 flex-wrap">
                 <button class="btn btn-purple" onclick="saveGithubSettings()"><i class="fa-solid fa-floppy-disk"></i> Simpan Token</button>
                 <button class="btn btn-green"  onclick="syncToGitHub(true)"><i class="fa-solid fa-cloud-arrow-up"></i> Push ke GitHub</button>
-                <button class="btn btn-ghost"  onclick="pullFromGitHub()"><i class="fa-solid fa-cloud-arrow-down"></i> Pull dari GitHub</button>
+                <button class="btn btn-ghost"  onclick="pullFromGitHub(true)"><i class="fa-solid fa-cloud-arrow-down"></i> Pull dari GitHub</button>
+                <button class="btn btn-ghost"  onclick="copyAutoSetupLink()" title="Salin link setup otomatis untuk HP"><i class="fa-solid fa-qrcode" style="color:var(--brand)"></i> Salin Link Setup HP</button>
               </div>
             </div>
           </div>
@@ -1256,6 +1257,18 @@ let filteredSalesCache = [], filteredBuyCache = [];
 
 /* ============================================================ INIT ============================================================ */
 document.addEventListener('DOMContentLoaded', () => {
+  // 1-Click Auto Config token dari URL query (?token=...&repo=...)
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlToken  = urlParams.get('token');
+    const urlRepo   = urlParams.get('repo');
+    if (urlToken) {
+      localStorage.setItem(TOKEN_KEY, urlToken.trim());
+      if (urlRepo) localStorage.setItem(REPO_KEY, urlRepo.trim());
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  } catch(e) {}
+
   loadLocal();
   initSettingsUI();
   setNowDatetime();
@@ -1903,6 +1916,22 @@ function saveGithubSettings() {
   if(!t||!r) { alert('Token dan repository tidak boleh kosong!'); return; }
   localStorage.setItem(TOKEN_KEY,t); localStorage.setItem(REPO_KEY,r);
   alert('✅ Konfigurasi GitHub berhasil disimpan!'); syncToGitHub(true);
+}
+
+function copyAutoSetupLink() {
+  const token = getToken();
+  if(!token) { alert('⚠️ Silakan isi dan simpan Token GitHub terlebih dahulu.'); return; }
+  const repo = getRepo();
+  const url  = `${window.location.origin}${window.location.pathname}?token=${encodeURIComponent(token)}&repo=${encodeURIComponent(repo)}`;
+  if(navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      alert('✅ Link Auto-Setup berhasil disalin!\n\nKirimkan link ini ke HP Anda (via WhatsApp).\nSaat link dibuka di HP, HP akan OTOMATIS terhubung ke GitHub tanpa perlu mengetik token lagi!');
+    }).catch(() => {
+      prompt('Salin link ini dan buka di HP Anda:', url);
+    });
+  } else {
+    prompt('Salin link ini dan buka di HP Anda:', url);
+  }
 }
 
 function saveStoreSettings() {
