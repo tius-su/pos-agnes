@@ -105,10 +105,19 @@ const StokPage = () => {
     setShowModal(false);
   };
 
-  const handleDelete = async (name) => {
-    if (!confirm(`Hapus produk "${name}"? Riwayat penjualan tetap tersimpan.`)) return;
-    const newStok = appData.stok.filter(s => s.nama_barang !== name);
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState(null);
+
+  const confirmDelete = (name) => {
+    setDeleteConfirmItem(name);
+  };
+
+  const executeDelete = async () => {
+    if (!deleteConfirmItem) return;
+    const name = deleteConfirmItem;
+    const newStok = (appData.stok || []).filter(s => s.nama_barang !== name);
     await saveAndSync({ ...appData, stok: newStok });
+    toast(`Produk "${name}" berhasil dihapus`, 'success');
+    setDeleteConfirmItem(null);
   };
 
   // Summary stats
@@ -218,7 +227,7 @@ const StokPage = () => {
                         <button className="btn btn-ghost btn-sm" onClick={() => openEdit(item)} title="Edit / Restock">
                           <i className="fa-solid fa-pen-to-square" />
                         </button>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item.nama_barang)} title="Hapus">
+                        <button className="btn btn-danger btn-sm" onClick={() => confirmDelete(item.nama_barang)} title="Hapus Barang">
                           <i className="fa-solid fa-trash" />
                         </button>
                       </div>
@@ -298,6 +307,38 @@ const StokPage = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Delete Confirmation Modal */}
+      {deleteConfirmItem && (
+        <div className="modal-overlay" onClick={e => e.target.classList.contains('modal-overlay') && setDeleteConfirmItem(null)}>
+          <div className="modal" style={{ maxWidth: 420 }}>
+            <div className="modal-header">
+              <div className="modal-title" style={{ color: 'var(--rose)' }}>
+                <i className="fa-solid fa-triangle-exclamation" /> Konfirmasi Hapus Produk
+              </div>
+              <button className="modal-close" onClick={() => setDeleteConfirmItem(null)}>
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: 14, color: 'var(--text-main)', marginBottom: 12 }}>
+                Apakah Anda yakin ingin menghapus produk <b style={{ color: 'var(--brand-light)' }}>"{deleteConfirmItem}"</b> dari daftar stok barang?
+              </p>
+              <div style={{ background: 'var(--rose-dim)', border: '1px solid rgba(225,29,72,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'var(--rose)' }}>
+                <i className="fa-solid fa-shield-halved" /> <b>Catatan:</b> Produk akan dihapus dari katalog stok. Riwayat penjualan barang ini di Laporan Keuangan akan tetap tersimpan aman.
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-ghost" onClick={() => setDeleteConfirmItem(null)}>
+                Batal
+              </button>
+              <button type="button" className="btn btn-danger" onClick={executeDelete} id="btn-confirm-delete">
+                <i className="fa-solid fa-trash" /> Ya, Hapus Produk
+              </button>
+            </div>
           </div>
         </div>
       )}
