@@ -53,7 +53,7 @@ export const normalizeItem = (item) => {
 };
 
 export const normalizeAppData = (data) => {
-  if (!data || typeof data !== 'object') return null;
+  if (!data || typeof data !== 'object') return normalizeAppData(INITIAL_DATA);
 
   let rawStok = [];
   if (Array.isArray(data.stok)) {
@@ -76,6 +76,11 @@ export const normalizeAppData = (data) => {
     rawStok = data.inventory;
   } else if (data.inventory && typeof data.inventory === 'object') {
     rawStok = Object.values(data.inventory);
+  }
+
+  // Jika stok kosong, gunakan SAMPLE_STOK agar katalog kasir & stok selalu terisi
+  if (rawStok.length === 0) {
+    rawStok = SAMPLE_STOK;
   }
 
   let rawPenjualan = [];

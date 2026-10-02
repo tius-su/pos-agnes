@@ -1,9 +1,8 @@
-const CACHE_NAME = 'agnes-fashion-pos-v3';
+const CACHE_NAME = 'agnes-fashion-pos-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
-  './github.json',
   './icon-192.png',
   './icon-512.png',
   './assets/icon-192.png',

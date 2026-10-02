@@ -88,9 +88,6 @@ export const DataProvider = ({ children }) => {
       toast('✅ Tersimpan lokal (offline mode)', 'info');
     }
 
-    // 3. Backup ke GitHub secara background
-    pushToGitHub(saved).catch(err => console.warn('[GitHub] Backup error:', err));
-
     return saved;
   }, [toast]);
 

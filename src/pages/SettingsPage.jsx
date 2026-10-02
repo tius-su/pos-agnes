@@ -120,70 +120,48 @@ const SettingsPage = () => {
     <div className="tab-page active fade-up">
       <div style={{ maxWidth: 700, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-        {/* GitHub Sync */}
+        {/* Firebase Sync — DATABASE UTAMA */}
         <div className="card">
           <div className="card-header">
-            <div className="card-title"><i className="fa-brands fa-github" /> Integrasi GitHub Cloud</div>
-            <span className="badge badge-green">
-              <i className="fa-solid fa-circle" style={{ fontSize: 7 }} /> Terhubung
-            </span>
+            <div className="card-title"><i className="fa-solid fa-fire" style={{ color: '#f97316' }} /> Firebase Cloud Database (Database Utama)</div>
+            <span className="badge badge-green">Realtime Active</span>
           </div>
           <div className="card-body">
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
-              Data tersimpan otomatis di file{' '}
-              <code style={{ background: 'var(--brand-dim)', color: 'var(--brand)', padding: '2px 6px', borderRadius: 4, fontSize: 11 }}>github.json</code>{' '}
-              pada repo{' '}
-              <a href={`https://github.com/${ghRepo}`} target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', textDecoration: 'none' }}>
-                <b>github.com/{ghRepo}</b>
-              </a>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              Seluruh data stok, transaksi penjualan, dan laporan disinkronkan secara <b>realtime</b> ke Firebase Firestore Cloud.
             </p>
-            <div className="form-grid form-grid-2" style={{ marginBottom: 12 }}>
-              <div className="form-group">
-                <label className="form-label">Personal Access Token</label>
-                <input type="password" className="form-input" value={ghToken} onChange={e => setGhToken(e.target.value)} placeholder="github_pat_... atau ghp_..." id="gh-token" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Repository (owner/repo)</label>
-                <input type="text" className="form-input" value={ghRepo} onChange={e => setGhRepo(e.target.value)} id="gh-repo" />
-              </div>
+            <div style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', marginBottom: 16, fontSize: 12 }}>
+              <div style={{ marginBottom: 4 }}><b>Project ID:</b> <code style={{ color: 'var(--brand)', fontWeight: 700 }}>agnes-pos</code></div>
+              <div><b>Auth Domain:</b> <code style={{ color: 'var(--brand)', fontWeight: 700 }}>agnes-pos.firebaseapp.com</code></div>
             </div>
             <div className="flex items-center gap-8 flex-wrap">
-              <button className="btn btn-purple" onClick={saveGH}>
-                <i className="fa-solid fa-floppy-disk" /> Simpan Token
+              <button className="btn btn-purple" onClick={pushFirebase} disabled={syncing}>
+                {syncing ? <><i className="fa-solid fa-circle-notch animate-spin" /> Menyimpan...</>
+                  : <><i className="fa-solid fa-fire" /> Sync Data ke Firebase Cloud</>}
               </button>
-              <button className="btn btn-green" onClick={pushGH} disabled={syncing}>
-                {syncing ? <><i className="fa-solid fa-circle-notch animate-spin" /> Pushing...</>
-                  : <><i className="fa-solid fa-cloud-arrow-up" /> Push ke GitHub</>}
-              </button>
-              <button className="btn btn-ghost" onClick={pullGH} disabled={pulling}>
-                {pulling ? <><i className="fa-solid fa-circle-notch animate-spin" /> Pulling...</>
-                  : <><i className="fa-solid fa-cloud-arrow-down" /> Pull dari GitHub</>}
-              </button>
-              <button className="btn btn-ghost" onClick={copySetupLink} title="Salin link setup untuk HP">
-                <i className="fa-solid fa-qrcode" style={{ color: 'var(--brand)' }} /> Salin Link HP
+              <button
+                className="btn btn-ghost"
+                onClick={async () => {
+                  const initialData = {
+                    appName: 'Agnes Fashion POS',
+                    lastUpdated: new Date().toISOString(),
+                    stok: [
+                      { nama_barang: 'Gamis Silk Premium', kategori: 'Pakaian Wanita', stokTersedia: 12, hargaModal: 120000, hargaJual: 175000, supplierList: ['Grosir Bandung'] },
+                      { nama_barang: 'Kemeja Katun Pria', kategori: 'Pakaian Pria', stokTersedia: 15, hargaModal: 75000, hargaJual: 115000, supplierList: ['Tanah Abang'] },
+                      { nama_barang: 'Hijab Bella Square', kategori: 'Hijab', stokTersedia: 30, hargaModal: 15000, hargaJual: 25000, supplierList: ['Grosir Hijab Solo'] },
+                      { nama_barang: 'Bros Etnik Premium', kategori: 'Aksesoris', stokTersedia: 20, hargaModal: 10000, hargaJual: 20000, supplierList: ['Aksesoris Jogja'] }
+                    ],
+                    pembelian: [],
+                    penjualan: appData.penjualan || [],
+                    settings: appData.settings
+                  };
+                  await saveAndSync(initialData);
+                  toast('✅ Data sampel katalog & stok berhasil dimuat ulang!', 'success');
+                }}
+              >
+                <i className="fa-solid fa-rotate-right" style={{ color: 'var(--brand)' }} /> Isi Ulang Stok Sampel
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* Firebase Sync */}
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title"><i className="fa-solid fa-fire" style={{ color: '#f97316' }} /> Firebase Cloud Sync</div>
-            <span className="badge badge-green">Realtime</span>
-          </div>
-          <div className="card-body">
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-              Data disinkronkan secara <b>realtime</b> ke Firestore. Perubahan dari satu perangkat langsung terlihat di perangkat lain.
-            </p>
-            <div style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 12 }}>
-              <div><b>Project ID:</b> <code style={{ color: 'var(--brand)' }}>agnes-pos</code></div>
-              <div><b>Auth Domain:</b> <code style={{ color: 'var(--brand)' }}>agnes-pos.firebaseapp.com</code></div>
-            </div>
-            <button className="btn btn-purple" onClick={pushFirebase} disabled={syncing}>
-              {syncing ? <><i className="fa-solid fa-circle-notch animate-spin" /> Menyimpan...</>
-                : <><i className="fa-solid fa-fire" /> Push ke Firebase</>}
-            </button>
           </div>
         </div>
 
