@@ -195,9 +195,31 @@ const KasirPage = () => {
 
           <div className="product-grid">
             {filtered.length === 0 ? (
-              <div className="empty-state" style={{ gridColumn: '1/-1' }}>
-                <i className="fa-solid fa-box-open" />
-                <p>Produk tidak ditemukan.<br />Tambahkan stok di menu <b>Stok Barang</b>.</p>
+              <div className="empty-state" style={{ gridColumn: '1/-1', padding: '36px 20px' }}>
+                <i className="fa-solid fa-box-open" style={{ fontSize: 36, color: 'var(--brand)', marginBottom: 12 }} />
+                <p style={{ fontSize: 13, marginBottom: 14 }}>Produk katalog belum tersedia.</p>
+                <button
+                  className="btn btn-purple"
+                  onClick={() => {
+                    const sample = {
+                      appName: 'Agnes Fashion POS',
+                      lastUpdated: new Date().toISOString(),
+                      stok: [
+                        { nama_barang: 'Gamis Silk Premium', kategori: 'Pakaian Wanita', stokTersedia: 12, hargaModal: 120000, hargaJual: 175000, supplierList: ['Grosir Bandung'] },
+                        { nama_barang: 'Kemeja Katun Pria', kategori: 'Pakaian Pria', stokTersedia: 15, hargaModal: 75000, hargaJual: 115000, supplierList: ['Tanah Abang'] },
+                        { nama_barang: 'Hijab Bella Square', kategori: 'Hijab', stokTersedia: 30, hargaModal: 15000, hargaJual: 25000, supplierList: ['Grosir Hijab Solo'] },
+                        { nama_barang: 'Bros Etnik Premium', kategori: 'Aksesoris', stokTersedia: 20, hargaModal: 10000, hargaJual: 20000, supplierList: ['Aksesoris Jogja'] }
+                      ],
+                      pembelian: [],
+                      penjualan: appData.penjualan || [],
+                      settings: appData.settings
+                    };
+                    saveAndSync(sample);
+                    toast('✅ Katalog produk berhasil dimuat!', 'success');
+                  }}
+                >
+                  <i className="fa-solid fa-rotate-right" /> Muat Katalog Produk Sampel
+                </button>
               </div>
             ) : filtered.map(item => {
               const oos = item.stokTersedia <= 0;
