@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-192.png', 'icon-512.png'],
+      includeAssets: ['icon-192.png', 'icon-512.png', 'assets/icon-192.png', 'assets/icon-512.png'],
       manifest: {
         name: 'Agnes Fashion POS & Stok',
         short_name: 'Agnes POS',
@@ -15,7 +15,7 @@ export default defineConfig({
         theme_color: '#7c3aed',
         background_color: '#0f0e17',
         display: 'standalone',
-        orientation: 'any',
+        orientation: 'portrait',
         start_url: '/pos-agnes/',
         scope: '/pos-agnes/',
         id: '/pos-agnes/',
@@ -24,13 +24,25 @@ export default defineConfig({
             src: 'icon-192.png',
             sizes: '192x192',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
           },
           {
             src: 'icon-512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
+          },
+          {
+            src: 'icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable'
+          },
+          {
+            src: 'icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
       },
