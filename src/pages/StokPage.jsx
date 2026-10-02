@@ -137,7 +137,7 @@ const StokPage = () => {
   return (
     <div className="tab-page active fade-up">
       {/* Stat Cards */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5,1fr)' }}>
+      <div className="stats-grid stok-stats-grid">
         <div className="stat-card violet">
           <i className="stat-icon fa-solid fa-tags" />
           <div className="stat-label">Total SKU</div>
@@ -170,29 +170,30 @@ const StokPage = () => {
         </div>
       </div>
 
-      {/* Table Card */}
+      {/* Table & Mobile Card Section */}
       <div className="card">
-        <div className="card-header">
+        <div className="card-header" style={{ flexWrap: 'wrap', gap: 10 }}>
           <div>
             <div className="card-title"><i className="fa-solid fa-boxes-stacked" /> Daftar Stok Barang</div>
             <div className="card-subtitle">{filtered.length} produk ditemukan</div>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <div className="form-input-icon" style={{ width: 180 }}>
+          <div className="stok-header-actions">
+            <div className="form-input-icon search-input-wrap">
               <i className="fa-solid fa-search" />
-              <input className="form-input" placeholder="Cari barang..." value={search} onChange={e => setSearch(e.target.value)} id="stok-search" />
+              <input className="form-input" placeholder="Cari barang / supplier..." value={search} onChange={e => setSearch(e.target.value)} id="stok-search" />
             </div>
-            <select className="form-input" style={{ width: 150 }} value={catFilter} onChange={e => setCatFilter(e.target.value)}>
+            <select className="form-input filter-select" value={catFilter} onChange={e => setCatFilter(e.target.value)}>
               <option value="">Semua Kategori</option>
               {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            <button className="btn btn-purple btn-sm" onClick={openRestock} id="btn-restock">
+            <button className="btn btn-purple btn-sm btn-restock-head" onClick={openRestock} id="btn-restock">
               <i className="fa-solid fa-plus" /> Restock / Tambah
             </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Desktop View (Table) */}
+        <div className="overflow-x-auto desktop-table-view">
           <table className="data-table">
             <thead>
               <tr>
@@ -216,6 +217,8 @@ const StokPage = () => {
               ) : filtered.map(item => {
                 const margin = item.hargaJual > 0 ? ((item.hargaJual - item.hargaModal) / item.hargaJual * 100).toFixed(0) : 0;
                 const statusColor = item.stokTersedia <= 0 ? 'badge-red' : item.stokTersedia <= 5 ? 'badge-amber' : 'badge-green';
+                const suppliers = item.supplierList?.join(', ') || item.supplier || item.suplier || item.nama_suplier || '—';
+
                 return (
                   <tr key={item.nama_barang}>
                     <td>
@@ -228,7 +231,7 @@ const StokPage = () => {
                     <td className="cell-amount cell-violet">{formatRp(item.hargaJual)}</td>
                     <td><span className={`badge ${parseInt(margin) >= 30 ? 'badge-green' : 'badge-amber'}`}>{margin}%</span></td>
                     <td className="cell-amount cell-sky">{formatRp(item.hargaModal * item.stokTersedia)}</td>
-                    <td style={{ fontSize: 11 }}>{item.supplierList?.join(', ') || '—'}</td>
+                    <td style={{ fontSize: 11 }}>{suppliers}</td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                         <button className="btn btn-ghost btn-sm" onClick={() => openEdit(item)} title="Edit / Restock">
@@ -244,6 +247,66 @@ const StokPage = () => {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View (Cards) */}
+        <div className="mobile-cards-view">
+          {filtered.length === 0 ? (
+            <div className="empty-state">
+              <i className="fa-solid fa-box-open" />
+              <p>Produk tidak ditemukan.<br />Klik "Restock / Tambah" untuk mulai.</p>
+            </div>
+          ) : filtered.map(item => {
+            const margin = item.hargaJual > 0 ? ((item.hargaJual - item.hargaModal) / item.hargaJual * 100).toFixed(0) : 0;
+            const statusColor = item.stokTersedia <= 0 ? 'badge-red' : item.stokTersedia <= 5 ? 'badge-amber' : 'badge-green';
+            const statusText = item.stokTersedia <= 0 ? 'Habis' : item.stokTersedia <= 5 ? `Sisa ${item.stokTersedia}` : `${item.stokTersedia} pcs`;
+            const suppliers = item.supplierList?.join(', ') || item.supplier || item.suplier || item.nama_suplier || '—';
+
+            return (
+              <div key={item.nama_barang} className="stok-mobile-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>{CAT_EMOJI[item.kategori] || '📦'}</span>
+                      <span className="truncate">{item.nama_barang}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 5, marginTop: 6, flexWrap: 'wrap' }}>
+                      <span className="badge badge-violet">{item.kategori}</span>
+                      <span className={`badge ${statusColor}`}>{statusText}</span>
+                      <span className={`badge ${parseInt(margin) >= 30 ? 'badge-green' : 'badge-amber'}`}>{margin}% margin</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button className="btn btn-ghost btn-sm" onClick={() => openEdit(item)} title="Edit / Restock">
+                      <i className="fa-solid fa-pen-to-square" />
+                    </button>
+                    <button className="btn btn-danger btn-sm" onClick={() => confirmDelete(item.nama_barang)} title="Hapus Barang">
+                      <i className="fa-solid fa-trash" />
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: 12 }}>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', fontWeight: 600 }}>HARGA MODAL</span>
+                    <span style={{ fontWeight: 600 }}>{formatRp(item.hargaModal)}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', fontWeight: 600 }}>HARGA JUAL</span>
+                    <span style={{ fontWeight: 700, color: 'var(--brand)' }}>{formatRp(item.hargaJual)}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', fontWeight: 600 }}>NILAI STOK</span>
+                    <span style={{ fontWeight: 600, color: 'var(--sky)' }}>{formatRp(item.hargaModal * item.stokTersedia)}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', fontWeight: 600 }}>SUPPLIER</span>
+                    <span style={{ fontWeight: 500, fontSize: 11, color: 'var(--text-secondary)' }}>🏭 {suppliers}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

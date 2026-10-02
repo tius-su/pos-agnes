@@ -502,10 +502,20 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
   .receipt-paper { box-shadow: none !important; border: 1px solid #ccc !important; }
 }
 
+/* ============================================================ STOK RESPONSIVE CARDS ============================================================ */
+.stok-stats-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 14px; margin-bottom: 20px; }
+.stok-header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.stok-header-actions .search-input-wrap { width: 200px; }
+.stok-header-actions .filter-select { width: 150px; }
+.mobile-cards-view { display: none; }
+.desktop-table-view { display: block; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ============================================================ RESPONSIVE ============================================================ */
 @media (min-width: 1024px) { .topbar-clock { display: block; } }
 @media (max-width: 1024px) {
   .stats-grid { grid-template-columns: repeat(2,1fr); }
+  .stok-stats-grid { grid-template-columns: repeat(3,1fr); }
   .stock-report-grid { grid-template-columns: repeat(2,1fr); }
 }
 @media (max-width: 768px) {
@@ -515,6 +525,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
   .bottom-nav { display: grid; }
   .page-content { padding: 12px; padding-bottom: 90px; }
   .pos-layout { grid-template-columns: 1fr; height: auto; gap: 12px; }
+  .product-grid { max-height: none; overflow-y: visible; padding: 10px; gap: 10px; grid-template-columns: repeat(2, 1fr); }
   /* ✅ FIX MOBILE CTA: cart-panel dan cart-footer tidak lagi tertutup bottom-nav (tinggi 60px) */
   .cart-panel { height: auto; max-height: none; margin-bottom: 30px; }
   .cart-items { max-height: 220px; min-height: 80px; }
@@ -522,9 +533,20 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
   .modal-overlay { padding-bottom: 80px; }
   .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2,1fr); gap: 10px; }
+  .stok-stats-grid { grid-template-columns: repeat(2,1fr); gap: 10px; }
   .stock-report-grid { grid-template-columns: 1fr; }
+  /* ✅ FIX STOK MOBILE: Card view untuk stok barang pada hp */
+  .desktop-table-view { display: none; }
+  .mobile-cards-view { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+  .stok-mobile-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; box-shadow: var(--shadow-sm); }
+  .stok-header-actions { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+  .stok-header-actions .search-input-wrap,
+  .stok-header-actions .filter-select,
+  .stok-header-actions .btn-restock-head { width: 100% !important; }
 }
 @media (max-width: 480px) {
   .stats-grid { grid-template-columns: 1fr 1fr; }
+  .stok-stats-grid { grid-template-columns: 1fr 1fr; }
   .payment-methods { grid-template-columns: repeat(2,1fr); }
+  .product-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 6px; }
 }
