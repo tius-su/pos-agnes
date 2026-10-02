@@ -2,26 +2,39 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import {
   loadLocalData, saveLocalData,
   subscribeToFirebaseCloud, pushToFirebaseCloud,
-  pullFromGitHub, pushToGitHub, INITIAL_DATA
+  INITIAL_DATA, normalizeAppData
 } from '../services/dataSync';
 
 const DataContext = createContext(null);
 
-// Helper: validasi apakah data layak dipakai
-const isValidData = (data) => {
-  return data && typeof data === 'object' && Array.isArray(data.stok);
+// Helper: apakah data punya stok yang valid dan tidak kosong
+const hasValidStock = (data) =>
+  data && typeof data === 'object' && Array.isArray(data.stok) && data.stok.length > 0;
+
+// Merge data Firebase dengan fallback lokal, pastikan stok tidak pernah kosong
+const mergeWithFallback = (cloudData, fallback) => {
+  if (hasValidStock(cloudData)) return cloudData;
+  if (hasValidStock(fallback)) return fallback;
+  return INITIAL_DATA;
 };
 
 export const DataProvider = ({ children }) => {
+  // State awal: coba dari cache lokal, jika kosong pakai INITIAL_DATA (ada sample stok)
   const [appData, setAppData] = useState(() => {
-    const local = loadLocalData();
-    if (isValidData(local) && local.stok.length > 0) return local;
+    try {
+      const local = loadLocalData();
+      if (hasValidStock(local)) return local;
+    } catch (e) {
+      console.warn('[DataContext] Failed to load local cache:', e);
+    }
     return INITIAL_DATA;
   });
-  const [syncStatus, setSyncStatus] = useState('idle'); // idle | syncing | ok | error
+
+  const [syncStatus, setSyncStatus] = useState('idle');
   const [lastSync, setLastSync] = useState(null);
   const [toasts, setToasts] = useState([]);
   const unsubRef = useRef(null);
+  const initialDataRef = useRef(appData); // simpan snapshot awal sebagai fallback
 
   // Toast helpers
   const toast = useCallback((message, type = 'info') => {
@@ -30,54 +43,76 @@ export const DataProvider = ({ children }) => {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
   }, []);
 
-  // Update data directly locally
+  // Update data locally only (tidak push ke cloud)
   const updateData = useCallback((newData) => {
-    const saved = saveLocalData(newData);
+    const normalized = normalizeAppData(newData);
+    const saved = saveLocalData(normalized);
     setAppData(saved);
     setLastSync(new Date());
     setSyncStatus('ok');
   }, []);
 
-  // ─── FIREBASE REALTIME SUBSCRIPTION (DATABASE UTAMA) ──────────────────────
+  // ─── FIREBASE REALTIME SUBSCRIPTION ──────────────────────────────────────────
   useEffect(() => {
     setSyncStatus('syncing');
 
-    // Realtime listener dari Firebase Firestore
-    const unsub = subscribeToFirebaseCloud((cloudData) => {
-      if (isValidData(cloudData) && cloudData.stok.length > 0) {
-        // Firebase Firestore memuat data valid -> sync langsung ke React state & localStorage
-        saveLocalData(cloudData);
-        setAppData(cloudData);
-        setLastSync(new Date());
-        setSyncStatus('ok');
-      } else {
-        // Coba gunakan cache lokal jika memiliki stok barang
-        const local = loadLocalData();
-        if (isValidData(local) && local.stok.length > 0) {
-          setAppData(local);
+    const unsub = subscribeToFirebaseCloud(
+      (cloudData) => {
+        // cloudData bisa null (doc tidak ada), objek kosong, atau objek dengan stok
+        if (hasValidStock(cloudData)) {
+          // Firebase punya data lengkap → pakai langsung
+          saveLocalData(cloudData);
+          setAppData(cloudData);
+          setLastSync(new Date());
           setSyncStatus('ok');
         } else {
-          // Jika cloud & local tidak memiliki stok barang, pakai INITIAL_DATA agar Kasir & Stok TIDAK KOSONG
-          saveLocalData(INITIAL_DATA);
-          setAppData(INITIAL_DATA);
-          pushToFirebaseCloud(INITIAL_DATA);
+          // Firebase kosong/null → coba cache lokal, lalu INITIAL_DATA
+          const localData = loadLocalData();
+          const bestData = mergeWithFallback(null, localData);
+
+          setAppData(bestData);
           setSyncStatus('ok');
+          setLastSync(new Date());
+
+          // Push INITIAL_DATA ke Firebase agar tersimpan untuk sesi berikutnya
+          // (hanya jika Firebase benar-benar kosong/null, bukan jika cloudData ada tapi stok kosong)
+          if (!cloudData) {
+            pushToFirebaseCloud(bestData).then(res => {
+              if (res.success) {
+                console.info('[DataContext] INITIAL_DATA pushed to Firebase');
+              }
+            });
+          }
         }
+      },
+      (err) => {
+        // Firebase error (offline, permission denied, dll) → pakai state yang sudah ada
+        console.warn('[DataContext] Firebase error:', err.message);
+        setSyncStatus('error');
+        // Jangan override appData, biarkan state saat ini tetap (sudah ada INITIAL_DATA)
       }
-    });
+    );
 
     unsubRef.current = unsub;
-    return () => { if (unsubRef.current) unsubRef.current(); };
+    return () => {
+      if (unsubRef.current) unsubRef.current();
+    };
   }, []);
 
-  // Save and push ke Firebase & GitHub
+  // Save dan sync ke Firebase
   const saveAndSync = useCallback(async (newData) => {
-    // 1. Simpan ke local cache & update UI langsung
-    const saved = saveLocalData(newData);
+    // Pastikan stok tidak hilang saat save
+    const normalized = normalizeAppData(newData);
+    const dataToSave = hasValidStock(normalized)
+      ? normalized
+      : mergeWithFallback(normalized, initialDataRef.current);
+
+    // 1. Simpan ke local & update UI
+    const saved = saveLocalData(dataToSave);
     setAppData(saved);
     setSyncStatus('syncing');
 
-    // 2. Push ke Firebase Firestore (DATABASE UTAMA)
+    // 2. Push ke Firebase
     const fbRes = await pushToFirebaseCloud(saved);
     if (fbRes.success) {
       setSyncStatus('ok');

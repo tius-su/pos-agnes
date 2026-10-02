@@ -53,7 +53,13 @@ export const normalizeItem = (item) => {
 };
 
 export const normalizeAppData = (data) => {
-  if (!data || typeof data !== 'object') return normalizeAppData(INITIAL_DATA);
+  // Kembalikan INITIAL_DATA jika input tidak valid (null, undefined, bukan object)
+  if (!data || typeof data !== 'object') {
+    return {
+      ...INITIAL_DATA,
+      stok: INITIAL_DATA.stok.map(normalizeItem).filter(Boolean)
+    };
+  }
 
   let rawStok = [];
   if (Array.isArray(data.stok)) {
@@ -192,35 +198,55 @@ export const subscribeToFirebaseCloud = (onData, onError) => {
     const unsub = onSnapshot(
       FIREBASE_DOC(),
       async (snap) => {
-        let firebaseData = null;
+        // Cek apakah dokumen utama ada dan punya stok
         if (snap.exists() && snap.data()) {
-          firebaseData = normalizeAppData(snap.data());
-        }
+          const firebaseData = normalizeAppData(snap.data());
 
-        // Jika single document ada & punya stok, langsung kirim
-        if (firebaseData && firebaseData.stok.length > 0) {
-          onData(firebaseData);
-          return;
-        }
-
-        // Jika single doc kosong/tidak ada stok, cek collection fallback Firestore
-        try {
-          const { itemsFromCol, salesFromCol } = await fetchFirestoreCollectionsFallback();
-          if (itemsFromCol.length > 0) {
-            const mergedData = normalizeAppData({
-              ...(firebaseData || INITIAL_DATA),
-              stok: itemsFromCol,
-              penjualan: salesFromCol.length > 0 ? salesFromCol : (firebaseData?.penjualan || [])
-            });
-            onData(mergedData);
+          // Jika stok ada dari dokumen utama, langsung gunakan
+          if (firebaseData.stok && firebaseData.stok.length > 0) {
+            onData(firebaseData);
             return;
           }
-        } catch (colErr) {
-          console.warn('[Firebase] Collection fallback error:', colErr);
-        }
 
-        // Jika tidak ada data sama sekali di Firestore
-        onData(firebaseData);
+          // Dokumen ada tapi stok kosong → cek sub-collection Firestore
+          try {
+            const { itemsFromCol, salesFromCol } = await fetchFirestoreCollectionsFallback();
+            if (itemsFromCol.length > 0) {
+              const mergedData = normalizeAppData({
+                ...firebaseData,
+                stok: itemsFromCol,
+                penjualan: salesFromCol.length > 0 ? salesFromCol : (firebaseData.penjualan || [])
+              });
+              onData(mergedData);
+              return;
+            }
+          } catch (colErr) {
+            console.warn('[Firebase] Collection fallback error:', colErr);
+          }
+
+          // Dokumen ada tapi stok tetap kosong setelah fallback → kirim null agar DataContext pakai INITIAL_DATA
+          onData(null);
+        } else {
+          // Dokumen tidak ada sama sekali di Firestore
+          // Cek collection-level fallback
+          try {
+            const { itemsFromCol, salesFromCol } = await fetchFirestoreCollectionsFallback();
+            if (itemsFromCol.length > 0) {
+              const mergedData = normalizeAppData({
+                ...INITIAL_DATA,
+                stok: itemsFromCol,
+                penjualan: salesFromCol.length > 0 ? salesFromCol : []
+              });
+              onData(mergedData);
+              return;
+            }
+          } catch (colErr) {
+            console.warn('[Firebase] Collection fallback error:', colErr);
+          }
+
+          // Firestore benar-benar kosong → kirim null
+          onData(null);
+        }
       },
       (err) => {
         console.warn('[Firebase] Snapshot error:', err.message);
