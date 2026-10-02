@@ -7,6 +7,11 @@ import {
 
 const DataContext = createContext(null);
 
+// Helper: validasi apakah data dari cloud/github layak dipakai
+const isValidData = (data) => {
+  return data && typeof data === 'object' && Array.isArray(data.stok);
+};
+
 export const DataProvider = ({ children }) => {
   const [appData, setAppData] = useState(() => loadLocalData() || INITIAL_DATA);
   const [syncStatus, setSyncStatus] = useState('idle'); // idle | syncing | ok | error
@@ -32,8 +37,18 @@ export const DataProvider = ({ children }) => {
   // Subscribe to Firebase & pull GitHub safely using timestamp comparison
   useEffect(() => {
     setSyncStatus('syncing');
+
+    // ✅ FIX: Selalu load dari localStorage dulu sebagai initial data
+    // Ini memastikan data tampil meski Firebase belum merespons
+    const localData = loadLocalData();
+    if (isValidData(localData) && localData.stok.length > 0) {
+      setAppData(localData);
+      setSyncStatus('ok');
+    }
+
     const unsub = subscribeToFirebaseCloud((cloudData) => {
-      if (cloudData && cloudData.stok) {
+      // ✅ FIX: Validasi data cloud lebih ketat menggunakan isValidData()
+      if (isValidData(cloudData)) {
         setAppData(prev => {
           const localTime = new Date(prev.lastUpdated || 0).getTime();
           const cloudTime = new Date(cloudData.lastUpdated || 0).getTime();
@@ -46,13 +61,16 @@ export const DataProvider = ({ children }) => {
         });
         setLastSync(new Date());
         setSyncStatus('ok');
+      } else {
+        // Firebase merespons tapi data kosong/baru — tetap pakai data lokal
+        setSyncStatus('ok');
       }
     });
     unsubRef.current = unsub;
 
     // Pull from GitHub fallback safely (ONLY if GitHub has newer timestamp)
     pullFromGitHub().then(({ success, data }) => {
-      if (success && data && data.stok) {
+      if (success && isValidData(data)) {
         setAppData(prev => {
           const localTime = new Date(prev.lastUpdated || 0).getTime();
           const ghTime = new Date(data.lastUpdated || 0).getTime();
@@ -100,7 +118,7 @@ export const DataProvider = ({ children }) => {
   }, [toast]);
 
   return (
-    <DataContext.Provider value={{ appData, syncStatus, lastSync, updateData, saveAndSync, toast }}>
+    <DataContext.Provider value={{ appData, syncStatus, lastSync, updateData, saveAndSync, toast, toasts }}>
       {children}
       {/* Toast Render */}
       {toasts.length > 0 && (

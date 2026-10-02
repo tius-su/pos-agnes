@@ -513,9 +513,13 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-md); }
   .topbar-menu-btn { display: flex; }
   .bottom-nav { display: grid; }
-  .page-content { padding: 12px; padding-bottom: 72px; }
-  .pos-layout { grid-template-columns: 1fr; height: auto; }
-  .cart-panel { height: auto; max-height: 60vh; }
+  .page-content { padding: 12px; padding-bottom: 80px; }
+  .pos-layout { grid-template-columns: 1fr; height: auto; gap: 12px; }
+  /* ✅ FIX MOBILE: cart-panel tidak lagi dibatasi max-height 60vh */
+  /* Ini memastikan tombol Proses Pembayaran selalu terlihat */
+  .cart-panel { height: auto; max-height: none; }
+  .cart-items { max-height: 200px; min-height: 80px; }
+  .cart-footer { position: sticky; bottom: 0; background: var(--bg-card); z-index: 10; box-shadow: 0 -4px 12px rgba(0,0,0,.08); }
   .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2,1fr); gap: 10px; }
   .stock-report-grid { grid-template-columns: 1fr; }
