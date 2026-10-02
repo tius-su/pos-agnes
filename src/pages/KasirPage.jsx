@@ -149,28 +149,9 @@ const KasirPage = () => {
 
   return (
     <div className="tab-page active fade-up">
-      {/* Mobile Tab Switcher */}
-      <div className="kasir-mobile-tabs">
-        <button
-          className={`kasir-tab-btn ${mobileTab === 'catalog' ? 'active' : ''}`}
-          onClick={() => setMobileTab('catalog')}
-        >
-          <i className="fa-solid fa-store" /> Katalog Produk
-        </button>
-        <button
-          className={`kasir-tab-btn ${mobileTab === 'cart' ? 'active' : ''}`}
-          onClick={() => setMobileTab('cart')}
-        >
-          <i className="fa-solid fa-cart-shopping" /> Keranjang & Bayar
-          {cart.length > 0 && (
-            <span className="kasir-tab-badge">{cart.reduce((s, c) => s + c.qty, 0)}</span>
-          )}
-        </button>
-      </div>
-
       <div className="pos-layout">
         {/* Product Grid Card */}
-        <div className={`card pos-catalog-card ${mobileTab !== 'catalog' ? 'mobile-hidden' : ''}`} style={{ overflow: 'hidden' }}>
+        <div className="card pos-catalog-card" style={{ overflow: 'hidden' }}>
           <div className="card-header">
             <div className="card-title"><i className="fa-solid fa-store" /> Katalog Produk</div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -231,7 +212,7 @@ const KasirPage = () => {
         </div>
 
         {/* Cart Panel */}
-        <div className={`cart-panel ${mobileTab !== 'cart' ? 'mobile-hidden' : ''}`}>
+        <div className="cart-panel">
           <div className="cart-header">
             <div className="cart-header-title">
               <i className="fa-solid fa-shopping-cart" /> Keranjang
@@ -321,15 +302,21 @@ const KasirPage = () => {
         </div>
       </div>
 
-      {/* Floating Cart Bar di Mobile jika sedang di tab katalog */}
-      {cart.length > 0 && mobileTab === 'catalog' && (
-        <div className="mobile-cart-float-bar" onClick={() => setMobileTab('cart')}>
+      {/* Floating Cart Quick Bar di Mobile (Langsung scroll ke area pembayaran) */}
+      {cart.length > 0 && (
+        <div
+          className="mobile-cart-float-bar"
+          onClick={() => {
+            const el = document.getElementById('btn-checkout');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }}
+        >
           <div className="float-cart-info">
             <span className="float-cart-count">🛒 {cart.reduce((s, c) => s + c.qty, 0)} Item dipilih</span>
             <span className="float-cart-total">{formatRp(total)}</span>
           </div>
           <button className="btn btn-green btn-sm" style={{ fontWeight: 800, padding: '9px 16px', borderRadius: 8 }}>
-            Bayar Sekarang <i className="fa-solid fa-arrow-right" />
+            Bayar Sekarang <i className="fa-solid fa-arrow-down" />
           </button>
         </div>
       )}

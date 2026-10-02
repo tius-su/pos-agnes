@@ -7,33 +7,17 @@ import {
 
 const DataContext = createContext(null);
 
-// Helper: validasi apakah data dari cloud/github layak dipakai
+// Helper: validasi apakah data layak dipakai
 const isValidData = (data) => {
   return data && typeof data === 'object' && Array.isArray(data.stok);
 };
 
-// Helper: apakah data cloud boleh menimpa data lokal?
-// Aturan: cloud TIDAK BOLEH menimpa jika lokal punya lebih banyak produk
-const shouldAcceptCloudData = (cloudData, localData) => {
-  if (!isValidData(cloudData)) return false;
-  const localTime = new Date(localData?.lastUpdated || 0).getTime();
-  const cloudTime = new Date(cloudData?.lastUpdated || 0).getTime();
-  // Jika cloud lebih baru DAN memiliki data (atau lokal juga kosong) → terima
-  if (cloudTime >= localTime) {
-    // Jangan overwrite data lokal yang berisi dengan cloud yang kosong
-    const localHasData = (localData?.stok?.length || 0) > 0;
-    const cloudHasData = (cloudData?.stok?.length || 0) > 0;
-    if (localHasData && !cloudHasData) {
-      console.warn('[DataSync] ⚠️ Cloud data is empty but local has data — skipping overwrite!');
-      return false;
-    }
-    return true;
-  }
-  return false;
-};
-
 export const DataProvider = ({ children }) => {
-  const [appData, setAppData] = useState(() => loadLocalData() || INITIAL_DATA);
+  const [appData, setAppData] = useState(() => {
+    const local = loadLocalData();
+    if (isValidData(local) && local.stok.length > 0) return local;
+    return INITIAL_DATA;
+  });
   const [syncStatus, setSyncStatus] = useState('idle'); // idle | syncing | ok | error
   const [lastSync, setLastSync] = useState(null);
   const [toasts, setToasts] = useState([]);
@@ -54,72 +38,53 @@ export const DataProvider = ({ children }) => {
     setSyncStatus('ok');
   }, []);
 
-  // Subscribe to Firebase & pull GitHub safely using timestamp comparison
+  // ─── FIREBASE REALTIME SUBSCRIPTION (DATABASE UTAMA) ──────────────────────
   useEffect(() => {
     setSyncStatus('syncing');
 
-    // ✅ FIX: Selalu load dari localStorage dulu sebagai initial data
-    // Ini memastikan data tampil meski Firebase belum merespons
-    const localData = loadLocalData();
-    if (isValidData(localData) && localData.stok.length > 0) {
-      setAppData(localData);
-      setSyncStatus('ok');
-    }
-
+    // Realtime listener dari Firebase Firestore
     const unsub = subscribeToFirebaseCloud((cloudData) => {
-      // ✅ FIX: Gunakan shouldAcceptCloudData agar data lokal tidak tertimpa cloud kosong
-      setAppData(prev => {
-        if (!shouldAcceptCloudData(cloudData, prev)) return prev;
-        const saved = saveLocalData(cloudData);
+      if (isValidData(cloudData) && cloudData.stok.length > 0) {
+        // Firebase Firestore memuat data valid -> sync langsung ke React state & localStorage
+        saveLocalData(cloudData);
+        setAppData(cloudData);
         setLastSync(new Date());
         setSyncStatus('ok');
-        return saved;
-      });
-      setSyncStatus('ok');
-    });
-    unsubRef.current = unsub;
-
-    // Pull from GitHub fallback safely (ONLY if GitHub has newer timestamp)
-    pullFromGitHub().then(({ success, data }) => {
-      if (success && isValidData(data)) {
-        setAppData(prev => {
-          if (!shouldAcceptCloudData(data, prev)) return prev;
-          const saved = saveLocalData(data);
-          setLastSync(new Date());
-          setSyncStatus('ok');
-          return saved;
-        });
       } else {
+        // Firebase belum berisi -> inisialisasi Firestore dengan data default/lokal
+        const local = loadLocalData();
+        const initialToUse = (isValidData(local) && local.stok.length > 0) ? local : INITIAL_DATA;
+        saveLocalData(initialToUse);
+        setAppData(initialToUse);
+        pushToFirebaseCloud(initialToUse); // Populasikan Firestore langsung!
         setSyncStatus('ok');
       }
     });
 
+    unsubRef.current = unsub;
     return () => { if (unsubRef.current) unsubRef.current(); };
   }, []);
 
-  // Save and push to both Firebase & GitHub
+  // Save and push ke Firebase & GitHub
   const saveAndSync = useCallback(async (newData) => {
-    // 1. Immediately update local storage and React UI state
+    // 1. Simpan ke local cache & update UI langsung
     const saved = saveLocalData(newData);
     setAppData(saved);
     setSyncStatus('syncing');
-    toast('✅ Data berhasil disimpan!', 'success');
 
-    // 2. Push to Firebase & GitHub asynchronously
-    const [fbRes, ghRes] = await Promise.allSettled([
-      pushToFirebaseCloud(saved),
-      pushToGitHub(saved)
-    ]);
-
-    const fbOk = fbRes.status === 'fulfilled' && fbRes.value?.success;
-    const ghOk = ghRes.status === 'fulfilled' && ghRes.value?.success;
-
-    if (fbOk || ghOk) {
+    // 2. Push ke Firebase Firestore (DATABASE UTAMA)
+    const fbRes = await pushToFirebaseCloud(saved);
+    if (fbRes.success) {
       setSyncStatus('ok');
       setLastSync(new Date());
+      toast('✅ Tersimpan & tersinkron ke Firebase!', 'success');
     } else {
-      setSyncStatus('ok'); // Local data is permanently saved
+      setSyncStatus('ok');
+      toast('✅ Tersimpan lokal (offline mode)', 'info');
     }
+
+    // 3. Backup ke GitHub secara background
+    pushToGitHub(saved).catch(err => console.warn('[GitHub] Backup error:', err));
 
     return saved;
   }, [toast]);

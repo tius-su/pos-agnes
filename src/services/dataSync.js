@@ -7,10 +7,17 @@ const GH_REPO_KEY    = 'agnes_repo';
 const DEFAULT_REPO   = import.meta.env.VITE_GITHUB_REPO  || 'tius-su/pos-agnes';
 const DEFAULT_TOKEN  = import.meta.env.VITE_GITHUB_TOKEN || '';
 
+export const SAMPLE_STOK = [
+  { nama_barang: 'Gamis Silk Premium', kategori: 'Pakaian Wanita', stokTersedia: 12, hargaModal: 120000, hargaJual: 175000, supplierList: ['Grosir Bandung'] },
+  { nama_barang: 'Kemeja Katun Pria', kategori: 'Pakaian Pria', stokTersedia: 15, hargaModal: 75000, hargaJual: 115000, supplierList: ['Tanah Abang'] },
+  { nama_barang: 'Hijab Bella Square', kategori: 'Hijab', stokTersedia: 30, hargaModal: 15000, hargaJual: 25000, supplierList: ['Grosir Hijab Solo'] },
+  { nama_barang: 'Bros Etnik Premium', kategori: 'Aksesoris', stokTersedia: 20, hargaModal: 10000, hargaJual: 20000, supplierList: ['Aksesoris Jogja'] }
+];
+
 export const INITIAL_DATA = {
   appName: 'Agnes Fashion POS',
   lastUpdated: new Date().toISOString(),
-  stok: [],
+  stok: SAMPLE_STOK,
   pembelian: [],
   penjualan: [],
   settings: {
