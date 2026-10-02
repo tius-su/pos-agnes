@@ -511,6 +511,9 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
 .desktop-table-view { display: block; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Mobile Float Bar for Cart */
+.mobile-cart-float-bar { display: none; }
+
 /* ============================================================ RESPONSIVE ============================================================ */
 @media (min-width: 1024px) { .topbar-clock { display: block; } }
 @media (max-width: 1024px) {
@@ -523,18 +526,43 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-md); }
   .topbar-menu-btn { display: flex; }
   .bottom-nav { display: grid; }
-  .page-content { padding: 12px; padding-bottom: 90px; }
-  .pos-layout { grid-template-columns: 1fr; height: auto; gap: 12px; }
+  .page-content { padding: 12px; padding-bottom: 140px !important; }
+  .pos-layout { grid-template-columns: 1fr; height: auto; gap: 16px; }
   .product-grid { max-height: none; overflow-y: visible; padding: 10px; gap: 10px; grid-template-columns: repeat(2, 1fr); }
-  /* ✅ FIX MOBILE CTA: cart-panel dan cart-footer tidak lagi tertutup bottom-nav (tinggi 60px) */
-  .cart-panel { height: auto; max-height: none; margin-bottom: 30px; }
-  .cart-items { max-height: 220px; min-height: 80px; }
-  .cart-footer { position: sticky; bottom: 60px; background: var(--bg-card); z-index: 90; box-shadow: 0 -6px 16px rgba(0,0,0,.18); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  
+  /* ✅ FIX MOBILE CTA PAYMENT BUTTON */
+  .cart-panel { height: auto !important; max-height: none !important; overflow: visible !important; margin-bottom: 40px !important; }
+  .cart-items { max-height: none; min-height: 80px; overflow: visible; }
+  .cart-footer { position: static !important; background: var(--bg-card); border-top: 1px solid var(--border); padding: 16px 14px 28px 14px; margin-bottom: 20px; box-shadow: none; }
+  .btn-checkout-main { min-height: 52px !important; font-size: 15px !important; font-weight: 800 !important; width: 100% !important; box-shadow: 0 4px 16px rgba(5,150,105,0.4) !important; margin-top: 8px; }
+
+  /* Floating Quick Bar di Mobile */
+  .mobile-cart-float-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    bottom: 68px;
+    left: 12px;
+    right: 12px;
+    background: var(--bg-card);
+    border: 1.5px solid var(--brand);
+    border-radius: var(--radius-lg);
+    padding: 10px 14px;
+    z-index: 95;
+    box-shadow: 0 8px 24px rgba(124,58,237,.35);
+    animation: fadeUp .2s ease;
+  }
+  .float-cart-info { display: flex; flex-direction: column; }
+  .float-cart-count { font-size: 11px; color: var(--text-muted); font-weight: 600; }
+  .float-cart-total { font-size: 16px; font-weight: 800; color: var(--brand); }
+
   .modal-overlay { padding-bottom: 80px; }
   .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2,1fr); gap: 10px; }
   .stok-stats-grid { grid-template-columns: repeat(2,1fr); gap: 10px; }
   .stock-report-grid { grid-template-columns: 1fr; }
+  
   /* ✅ FIX STOK MOBILE: Card view untuk stok barang pada hp */
   .desktop-table-view { display: none; }
   .mobile-cards-view { display: flex; flex-direction: column; gap: 10px; padding: 12px; }

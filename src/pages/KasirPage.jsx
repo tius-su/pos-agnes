@@ -294,12 +294,32 @@ const KasirPage = () => {
               </div>
             )}
 
-            <button className="btn btn-green btn-full btn-lg" onClick={handleCheckout} disabled={!cart.length} id="btn-checkout">
-              <i className="fa-solid fa-check-circle" /> Proses Pembayaran
+            <button className="btn btn-green btn-full btn-lg btn-checkout-main" onClick={handleCheckout} disabled={!cart.length} id="btn-checkout">
+              <i className="fa-solid fa-check-circle" /> Proses Pembayaran ({formatRp(total)})
             </button>
           </div>
         </div>
       </div>
+
+      {/* Floating Cart Quick Bar for Mobile */}
+      {cart.length > 0 && (
+        <div className="mobile-cart-float-bar">
+          <div className="float-cart-info">
+            <span className="float-cart-count">🛒 {cart.reduce((s, c) => s + c.qty, 0)} Item</span>
+            <span className="float-cart-total">{formatRp(total)}</span>
+          </div>
+          <button
+            className="btn btn-green btn-sm"
+            style={{ fontWeight: 700, padding: '8px 14px' }}
+            onClick={() => {
+              const el = document.getElementById('btn-checkout');
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }}
+          >
+            Bayar <i className="fa-solid fa-arrow-down" />
+          </button>
+        </div>
+      )}
 
       {/* Receipt Modal */}
       {showReceipt && lastTrx && (
