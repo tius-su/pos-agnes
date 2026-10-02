@@ -1,7 +1,7 @@
 import { db } from '../firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
 
-const LOCAL_CACHE_KEY = 'agnes_pos_cache'; // renamed: ini hanya cache, bukan sumber data
+const LOCAL_CACHE_KEY = 'agnes_pos_cache';
 const GH_TOKEN_KEY   = 'agnes_token';
 const GH_REPO_KEY    = 'agnes_repo';
 const DEFAULT_REPO   = import.meta.env.VITE_GITHUB_REPO  || 'tius-su/pos-agnes';
@@ -28,22 +28,65 @@ export const INITIAL_DATA = {
   }
 };
 
+// ─── NORMALISASI PRODUK (Mencegah property mismatch dari Firestore/Local) ───
+export const normalizeItem = (item) => {
+  if (!item || typeof item !== 'object') return null;
+  const nama = item.nama_barang || item.namaBarang || item.nama || item.name || item.produk || item.title || 'Barang';
+  const kategori = item.kategori || item.category || 'Lainnya';
+  const stokTersedia = Number(item.stokTersedia ?? item.stok ?? item.stock ?? item.qty ?? item.jumlah ?? 0);
+  const hargaModal = Number(item.hargaModal ?? item.harga_modal ?? item.modal ?? item.cost ?? 0);
+  const hargaJual = Number(item.hargaJual ?? item.harga_jual ?? item.harga ?? item.price ?? 0);
+  const supplierList = Array.isArray(item.supplierList) ? item.supplierList
+    : (item.supplier || item.suplier || item.nama_suplier) ? [item.supplier || item.suplier || item.nama_suplier]
+    : [];
+
+  return {
+    ...item,
+    id: item.id || Date.now() + Math.random(),
+    nama_barang: nama,
+    kategori,
+    stokTersedia,
+    hargaModal,
+    hargaJual,
+    supplierList
+  };
+};
+
+export const normalizeAppData = (data) => {
+  if (!data || typeof data !== 'object') return null;
+  const rawStok = Array.isArray(data.stok) ? data.stok
+    : Array.isArray(data.products) ? data.products
+    : Array.isArray(data.items) ? data.items
+    : [];
+  
+  return {
+    ...data,
+    stok: rawStok.map(normalizeItem).filter(Boolean),
+    pembelian: Array.isArray(data.pembelian) ? data.pembelian : [],
+    penjualan: Array.isArray(data.penjualan) ? data.penjualan : [],
+    settings: data.settings || INITIAL_DATA.settings
+  };
+};
+
 // ─── LOCAL CACHE (bukan sumber data utama) ────────────────────────────────────
 export const loadLocalData = () => {
   try {
-    // Coba key lama dulu untuk backward compatibility
     const raw = localStorage.getItem(LOCAL_CACHE_KEY)
              || localStorage.getItem('agnes_pos_data');
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return normalizeAppData(parsed);
+    }
   } catch (e) {
     console.error('Cache load error:', e);
   }
-  return null; // null = belum ada cache, bukan INITIAL_DATA
+  return null;
 };
 
 export const saveLocalData = (data) => {
   try {
-    const updated = { ...data, lastUpdated: new Date().toISOString() };
+    const normalized = normalizeAppData(data) || data;
+    const updated = { ...normalized, lastUpdated: new Date().toISOString() };
     localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(updated));
     return updated;
   } catch (e) {
@@ -57,21 +100,45 @@ const FIREBASE_DOC = () => doc(db, 'pos_data', 'store_data');
 
 /**
  * Subscribe realtime ke Firebase.
- * @param {Function} onData  - dipanggil dengan data saat Firebase update
- * @param {Function} onError - dipanggil saat error koneksi
- * @returns unsubscribe function
  */
 export const subscribeToFirebaseCloud = (onData, onError) => {
   try {
     const unsub = onSnapshot(
       FIREBASE_DOC(),
-      (snap) => {
-        if (snap.exists()) {
-          onData(snap.data());
-        } else {
-          // Dokumen belum ada di Firestore
-          onData(null);
+      async (snap) => {
+        if (snap.exists() && snap.data()) {
+          const norm = normalizeAppData(snap.data());
+          if (norm && norm.stok.length > 0) {
+            onData(norm);
+            return;
+          }
         }
+        
+        // Fallback jika single document kosong: cek Firestore Collection 'stok' / 'products'
+        try {
+          const stokCol = await getDocs(collection(db, 'stok'));
+          if (!stokCol.empty) {
+            const itemsFromCol = stokCol.docs.map(d => normalizeItem({ id: d.id, ...d.data() })).filter(Boolean);
+            if (itemsFromCol.length > 0) {
+              const fullData = normalizeAppData({ ...INITIAL_DATA, stok: itemsFromCol });
+              onData(fullData);
+              return;
+            }
+          }
+          const prodCol = await getDocs(collection(db, 'products'));
+          if (!prodCol.empty) {
+            const itemsFromCol = prodCol.docs.map(d => normalizeItem({ id: d.id, ...d.data() })).filter(Boolean);
+            if (itemsFromCol.length > 0) {
+              const fullData = normalizeAppData({ ...INITIAL_DATA, stok: itemsFromCol });
+              onData(fullData);
+              return;
+            }
+          }
+        } catch (colErr) {
+          console.warn('[Firebase] Collection fallback check:', colErr);
+        }
+
+        onData(snap.exists() ? normalizeAppData(snap.data()) : null);
       },
       (err) => {
         console.warn('[Firebase] Snapshot error:', err.message);
@@ -88,13 +155,13 @@ export const subscribeToFirebaseCloud = (onData, onError) => {
 
 /**
  * Push data ke Firebase (DATABASE UTAMA).
- * Selalu tambahkan lastUpdated baru.
  */
 export const pushToFirebaseCloud = async (data) => {
   try {
-    const payload = { ...data, lastUpdated: new Date().toISOString() };
+    const normalized = normalizeAppData(data) || data;
+    const payload = { ...normalized, lastUpdated: new Date().toISOString() };
     await setDoc(FIREBASE_DOC(), payload);
-    saveLocalData(payload); // update cache
+    saveLocalData(payload);
     return { success: true };
   } catch (e) {
     console.error('[Firebase] Push error:', e);
