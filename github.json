@@ -1,0 +1,13 @@
+{
+  "appName": "Agnes Fashion POS",
+  "lastUpdated": "2026-10-02T12:30:39.428Z",
+  "stok": [],
+  "pembelian": [],
+  "penjualan": [],
+  "settings": {
+    "storeName": "Agnes Fashion",
+    "storeAddress": "Pasar Baru Cikarang Blok C",
+    "storePhone": "0851-1702-1168",
+    "receiptFooter": "Terima Kasih Telah Berbelanja di Agnes Fashion! Barang yang sudah dibeli tidak dapat ditukar."
+  }
+}
