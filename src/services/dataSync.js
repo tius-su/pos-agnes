@@ -31,18 +31,18 @@ export const INITIAL_DATA = {
 // ─── NORMALISASI PRODUK (Mencegah property mismatch dari Firestore/Local) ───
 export const normalizeItem = (item) => {
   if (!item || typeof item !== 'object') return null;
-  const nama = item.nama_barang || item.namaBarang || item.nama || item.name || item.produk || item.title || 'Barang';
+  const nama = item.nama_barang || item.namaBarang || item.nama || item.name || item.produk || item.title || item.namaProduk || 'Barang';
   const kategori = item.kategori || item.category || 'Lainnya';
-  const stokTersedia = Number(item.stokTersedia ?? item.stok ?? item.stock ?? item.qty ?? item.jumlah ?? 0);
-  const hargaModal = Number(item.hargaModal ?? item.harga_modal ?? item.modal ?? item.cost ?? 0);
-  const hargaJual = Number(item.hargaJual ?? item.harga_jual ?? item.harga ?? item.price ?? 0);
+  const stokTersedia = Number(item.stokTersedia ?? item.stok ?? item.stock ?? item.qty ?? item.jumlah ?? item.quantity ?? 0);
+  const hargaModal = Number(item.hargaModal ?? item.harga_modal ?? item.modal ?? item.cost ?? item.hargaBeli ?? 0);
+  const hargaJual = Number(item.hargaJual ?? item.harga_jual ?? item.harga ?? item.price ?? item.sellPrice ?? 0);
   const supplierList = Array.isArray(item.supplierList) ? item.supplierList
     : (item.supplier || item.suplier || item.nama_suplier) ? [item.supplier || item.suplier || item.nama_suplier]
     : [];
 
   return {
     ...item,
-    id: item.id || Date.now() + Math.random(),
+    id: item.id || item.code || item.barcode || item.key || (Date.now() + Math.random()),
     nama_barang: nama,
     kategori,
     stokTersedia,
@@ -54,16 +54,61 @@ export const normalizeItem = (item) => {
 
 export const normalizeAppData = (data) => {
   if (!data || typeof data !== 'object') return null;
-  const rawStok = Array.isArray(data.stok) ? data.stok
-    : Array.isArray(data.products) ? data.products
-    : Array.isArray(data.items) ? data.items
-    : [];
-  
+
+  let rawStok = [];
+  if (Array.isArray(data.stok)) {
+    rawStok = data.stok;
+  } else if (data.stok && typeof data.stok === 'object') {
+    rawStok = Object.values(data.stok);
+  } else if (Array.isArray(data.products)) {
+    rawStok = data.products;
+  } else if (data.products && typeof data.products === 'object') {
+    rawStok = Object.values(data.products);
+  } else if (Array.isArray(data.items)) {
+    rawStok = data.items;
+  } else if (data.items && typeof data.items === 'object') {
+    rawStok = Object.values(data.items);
+  } else if (Array.isArray(data.barang)) {
+    rawStok = data.barang;
+  } else if (data.barang && typeof data.barang === 'object') {
+    rawStok = Object.values(data.barang);
+  } else if (Array.isArray(data.inventory)) {
+    rawStok = data.inventory;
+  } else if (data.inventory && typeof data.inventory === 'object') {
+    rawStok = Object.values(data.inventory);
+  }
+
+  let rawPenjualan = [];
+  if (Array.isArray(data.penjualan)) {
+    rawPenjualan = data.penjualan;
+  } else if (data.penjualan && typeof data.penjualan === 'object') {
+    rawPenjualan = Object.values(data.penjualan);
+  } else if (Array.isArray(data.sales)) {
+    rawPenjualan = data.sales;
+  } else if (data.sales && typeof data.sales === 'object') {
+    rawPenjualan = Object.values(data.sales);
+  } else if (Array.isArray(data.transactions)) {
+    rawPenjualan = data.transactions;
+  } else if (data.transactions && typeof data.transactions === 'object') {
+    rawPenjualan = Object.values(data.transactions);
+  }
+
+  let rawPembelian = [];
+  if (Array.isArray(data.pembelian)) {
+    rawPembelian = data.pembelian;
+  } else if (data.pembelian && typeof data.pembelian === 'object') {
+    rawPembelian = Object.values(data.pembelian);
+  } else if (Array.isArray(data.purchases)) {
+    rawPembelian = data.purchases;
+  } else if (data.purchases && typeof data.purchases === 'object') {
+    rawPembelian = Object.values(data.purchases);
+  }
+
   return {
     ...data,
     stok: rawStok.map(normalizeItem).filter(Boolean),
-    pembelian: Array.isArray(data.pembelian) ? data.pembelian : [],
-    penjualan: Array.isArray(data.penjualan) ? data.penjualan : [],
+    pembelian: rawPembelian,
+    penjualan: rawPenjualan,
     settings: data.settings || INITIAL_DATA.settings
   };
 };
@@ -99,6 +144,42 @@ export const saveLocalData = (data) => {
 const FIREBASE_DOC = () => doc(db, 'pos_data', 'store_data');
 
 /**
+ * Helper untuk membaca fallback collection jika single document tidak memiliki stok
+ */
+const fetchFirestoreCollectionsFallback = async () => {
+  const collectionNames = ['stok', 'products', 'items', 'barang', 'inventory'];
+  let itemsFromCol = [];
+
+  for (const colName of collectionNames) {
+    try {
+      const colSnap = await getDocs(collection(db, colName));
+      if (!colSnap.empty) {
+        itemsFromCol = colSnap.docs.map(d => normalizeItem({ id: d.id, ...d.data() })).filter(Boolean);
+        if (itemsFromCol.length > 0) break;
+      }
+    } catch (e) {
+      console.warn(`[Firebase] Fallback collection check '${colName}':`, e.message);
+    }
+  }
+
+  let salesFromCol = [];
+  const salesColNames = ['penjualan', 'sales', 'transactions'];
+  for (const colName of salesColNames) {
+    try {
+      const colSnap = await getDocs(collection(db, colName));
+      if (!colSnap.empty) {
+        salesFromCol = colSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (salesFromCol.length > 0) break;
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  return { itemsFromCol, salesFromCol };
+};
+
+/**
  * Subscribe realtime ke Firebase.
  */
 export const subscribeToFirebaseCloud = (onData, onError) => {
@@ -106,39 +187,35 @@ export const subscribeToFirebaseCloud = (onData, onError) => {
     const unsub = onSnapshot(
       FIREBASE_DOC(),
       async (snap) => {
+        let firebaseData = null;
         if (snap.exists() && snap.data()) {
-          const norm = normalizeAppData(snap.data());
-          if (norm && norm.stok.length > 0) {
-            onData(norm);
-            return;
-          }
-        }
-        
-        // Fallback jika single document kosong: cek Firestore Collection 'stok' / 'products'
-        try {
-          const stokCol = await getDocs(collection(db, 'stok'));
-          if (!stokCol.empty) {
-            const itemsFromCol = stokCol.docs.map(d => normalizeItem({ id: d.id, ...d.data() })).filter(Boolean);
-            if (itemsFromCol.length > 0) {
-              const fullData = normalizeAppData({ ...INITIAL_DATA, stok: itemsFromCol });
-              onData(fullData);
-              return;
-            }
-          }
-          const prodCol = await getDocs(collection(db, 'products'));
-          if (!prodCol.empty) {
-            const itemsFromCol = prodCol.docs.map(d => normalizeItem({ id: d.id, ...d.data() })).filter(Boolean);
-            if (itemsFromCol.length > 0) {
-              const fullData = normalizeAppData({ ...INITIAL_DATA, stok: itemsFromCol });
-              onData(fullData);
-              return;
-            }
-          }
-        } catch (colErr) {
-          console.warn('[Firebase] Collection fallback check:', colErr);
+          firebaseData = normalizeAppData(snap.data());
         }
 
-        onData(snap.exists() ? normalizeAppData(snap.data()) : null);
+        // Jika single document ada & punya stok, langsung kirim
+        if (firebaseData && firebaseData.stok.length > 0) {
+          onData(firebaseData);
+          return;
+        }
+
+        // Jika single doc kosong/tidak ada stok, cek collection fallback Firestore
+        try {
+          const { itemsFromCol, salesFromCol } = await fetchFirestoreCollectionsFallback();
+          if (itemsFromCol.length > 0) {
+            const mergedData = normalizeAppData({
+              ...(firebaseData || INITIAL_DATA),
+              stok: itemsFromCol,
+              penjualan: salesFromCol.length > 0 ? salesFromCol : (firebaseData?.penjualan || [])
+            });
+            onData(mergedData);
+            return;
+          }
+        } catch (colErr) {
+          console.warn('[Firebase] Collection fallback error:', colErr);
+        }
+
+        // Jika tidak ada data sama sekali di Firestore
+        onData(firebaseData);
       },
       (err) => {
         console.warn('[Firebase] Snapshot error:', err.message);

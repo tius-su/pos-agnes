@@ -117,7 +117,7 @@ const AppInner = () => {
       <div className={`sidebar-overlay${sidebarOpen ? ' show' : ''}`} onClick={() => setSidebarOpen(false)} />
 
       <div className={`sidebar-wrapper${sidebarOpen ? ' open' : ''}`} id="sidebar-wrapper">
-        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} onClose={() => setSidebarOpen(false)} />
+        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} onClose={() => setSidebarOpen(false)} isOpen={sidebarOpen} />
       </div>
 
       <div className="main-area">

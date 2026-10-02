@@ -147,15 +147,34 @@ const KasirPage = () => {
     window.open(`https://wa.me/${no}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
+  const cartItemCount = cart.reduce((s, c) => s + c.qty, 0);
+
   return (
     <div className="tab-page active fade-up">
+      {/* Mobile Tab Switcher */}
+      <div className="kasir-mobile-tabs">
+        <button
+          className={`kasir-tab-btn${mobileTab === 'catalog' ? ' active' : ''}`}
+          onClick={() => setMobileTab('catalog')}
+        >
+          <i className="fa-solid fa-store" /> Katalog Produk
+        </button>
+        <button
+          className={`kasir-tab-btn${mobileTab === 'cart' ? ' active' : ''}`}
+          onClick={() => setMobileTab('cart')}
+        >
+          <i className="fa-solid fa-cart-shopping" /> Keranjang & Bayar
+          {cartItemCount > 0 && <span className="kasir-tab-badge">{cartItemCount}</span>}
+        </button>
+      </div>
+
       <div className="pos-layout">
         {/* Product Grid Card */}
-        <div className="card pos-catalog-card" style={{ overflow: 'hidden' }}>
+        <div className={`card pos-catalog-card${mobileTab !== 'catalog' ? ' mobile-hidden' : ''}`} style={{ overflow: 'hidden' }}>
           <div className="card-header">
             <div className="card-title"><i className="fa-solid fa-store" /> Katalog Produk</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <div className="form-input-icon" style={{ width: 200 }}>
+            <div style={{ display: 'flex', gap: 8, width: '100%', maxWidth: 360 }}>
+              <div className="form-input-icon" style={{ flex: 1 }}>
                 <i className="fa-solid fa-search" />
                 <input
                   className="form-input"
@@ -165,8 +184,8 @@ const KasirPage = () => {
                   id="pos-search"
                 />
               </div>
-              <select className="form-input" style={{ width: 140 }} value={category} onChange={e => setCategory(e.target.value)} id="pos-category">
-                <option value="">Semua Kategori</option>
+              <select className="form-input" style={{ width: 130 }} value={category} onChange={e => setCategory(e.target.value)} id="pos-category">
+                <option value="">Kategori</option>
                 {['Pakaian Wanita','Pakaian Pria','Hijab','Aksesoris','Lainnya'].map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
@@ -212,7 +231,7 @@ const KasirPage = () => {
         </div>
 
         {/* Cart Panel */}
-        <div className="cart-panel">
+        <div className={`cart-panel${mobileTab !== 'cart' ? ' mobile-hidden' : ''}`}>
           <div className="cart-header">
             <div className="cart-header-title">
               <i className="fa-solid fa-shopping-cart" /> Keranjang
@@ -307,8 +326,11 @@ const KasirPage = () => {
         <div
           className="mobile-cart-float-bar"
           onClick={() => {
-            const el = document.getElementById('btn-checkout');
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setMobileTab('cart');
+            setTimeout(() => {
+              const el = document.getElementById('btn-checkout');
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 50);
           }}
         >
           <div className="float-cart-info">
@@ -316,7 +338,7 @@ const KasirPage = () => {
             <span className="float-cart-total">{formatRp(total)}</span>
           </div>
           <button className="btn btn-green btn-sm" style={{ fontWeight: 800, padding: '9px 16px', borderRadius: 8 }}>
-            Bayar Sekarang <i className="fa-solid fa-arrow-down" />
+            Bayar Sekarang <i className="fa-solid fa-arrow-right" />
           </button>
         </div>
       )}

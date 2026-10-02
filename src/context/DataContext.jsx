@@ -51,13 +51,22 @@ export const DataProvider = ({ children }) => {
         setLastSync(new Date());
         setSyncStatus('ok');
       } else {
-        // Firebase belum berisi -> inisialisasi Firestore dengan data default/lokal
+        // Firebase belum berisi stok -> coba gunakan cache lokal
         const local = loadLocalData();
-        const initialToUse = (isValidData(local) && local.stok.length > 0) ? local : INITIAL_DATA;
-        saveLocalData(initialToUse);
-        setAppData(initialToUse);
-        pushToFirebaseCloud(initialToUse); // Populasikan Firestore langsung!
-        setSyncStatus('ok');
+        if (isValidData(local) && local.stok.length > 0) {
+          setAppData(local);
+          setSyncStatus('ok');
+        } else if (cloudData && typeof cloudData === 'object') {
+          // Gunakan data dari cloud bahkan jika stok masih 0
+          setAppData(cloudData);
+          setSyncStatus('ok');
+        } else {
+          // Inisialisasi awal hanya jika Firestore & Local benar-benar kosong
+          saveLocalData(INITIAL_DATA);
+          setAppData(INITIAL_DATA);
+          pushToFirebaseCloud(INITIAL_DATA);
+          setSyncStatus('ok');
+        }
       }
     });
 

@@ -12,7 +12,7 @@ const tabs = [
   { key: 'settings', icon: 'fa-gear',             label: 'Pengaturan',         sub: 'Konfigurasi sync dan profil toko' },
 ];
 
-const Sidebar = ({ activeTab, onTabChange, onClose }) => {
+const Sidebar = ({ activeTab, onTabChange, onClose, isOpen }) => {
   const { syncStatus, lastSync } = useData();
   const { user } = useAuth();
 
@@ -26,7 +26,7 @@ const Sidebar = ({ activeTab, onTabChange, onClose }) => {
   const syncDotColor = syncStatus === 'error' ? '#e11d48' : syncStatus === 'ok' ? '#10b981' : '#f59e0b';
 
   return (
-    <aside className="sidebar" id="sidebar">
+    <aside className={`sidebar${isOpen ? ' open' : ''}`} id="sidebar">
       <div className="sidebar-logo">
         <div className="logo-mark">
           <div className="logo-icon"><i className="fa-solid fa-shirt" /></div>

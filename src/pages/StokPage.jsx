@@ -264,44 +264,44 @@ const StokPage = () => {
 
             return (
               <div key={item.nama_barang} className="stok-mobile-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>{CAT_EMOJI[item.kategori] || '📦'}</span>
-                      <span className="truncate">{item.nama_barang}</span>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18 }}>{CAT_EMOJI[item.kategori] || '📦'}</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nama_barang}</span>
                     </div>
-                    <div style={{ display: 'flex', gap: 5, marginTop: 6, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <span className="badge badge-violet">{item.kategori}</span>
                       <span className={`badge ${statusColor}`}>{statusText}</span>
                       <span className={`badge ${parseInt(margin) >= 30 ? 'badge-green' : 'badge-amber'}`}>{margin}% margin</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => openEdit(item)} title="Edit / Restock">
-                      <i className="fa-solid fa-pen-to-square" />
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button className="btn btn-ghost btn-sm" onClick={() => openEdit(item)} title="Edit / Restock" style={{ padding: '7px 10px' }}>
+                      <i className="fa-solid fa-pen-to-square" /> Edit
                     </button>
-                    <button className="btn btn-danger btn-sm" onClick={() => confirmDelete(item.nama_barang)} title="Hapus Barang">
+                    <button className="btn btn-danger btn-sm" onClick={() => confirmDelete(item.nama_barang)} title="Hapus Barang" style={{ padding: '7px 10px' }}>
                       <i className="fa-solid fa-trash" />
                     </button>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', background: '#f8fafc', padding: '10px 12px', borderRadius: 8 }}>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', fontWeight: 600 }}>HARGA MODAL</span>
-                    <span style={{ fontWeight: 600 }}>{formatRp(item.hargaModal)}</span>
+                    <span style={{ color: '#475569', fontSize: 10, display: 'block', fontWeight: 700, letterSpacing: '0.05em' }}>HARGA MODAL</span>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: '#0f172a' }}>{formatRp(item.hargaModal)}</span>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', fontWeight: 600 }}>HARGA JUAL</span>
-                    <span style={{ fontWeight: 700, color: 'var(--brand)' }}>{formatRp(item.hargaJual)}</span>
+                    <span style={{ color: '#475569', fontSize: 10, display: 'block', fontWeight: 700, letterSpacing: '0.05em' }}>HARGA JUAL</span>
+                    <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--brand)' }}>{formatRp(item.hargaJual)}</span>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', fontWeight: 600 }}>NILAI STOK</span>
-                    <span style={{ fontWeight: 600, color: 'var(--sky)' }}>{formatRp(item.hargaModal * item.stokTersedia)}</span>
+                    <span style={{ color: '#475569', fontSize: 10, display: 'block', fontWeight: 700, letterSpacing: '0.05em' }}>NILAI STOK</span>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--sky)' }}>{formatRp(item.hargaModal * item.stokTersedia)}</span>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', fontWeight: 600 }}>SUPPLIER</span>
-                    <span style={{ fontWeight: 500, fontSize: 11, color: 'var(--text-secondary)' }}>🏭 {suppliers}</span>
+                    <span style={{ color: '#475569', fontSize: 10, display: 'block', fontWeight: 700, letterSpacing: '0.05em' }}>SUPPLIER</span>
+                    <span style={{ fontWeight: 600, fontSize: 11, color: '#334155', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🏭 {suppliers}</span>
                   </div>
                 </div>
               </div>
