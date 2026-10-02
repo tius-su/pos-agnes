@@ -23,10 +23,17 @@ const KasirPage = () => {
     setDatetime(now.toISOString().slice(0, 16));
   }, []);
 
-  const filtered = appData.stok.filter(i =>
-    i.nama_barang.toLowerCase().includes(search.toLowerCase()) &&
-    (!category || i.kategori === category)
-  );
+  const filtered = appData.stok.filter(i => {
+    const sTerm = search.toLowerCase().trim();
+    const matchSearch = !sTerm ||
+      (i.nama_barang && i.nama_barang.toLowerCase().includes(sTerm)) ||
+      (i.kategori && i.kategori.toLowerCase().includes(sTerm)) ||
+      (i.supplier && i.supplier.toLowerCase().includes(sTerm)) ||
+      (i.suplier && i.suplier.toLowerCase().includes(sTerm)) ||
+      (i.nama_suplier && i.nama_suplier.toLowerCase().includes(sTerm)) ||
+      (Array.isArray(i.supplierList) && i.supplierList.some(s => String(s).toLowerCase().includes(sTerm)));
+    return matchSearch && (!category || i.kategori === category);
+  });
 
   const addToCart = (item) => {
     if (item.stokTersedia <= 0) return;
@@ -151,7 +158,7 @@ const KasirPage = () => {
                 <i className="fa-solid fa-search" />
                 <input
                   className="form-input"
-                  placeholder="Cari produk..."
+                  placeholder="Cari barang / supplier..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   id="pos-search"
@@ -175,6 +182,10 @@ const KasirPage = () => {
             ) : filtered.map(item => {
               const oos = item.stokTersedia <= 0;
               const low = !oos && item.stokTersedia <= 5;
+              const supplierText = Array.isArray(item.supplierList) && item.supplierList.length > 0
+                ? item.supplierList.join(', ')
+                : (item.supplier || item.suplier || item.nama_suplier || '');
+
               return (
                 <div key={item.nama_barang} className={`product-card${oos ? ' out-of-stock' : ''}`}>
                   <div className="product-stock-badge">
@@ -184,6 +195,11 @@ const KasirPage = () => {
                   </div>
                   <div className="product-emoji">{CAT_EMOJI[item.kategori] || '📦'}</div>
                   <div className="product-name">{item.nama_barang}</div>
+                  {supplierText && (
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      🏭 {supplierText}
+                    </div>
+                  )}
                   <div className="product-price">{formatRp(item.hargaJual)}</div>
                   <button className="product-add-btn" onClick={() => addToCart(item)} disabled={oos}>
                     <i className="fa-solid fa-cart-plus" /> Tambah

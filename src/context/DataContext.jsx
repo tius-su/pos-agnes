@@ -12,6 +12,26 @@ const isValidData = (data) => {
   return data && typeof data === 'object' && Array.isArray(data.stok);
 };
 
+// Helper: apakah data cloud boleh menimpa data lokal?
+// Aturan: cloud TIDAK BOLEH menimpa jika lokal punya lebih banyak produk
+const shouldAcceptCloudData = (cloudData, localData) => {
+  if (!isValidData(cloudData)) return false;
+  const localTime = new Date(localData?.lastUpdated || 0).getTime();
+  const cloudTime = new Date(cloudData?.lastUpdated || 0).getTime();
+  // Jika cloud lebih baru DAN memiliki data (atau lokal juga kosong) → terima
+  if (cloudTime >= localTime) {
+    // Jangan overwrite data lokal yang berisi dengan cloud yang kosong
+    const localHasData = (localData?.stok?.length || 0) > 0;
+    const cloudHasData = (cloudData?.stok?.length || 0) > 0;
+    if (localHasData && !cloudHasData) {
+      console.warn('[DataSync] ⚠️ Cloud data is empty but local has data — skipping overwrite!');
+      return false;
+    }
+    return true;
+  }
+  return false;
+};
+
 export const DataProvider = ({ children }) => {
   const [appData, setAppData] = useState(() => loadLocalData() || INITIAL_DATA);
   const [syncStatus, setSyncStatus] = useState('idle'); // idle | syncing | ok | error
@@ -47,24 +67,15 @@ export const DataProvider = ({ children }) => {
     }
 
     const unsub = subscribeToFirebaseCloud((cloudData) => {
-      // ✅ FIX: Validasi data cloud lebih ketat menggunakan isValidData()
-      if (isValidData(cloudData)) {
-        setAppData(prev => {
-          const localTime = new Date(prev.lastUpdated || 0).getTime();
-          const cloudTime = new Date(cloudData.lastUpdated || 0).getTime();
-          // Only accept cloud data if it is newer or equal to local data
-          if (cloudTime >= localTime) {
-            const saved = saveLocalData(cloudData);
-            return saved;
-          }
-          return prev;
-        });
+      // ✅ FIX: Gunakan shouldAcceptCloudData agar data lokal tidak tertimpa cloud kosong
+      setAppData(prev => {
+        if (!shouldAcceptCloudData(cloudData, prev)) return prev;
+        const saved = saveLocalData(cloudData);
         setLastSync(new Date());
         setSyncStatus('ok');
-      } else {
-        // Firebase merespons tapi data kosong/baru — tetap pakai data lokal
-        setSyncStatus('ok');
-      }
+        return saved;
+      });
+      setSyncStatus('ok');
     });
     unsubRef.current = unsub;
 
@@ -72,16 +83,12 @@ export const DataProvider = ({ children }) => {
     pullFromGitHub().then(({ success, data }) => {
       if (success && isValidData(data)) {
         setAppData(prev => {
-          const localTime = new Date(prev.lastUpdated || 0).getTime();
-          const ghTime = new Date(data.lastUpdated || 0).getTime();
-          if (ghTime > localTime) {
-            const saved = saveLocalData(data);
-            return saved;
-          }
-          return prev;
+          if (!shouldAcceptCloudData(data, prev)) return prev;
+          const saved = saveLocalData(data);
+          setLastSync(new Date());
+          setSyncStatus('ok');
+          return saved;
         });
-        setLastSync(new Date());
-        setSyncStatus('ok');
       } else {
         setSyncStatus('ok');
       }

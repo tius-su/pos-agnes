@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useData } from '../context/DataContext';
-import { getGitHubSettings, saveGitHubSettings, pushToGitHub, pullFromGitHub } from '../services/dataSync';
+import { getGitHubSettings, saveGitHubSettings, pushToGitHub, pullFromGitHub, saveLocalData, loadLocalData } from '../services/dataSync';
 import { pushToFirebaseCloud } from '../services/dataSync';
 
 const SettingsPage = () => {
-  const { appData, saveAndSync, toast } = useData();
+  const { appData, saveAndSync, updateData, toast } = useData();
   const ghSettings = getGitHubSettings();
 
   const [ghToken, setGhToken] = useState(ghSettings.token);
@@ -33,8 +33,15 @@ const SettingsPage = () => {
     setPulling(true);
     const { success, data, error } = await pullFromGitHub();
     setPulling(false);
-    if (success) toast('✅ Pull dari GitHub berhasil!', 'success');
-    else toast(`❌ Pull gagal: ${error}`, 'error');
+    if (success && data && Array.isArray(data.stok)) {
+      // ✅ FIX: Benar-benar apply data ke state, bukan hanya fetch
+      await saveAndSync(data);
+      toast(`✅ Pull berhasil! ${data.stok.length} produk dimuat.`, 'success');
+    } else if (success) {
+      toast('⚠️ Data dari GitHub tidak valid atau stok kosong.', 'warning');
+    } else {
+      toast(`❌ Pull gagal: ${error}`, 'error');
+    }
   };
 
   const pushFirebase = async () => {
@@ -51,6 +58,32 @@ const SettingsPage = () => {
       settings: { storeName, storeAddress, storePhone, receiptFooter }
     };
     await saveAndSync(newData);
+  };
+
+  // ✅ RECOVERY: Paksa push data dari browser ini ke Firebase + GitHub
+  const forcePushToCloud = async () => {
+    const localData = loadLocalData();
+    if (!localData || !Array.isArray(localData.stok) || localData.stok.length === 0) {
+      toast('⚠️ Tidak ada data di browser ini untuk dipulihkan.', 'warning');
+      return;
+    }
+    setSyncing(true);
+    toast(`🔄 Memulihkan ${localData.stok.length} produk ke cloud...`, 'info');
+    // Force timestamp agar lebih baru dari cloud
+    const recoveryData = { ...localData, lastUpdated: new Date().toISOString() };
+    saveLocalData(recoveryData);
+    const [fbRes, ghRes] = await Promise.allSettled([
+      pushToFirebaseCloud(recoveryData),
+      pushToGitHub(recoveryData)
+    ]);
+    setSyncing(false);
+    const fbOk = fbRes.status === 'fulfilled' && fbRes.value?.success;
+    const ghOk = ghRes.status === 'fulfilled' && ghRes.value?.success;
+    if (fbOk || ghOk) {
+      toast(`✅ ${localData.stok.length} produk berhasil dipulihkan ke cloud!`, 'success');
+    } else {
+      toast('❌ Gagal push ke cloud. Cek token GitHub dan koneksi.', 'error');
+    }
   };
 
   const downloadBackup = () => {

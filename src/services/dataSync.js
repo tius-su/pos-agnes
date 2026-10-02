@@ -1,11 +1,11 @@
 import { db } from '../firebase';
-import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 
-const LOCAL_DATA_KEY = 'agnes_pos_data';
-const GH_TOKEN_KEY = 'agnes_token';
-const GH_REPO_KEY = 'agnes_repo';
-const DEFAULT_REPO = import.meta.env.VITE_GITHUB_REPO || 'tius-su/pos-agnes';
-const DEFAULT_TOKEN = import.meta.env.VITE_GITHUB_TOKEN || '';
+const LOCAL_CACHE_KEY = 'agnes_pos_cache'; // renamed: ini hanya cache, bukan sumber data
+const GH_TOKEN_KEY   = 'agnes_token';
+const GH_REPO_KEY    = 'agnes_repo';
+const DEFAULT_REPO   = import.meta.env.VITE_GITHUB_REPO  || 'tius-su/pos-agnes';
+const DEFAULT_TOKEN  = import.meta.env.VITE_GITHUB_TOKEN || '';
 
 export const INITIAL_DATA = {
   appName: 'Agnes Fashion POS',
@@ -14,74 +14,92 @@ export const INITIAL_DATA = {
   pembelian: [],
   penjualan: [],
   settings: {
-    storeName: 'Agnes Fashion',
-    storeAddress: 'Pasar Baru Cikarang Blok C',
-    storePhone: '0851-1702-1168',
+    storeName:     'Agnes Fashion',
+    storeAddress:  'Pasar Baru Cikarang Blok C',
+    storePhone:    '0851-1702-1168',
     receiptFooter: 'Terima Kasih Telah Berbelanja di Agnes Fashion! Barang yang sudah dibeli tidak dapat ditukar.'
   }
 };
 
-// LocalStorage helpers
+// ─── LOCAL CACHE (bukan sumber data utama) ────────────────────────────────────
 export const loadLocalData = () => {
   try {
-    const raw = localStorage.getItem(LOCAL_DATA_KEY);
+    // Coba key lama dulu untuk backward compatibility
+    const raw = localStorage.getItem(LOCAL_CACHE_KEY)
+             || localStorage.getItem('agnes_pos_data');
     if (raw) return JSON.parse(raw);
   } catch (e) {
-    console.error("Failed to load local data", e);
+    console.error('Cache load error:', e);
   }
-  return INITIAL_DATA;
+  return null; // null = belum ada cache, bukan INITIAL_DATA
 };
 
 export const saveLocalData = (data) => {
   try {
     const updated = { ...data, lastUpdated: new Date().toISOString() };
-    localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(updated));
+    localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(updated));
     return updated;
   } catch (e) {
-    console.error("Failed to save local data", e);
+    console.error('Cache save error:', e);
     return data;
   }
 };
 
-// Firebase Cloud Sync
-export const subscribeToFirebaseCloud = (onDataReceived) => {
+// ─── FIREBASE (DATABASE UTAMA) ────────────────────────────────────────────────
+const FIREBASE_DOC = () => doc(db, 'pos_data', 'store_data');
+
+/**
+ * Subscribe realtime ke Firebase.
+ * @param {Function} onData  - dipanggil dengan data saat Firebase update
+ * @param {Function} onError - dipanggil saat error koneksi
+ * @returns unsubscribe function
+ */
+export const subscribeToFirebaseCloud = (onData, onError) => {
   try {
-    const docRef = doc(db, 'pos_data', 'store_data');
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const cloudData = docSnap.data();
-        onDataReceived(cloudData);
+    const unsub = onSnapshot(
+      FIREBASE_DOC(),
+      (snap) => {
+        if (snap.exists()) {
+          onData(snap.data());
+        } else {
+          // Dokumen belum ada di Firestore
+          onData(null);
+        }
+      },
+      (err) => {
+        console.warn('[Firebase] Snapshot error:', err.message);
+        if (onError) onError(err);
       }
-    }, (error) => {
-      console.warn("Firestore snapshot error (may require security rules or internet):", error.message);
-    });
-    return unsubscribe;
+    );
+    return unsub;
   } catch (e) {
-    console.error("Firebase Cloud Subscription Error:", e);
+    console.error('[Firebase] Subscribe error:', e);
+    if (onError) onError(e);
     return () => {};
   }
 };
 
+/**
+ * Push data ke Firebase (DATABASE UTAMA).
+ * Selalu tambahkan lastUpdated baru.
+ */
 export const pushToFirebaseCloud = async (data) => {
   try {
-    const docRef = doc(db, 'pos_data', 'store_data');
     const payload = { ...data, lastUpdated: new Date().toISOString() };
-    await setDoc(docRef, payload);
-    saveLocalData(payload);
+    await setDoc(FIREBASE_DOC(), payload);
+    saveLocalData(payload); // update cache
     return { success: true };
   } catch (e) {
-    console.error("Firebase Cloud Push Error:", e);
+    console.error('[Firebase] Push error:', e);
     return { success: false, error: e.message };
   }
 };
 
-// GitHub JSON API Sync
-export const getGitHubSettings = () => {
-  return {
-    token: localStorage.getItem(GH_TOKEN_KEY) || DEFAULT_TOKEN,
-    repo: localStorage.getItem(GH_REPO_KEY) || DEFAULT_REPO
-  };
-};
+// ─── GITHUB (BACKUP OPSIONAL) ─────────────────────────────────────────────────
+export const getGitHubSettings = () => ({
+  token: localStorage.getItem(GH_TOKEN_KEY) || DEFAULT_TOKEN,
+  repo:  localStorage.getItem(GH_REPO_KEY)  || DEFAULT_REPO
+});
 
 export const saveGitHubSettings = (token, repo) => {
   localStorage.setItem(GH_TOKEN_KEY, token.trim());
@@ -94,62 +112,62 @@ export const pullFromGitHub = async () => {
     const headers = { 'Accept': 'application/vnd.github.v3+json' };
     if (token) headers['Authorization'] = `token ${token}`;
 
-    const res = await fetch(`https://api.github.com/repos/${repo}/contents/github.json?t=${Date.now()}`, { headers });
-    if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+    const res = await fetch(
+      `https://api.github.com/repos/${repo}/contents/github.json?t=${Date.now()}`,
+      { headers }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    const fileMeta = await res.json();
-    const contentUtf8 = decodeURIComponent(escape(atob(fileMeta.content.replace(/\n/g, ''))));
-    const data = JSON.parse(contentUtf8);
-    return { success: true, data, sha: fileMeta.sha };
+    const meta = await res.json();
+    const raw  = decodeURIComponent(escape(atob(meta.content.replace(/\n/g, ''))));
+    const data = JSON.parse(raw);
+    return { success: true, data, sha: meta.sha };
   } catch (e) {
-    console.warn("GitHub Pull failed, using local/firebase cache", e.message);
+    console.warn('[GitHub] Pull failed:', e.message);
     return { success: false, error: e.message };
   }
 };
 
 export const pushToGitHub = async (data) => {
   const { token, repo } = getGitHubSettings();
-  if (!token) return { success: false, error: "Token GitHub belum diisi" };
+  if (!token) return { success: false, error: 'Token GitHub belum diisi' };
 
   try {
-    const updatedData = { ...data, lastUpdated: new Date().toISOString() };
+    const payload = { ...data, lastUpdated: new Date().toISOString() };
 
     // Get SHA
     let sha = '';
-    const getRes = await fetch(`https://api.github.com/repos/${repo}/contents/github.json`, {
-      headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
-    });
-    if (getRes.ok) {
-      const meta = await getRes.json();
-      sha = meta.sha;
-    }
+    const getRes = await fetch(
+      `https://api.github.com/repos/${repo}/contents/github.json`,
+      { headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' } }
+    );
+    if (getRes.ok) sha = (await getRes.json()).sha;
 
-    const contentBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(updatedData, null, 2))));
-    const bodyPayload = {
-      message: `POS Sync: ${new Date().toLocaleString('id-ID')}`,
-      content: contentBase64,
-      sha: sha || undefined
-    };
-
-    const putRes = await fetch(`https://api.github.com/repos/${repo}/contents/github.json`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `token ${token}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/vnd.github.v3+json'
-      },
-      body: JSON.stringify(bodyPayload)
-    });
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
+    const putRes  = await fetch(
+      `https://api.github.com/repos/${repo}/contents/github.json`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization':  `token ${token}`,
+          'Content-Type':   'application/json',
+          'Accept':         'application/vnd.github.v3+json'
+        },
+        body: JSON.stringify({
+          message: `POS Backup: ${new Date().toLocaleString('id-ID')}`,
+          content,
+          sha: sha || undefined
+        })
+      }
+    );
 
     if (!putRes.ok) {
       const err = await putRes.json();
       throw new Error(err.message || 'Push failed');
     }
-
-    saveLocalData(updatedData);
     return { success: true };
   } catch (e) {
-    console.error("GitHub Push Error:", e);
+    console.error('[GitHub] Push error:', e);
     return { success: false, error: e.message };
   }
 };

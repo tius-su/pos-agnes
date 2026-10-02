@@ -24,10 +24,17 @@ const StokPage = () => {
   const [form, setForm] = useState(emptyForm);
   const [deleting, setDeleting] = useState(null);
 
-  const filtered = (appData.stok || []).filter(i =>
-    i.nama_barang.toLowerCase().includes(search.toLowerCase()) &&
-    (!catFilter || i.kategori === catFilter)
-  );
+  const filtered = (appData.stok || []).filter(i => {
+    const sTerm = search.toLowerCase().trim();
+    const matchSearch = !sTerm ||
+      (i.nama_barang && i.nama_barang.toLowerCase().includes(sTerm)) ||
+      (i.kategori && i.kategori.toLowerCase().includes(sTerm)) ||
+      (i.supplier && i.supplier.toLowerCase().includes(sTerm)) ||
+      (i.suplier && i.suplier.toLowerCase().includes(sTerm)) ||
+      (i.nama_suplier && i.nama_suplier.toLowerCase().includes(sTerm)) ||
+      (Array.isArray(i.supplierList) && i.supplierList.some(s => String(s).toLowerCase().includes(sTerm)));
+    return matchSearch && (!catFilter || i.kategori === catFilter);
+  });
 
   const handleFormChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
