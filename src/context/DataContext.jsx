@@ -51,17 +51,13 @@ export const DataProvider = ({ children }) => {
         setLastSync(new Date());
         setSyncStatus('ok');
       } else {
-        // Firebase belum berisi stok -> coba gunakan cache lokal
+        // Coba gunakan cache lokal jika memiliki stok barang
         const local = loadLocalData();
         if (isValidData(local) && local.stok.length > 0) {
           setAppData(local);
           setSyncStatus('ok');
-        } else if (cloudData && typeof cloudData === 'object') {
-          // Gunakan data dari cloud bahkan jika stok masih 0
-          setAppData(cloudData);
-          setSyncStatus('ok');
         } else {
-          // Inisialisasi awal hanya jika Firestore & Local benar-benar kosong
+          // Jika cloud & local tidak memiliki stok barang, pakai INITIAL_DATA agar Kasir & Stok TIDAK KOSONG
           saveLocalData(INITIAL_DATA);
           setAppData(INITIAL_DATA);
           pushToFirebaseCloud(INITIAL_DATA);
