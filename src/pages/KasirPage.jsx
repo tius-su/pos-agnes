@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
+import { printReportHTML } from '../services/exportUtils';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 const CAT_EMOJI = { 'Pakaian Wanita': '👗', 'Pakaian Pria': '👕', 'Hijab': '🧕', 'Aksesoris': '💍', 'Lainnya': '📦' };
@@ -20,6 +21,14 @@ const KasirPage = () => {
   // Diskon
   const [diskonType, setDiskonType] = useState('persen'); // 'persen' | 'nominal'
   const [diskonValue, setDiskonValue] = useState('');
+
+  // ─── TRANSAKSI PENDING STATES ─────────────────────────────────────────
+  const [showPendingModal, setShowPendingModal] = useState(false);
+  const [holdNoteModal, setHoldNoteModal] = useState(false);
+  const [holdNoteInput, setHoldNoteInput] = useState('');
+  const [pendingSearch, setPendingSearch] = useState('');
+
+  const pendingList = appData.pendingTransactions || [];
 
   useEffect(() => {
     const now = new Date();
@@ -219,6 +228,129 @@ const KasirPage = () => {
     }
   };
 
+  // ─── HANDLERS TRANSAKSI PENDING ────────────────────────────────────────
+  const confirmHoldCart = async (note = '') => {
+    if (!cart.length) {
+      toast('Keranjang masih kosong!', 'warning');
+      return;
+    }
+    const pendingId = 'PEND-' + Date.now();
+    const kodePending = 'PEND-' + Math.floor(1000 + Math.random() * 9000);
+    const now = new Date();
+
+    const pendingItem = {
+      id: pendingId,
+      kodePending,
+      tanggal: now.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-'),
+      waktu: now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      created_at: now.toISOString(),
+      pelanggan: customerName.trim() || note.trim() || 'Pelanggan Umum',
+      noWa: customerWa.trim(),
+      catatan: note.trim() || customerName.trim() || 'Pending Kasir',
+      items: [...cart],
+      subtotalSebelumDiskon: subtotal,
+      diskonType,
+      diskonValue: diskonNum,
+      diskonAmt,
+      totalPenjualan: total,
+      totalModal,
+      metodeBayar: payMethod
+    };
+
+    const nextPending = [pendingItem, ...pendingList];
+    await saveAndSync({ ...appData, pendingTransactions: nextPending });
+
+    // Clear active cart & inputs
+    setCart([]);
+    setCustomerName('');
+    setCustomerWa('');
+    setDiskonValue('');
+    setDiskonType('persen');
+    setHoldNoteModal(false);
+    setHoldNoteInput('');
+    toast('⏸️ Transaksi berhasil disimpan di daftar Pending!', 'success');
+  };
+
+  const handleLoadPending = async (item, deleteAfterLoad = true) => {
+    setCart(item.items || []);
+    setCustomerName(item.pelanggan || '');
+    setCustomerWa(item.noWa || '');
+    setDiskonType(item.diskonType || 'persen');
+    setDiskonValue(item.diskonValue ? String(item.diskonValue) : '');
+    setPayMethod(item.metodeBayar || 'Tunai');
+
+    if (deleteAfterLoad) {
+      const nextPending = pendingList.filter(p => p.id !== item.id);
+      await saveAndSync({ ...appData, pendingTransactions: nextPending });
+    }
+
+    setShowPendingModal(false);
+    setMobileTab('cart');
+    toast(`▶️ Transaksi pending (${item.pelanggan}) dimuat ke keranjang!`, 'info');
+  };
+
+  const handleDeletePending = async (id) => {
+    const nextPending = pendingList.filter(p => p.id !== id);
+    await saveAndSync({ ...appData, pendingTransactions: nextPending });
+    toast('🗑️ Transaksi pending dihapus', 'info');
+  };
+
+  const handleSharePendingWA = (item) => {
+    const s = appData.settings || {};
+    let msg = `*TAGIHAN / NOTA PENDING ${s.storeName?.toUpperCase() || 'AGNES FASHION'}*\n`;
+    if (s.storeAddress) msg += `${s.storeAddress}\n`;
+    msg += `───────────────────\n`;
+    msg += `No Pending : ${item.kodePending || item.id}\n`;
+    msg += `Tanggal    : ${item.tanggal} ${item.waktu || ''}\n`;
+    msg += `Pelanggan  : ${item.pelanggan || 'Umum'}\n`;
+    if (item.catatan) msg += `Catatan    : ${item.catatan}\n`;
+    msg += `───────────────────\n`;
+    (item.items || []).forEach(i => {
+      const itemSub = i.hargaJual * i.qty;
+      msg += `${i.nama_barang} x${i.qty} = ${formatRp(itemSub)}\n`;
+    });
+    msg += `───────────────────\n`;
+    if (item.diskonAmt > 0) {
+      msg += `Subtotal : ${formatRp(item.subtotalSebelumDiskon || (item.totalPenjualan + item.diskonAmt))}\n`;
+      msg += `Diskon   : -${formatRp(item.diskonAmt)}\n`;
+    }
+    msg += `*TOTAL TAGIHAN: ${formatRp(item.totalPenjualan || item.total)}*\n`;
+    msg += `───────────────────\n`;
+    msg += `Mohon konfirmasi pesanan jika sudah sesuai. Terima kasih! 🙏`;
+
+    const encodedMsg = encodeURIComponent(msg);
+    const custWa = formatWaNumber(item.noWa || customerWa);
+    const ownerWa = formatWaNumber(s.storePhone) || '6285117027358';
+    const targetWa = custWa || ownerWa;
+
+    window.open(`https://wa.me/${targetWa}?text=${encodedMsg}`, '_blank');
+    toast(`📲 Tagihan pending dikirim ke WhatsApp (${targetWa})`, 'success');
+  };
+
+  const handlePrintPending = (item) => {
+    const s = appData.settings || {};
+    let tableHtml = '<table style="width:100%;border-collapse:collapse;margin-top:10px;"><thead><tr style="border-bottom:2px solid #333;"><th style="text-align:left;padding:6px;">Barang</th><th style="text-align:center;padding:6px;">Qty</th><th style="text-align:right;padding:6px;">Harga</th><th style="text-align:right;padding:6px;">Subtotal</th></tr></thead><tbody>';
+    (item.items || []).forEach(i => {
+      const itemSub = i.hargaJual * i.qty;
+      tableHtml += `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px;">${i.nama_barang}</td><td style="text-align:center;padding:6px;">${i.qty}</td><td style="text-align:right;padding:6px;">${formatRp(i.hargaJual)}</td><td style="text-align:right;padding:6px;">${formatRp(itemSub)}</td></tr>`;
+    });
+    if (item.diskonAmt > 0) {
+      tableHtml += `<tr><td colSpan="3" style="text-align:right;padding:6px;font-weight:bold;">Subtotal:</td><td style="text-align:right;padding:6px;">${formatRp(item.subtotalSebelumDiskon || (item.totalPenjualan + item.diskonAmt))}</td></tr>`;
+      tableHtml += `<tr><td colSpan="3" style="text-align:right;padding:6px;font-weight:bold;color:#d97706;">Diskon:</td><td style="text-align:right;padding:6px;color:#d97706;">-${formatRp(item.diskonAmt)}</td></tr>`;
+    }
+    tableHtml += `<tr style="font-weight:bold;background:#f3f4f6;"><td colSpan="3" style="text-align:right;padding:8px;font-size:14px;">TOTAL TAGIHAN:</td><td style="text-align:right;padding:8px;font-size:14px;color:#059669;">${formatRp(item.totalPenjualan || item.total)}</td></tr></tbody></table>`;
+
+    if (item.catatan) {
+      tableHtml += `<div style="margin-top:12px;padding:8px;background:#fef3c7;border-radius:6px;font-size:12px;"><strong>Catatan:</strong> ${item.catatan}</div>`;
+    }
+
+    printReportHTML(
+      `NOTA PENDING / PRE-ORDER - ${item.kodePending || item.id}`,
+      `Pelanggan: ${item.pelanggan || 'Umum'} ${item.noWa ? `(${item.noWa})` : ''} | Tgl: ${item.tanggal} ${item.waktu || ''}`,
+      tableHtml
+    );
+  };
+
   const cartItemCount = cart.reduce((s, c) => s + c.qty, 0);
 
   return (
@@ -348,11 +480,22 @@ const KasirPage = () => {
                 <span className="badge badge-violet">{cart.reduce((s,c) => s+c.qty, 0)}</span>
               )}
             </div>
-            {cart.length > 0 && (
-              <button className="cart-clear-btn" onClick={() => setCart([])}>
-                <i className="fa-solid fa-trash" /> Kosongkan
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                style={{ color: 'var(--amber)', fontWeight: 700, fontSize: 11, padding: '4px 8px' }}
+                onClick={() => setShowPendingModal(true)}
+                title="Lihat transaksi pending"
+              >
+                <i className="fa-solid fa-clock-rotate-left" /> Pending ({pendingList.length})
               </button>
-            )}
+              {cart.length > 0 && (
+                <button className="cart-clear-btn" onClick={() => setCart([])}>
+                  <i className="fa-solid fa-trash" /> Kosongkan
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Customer Info */}
@@ -493,6 +636,34 @@ const KasirPage = () => {
               </div>
             )}
 
+            {/* Action buttons: Pending / Hold & Checkout */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10, marginBottom: 8 }}>
+              <button
+                type="button"
+                className="btn btn-amber"
+                style={{ borderRadius: 10, fontWeight: 700, fontSize: 12, padding: '10px 8px' }}
+                onClick={() => {
+                  if (!cart.length) { toast('Keranjang masih kosong!', 'warning'); return; }
+                  setHoldNoteInput(customerName || '');
+                  setHoldNoteModal(true);
+                }}
+                disabled={!cart.length}
+                title="Simpan keranjang ke daftar Pending"
+              >
+                <i className="fa-solid fa-pause-circle" /> Pending / Hold
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-purple"
+                style={{ borderRadius: 10, fontWeight: 700, fontSize: 12, padding: '10px 8px', position: 'relative' }}
+                onClick={() => setShowPendingModal(true)}
+                title="Buka daftar transaksi pending"
+              >
+                <i className="fa-solid fa-clock-rotate-left" /> Daftar Pending ({pendingList.length})
+              </button>
+            </div>
+
             <button className="btn btn-green btn-full btn-lg btn-checkout-main" onClick={handleCheckout} disabled={!cart.length} id="btn-checkout">
               <i className="fa-solid fa-check-circle" /> Proses Pembayaran ({formatRp(total)})
             </button>
@@ -630,6 +801,233 @@ const KasirPage = () => {
                 Batal
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Input Catatan Pending (Hold Cart) ── */}
+      {holdNoteModal && (
+        <div className="modal-overlay show" style={{ zIndex: 9999 }}>
+          <div className="modal-content modal-sm" style={{ background: 'var(--bg-surface)', borderRadius: 16, overflow: 'hidden', padding: 0 }}>
+            <div className="modal-header" style={{ background: 'linear-gradient(135deg, rgba(217,119,6,0.1), rgba(245,158,11,0.05))' }}>
+              <div className="modal-title" style={{ fontSize: 15, fontWeight: 800 }}>
+                <i className="fa-solid fa-pause-circle" style={{ color: 'var(--amber)', marginRight: 8 }} />
+                Simpan Ke Transaksi Pending
+              </div>
+              <button className="btn-icon" onClick={() => setHoldNoteModal(false)}>
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: 20 }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+                Simpan keranjang saat ini ({cartItemCount} item - {formatRp(total)}) agar bisa dilanjutkan nanti.
+              </p>
+              
+              <div style={{ marginBottom: 12 }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>Nama Pelanggan / Catatan Meja</label>
+                <input
+                  className="form-input"
+                  placeholder="Contoh: Ibu Ani / Meja 3"
+                  value={holdNoteInput}
+                  onChange={e => setHoldNoteInput(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>No. WhatsApp (Opsional)</label>
+                <input
+                  className="form-input"
+                  placeholder="Contoh: 08123456789"
+                  value={customerWa}
+                  onChange={e => setCustomerWa(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="modal-footer" style={{ padding: '12px 20px', background: 'var(--bg-hover)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setHoldNoteModal(false)}>
+                Batal
+              </button>
+              <button
+                className="btn btn-amber btn-sm"
+                style={{ fontWeight: 800, padding: '8px 18px' }}
+                onClick={() => confirmHoldCart(holdNoteInput)}
+              >
+                <i className="fa-solid fa-floppy-disk" style={{ marginRight: 6 }} /> Simpan Pending
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Daftar Transaksi Pending ── */}
+      {showPendingModal && (
+        <div className="modal-overlay show" style={{ zIndex: 9999 }}>
+          <div className="modal-content modal-lg" style={{ background: 'var(--bg-surface)', borderRadius: 16, overflow: 'hidden', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
+            
+            {/* Header Modal */}
+            <div className="modal-header" style={{ background: 'linear-gradient(135deg, rgba(124,58,237,0.08), rgba(2,132,199,0.05))', padding: '16px 20px' }}>
+              <div className="modal-title" style={{ fontSize: 16, fontWeight: 800 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(124,58,237,0.12)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                  <i className="fa-solid fa-clock-rotate-left" style={{ color: 'var(--brand)', fontSize: 16 }} />
+                </div>
+                Daftar Transaksi Pending ({pendingList.length})
+              </div>
+              <button className="btn-icon" onClick={() => setShowPendingModal(false)}>
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </div>
+
+            {/* Filter Search */}
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-hover)' }}>
+              <div className="form-input-icon">
+                <i className="fa-solid fa-search" />
+                <input
+                  className="form-input"
+                  placeholder="Cari pelanggan, catatan, atau kode pending..."
+                  value={pendingSearch}
+                  onChange={e => setPendingSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Modal Body - Pending List */}
+            <div className="modal-body" style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+              {pendingList.length === 0 ? (
+                <div className="empty-state" style={{ padding: '40px 20px' }}>
+                  <i className="fa-solid fa-pause-circle" style={{ fontSize: 40, color: 'var(--text-muted)', marginBottom: 12 }} />
+                  <p style={{ fontWeight: 700, fontSize: 14 }}>Belum ada transaksi pending.</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Gunakan tombol <strong>"Pending / Hold"</strong> di keranjang kasir untuk menyimpan pesanan sementara.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
+                  {pendingList.filter(p => {
+                    const sTerm = pendingSearch.toLowerCase().trim();
+                    if (!sTerm) return true;
+                    return (p.pelanggan && p.pelanggan.toLowerCase().includes(sTerm)) ||
+                           (p.catatan && p.catatan.toLowerCase().includes(sTerm)) ||
+                           (p.kodePending && p.kodePending.toLowerCase().includes(sTerm));
+                  }).map(item => {
+                    const itemCount = (item.items || []).reduce((s, i) => s + i.qty, 0);
+                    return (
+                      <div
+                        key={item.id}
+                        style={{
+                          background: 'var(--card-bg, #fff)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 14,
+                          padding: 14,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justify: 'space-between',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+                          transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                        }}
+                      >
+                        {/* Header Item Card */}
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                            <div>
+                              <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)' }}>
+                                👤 {item.pelanggan || 'Umum'}
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                                🏷️ {item.kodePending || item.id} · 🕒 {item.tanggal} {item.waktu || ''}
+                              </div>
+                            </div>
+                            <span className="badge badge-amber" style={{ fontWeight: 700 }}>
+                              {itemCount} pcs
+                            </span>
+                          </div>
+
+                          {/* Catatan jika ada */}
+                          {item.catatan && item.catatan !== item.pelanggan && (
+                            <div style={{ fontSize: 11, background: 'var(--bg-hover)', padding: '4px 8px', borderRadius: 6, marginBottom: 8, color: 'var(--text-secondary)' }}>
+                              📝 {item.catatan}
+                            </div>
+                          )}
+
+                          {/* Brief item list */}
+                          <div style={{ borderTop: '1px dashed var(--border)', borderBottom: '1px dashed var(--border)', padding: '8px 0', margin: '8px 0', fontSize: 11 }}>
+                            {(item.items || []).map((it, idx) => (
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                                <span style={{ color: 'var(--text-secondary)', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {it.nama_barang} <strong style={{ color: 'var(--brand)' }}>x{it.qty}</strong>
+                                </span>
+                                <span style={{ fontWeight: 700 }}>{formatRp(it.hargaJual * it.qty)}</span>
+                              </div>
+                            ))}
+                            {item.diskonAmt > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--amber)', fontWeight: 700, marginTop: 4 }}>
+                                <span>Diskon</span>
+                                <span>-{formatRp(item.diskonAmt)}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Total Pending */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>Total Tagihan:</span>
+                            <span style={{ fontSize: 16, fontWeight: 900, color: 'var(--emerald)' }}>{formatRp(item.totalPenjualan || item.total)}</span>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons: Edit/Load, Share WA, Print, Hapus */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
+                          <button
+                            className="btn btn-purple btn-sm"
+                            style={{ fontWeight: 800, fontSize: 11, padding: '7px' }}
+                            onClick={() => handleLoadPending(item)}
+                            title="Muat ke keranjang kasir untuk diedit / dilanjutkan pembayaran"
+                          >
+                            <i className="fa-solid fa-play" style={{ marginRight: 4 }} /> Edit / Lanjut
+                          </button>
+
+                          <button
+                            className="btn btn-green btn-sm"
+                            style={{ fontWeight: 700, fontSize: 11, padding: '7px' }}
+                            onClick={() => handleSharePendingWA(item)}
+                            title="Kirim rincian nota pending ke WhatsApp"
+                          >
+                            <i className="fa-brands fa-whatsapp" style={{ marginRight: 4 }} /> Kirim WA
+                          </button>
+
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            style={{ fontWeight: 700, fontSize: 11, padding: '7px', color: 'var(--brand)' }}
+                            onClick={() => handlePrintPending(item)}
+                            title="Cetak struk nota pending"
+                          >
+                            <i className="fa-solid fa-print" style={{ marginRight: 4 }} /> Print Struk
+                          </button>
+
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            style={{ fontWeight: 700, fontSize: 11, padding: '7px', color: 'var(--rose)' }}
+                            onClick={() => handleDeletePending(item.id)}
+                            title="Hapus transaksi pending ini"
+                          >
+                            <i className="fa-solid fa-trash" style={{ marginRight: 4 }} /> Hapus
+                          </button>
+                        </div>
+
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Modal */}
+            <div className="modal-footer" style={{ padding: '12px 20px', background: 'var(--bg-hover)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                Total: <strong>{pendingList.length}</strong> transaksi pending tersimpan.
+              </span>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowPendingModal(false)}>
+                Tutup Modal
+              </button>
+            </div>
+
           </div>
         </div>
       )}

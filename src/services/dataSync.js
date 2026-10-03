@@ -21,6 +21,7 @@ export const INITIAL_DATA = {
   pembelian: [],
   penjualan: [],
   pengeluaran: [],
+  pendingTransactions: [],
   settings: {
     storeName:     'Agnes Fashion',
     storeAddress:  'Pasar Baru Cikarang Blok C',
@@ -128,12 +129,24 @@ export const normalizeAppData = (data) => {
     rawPengeluaran = Object.values(data.expenses);
   }
 
+  let rawPending = [];
+  if (Array.isArray(data.pendingTransactions)) {
+    rawPending = data.pendingTransactions;
+  } else if (data.pendingTransactions && typeof data.pendingTransactions === 'object') {
+    rawPending = Object.values(data.pendingTransactions);
+  } else if (Array.isArray(data.pending)) {
+    rawPending = data.pending;
+  } else if (data.pending && typeof data.pending === 'object') {
+    rawPending = Object.values(data.pending);
+  }
+
   return {
     ...data,
     stok: rawStok.map(normalizeItem).filter(Boolean),
     pembelian: rawPembelian,
     penjualan: rawPenjualan,
     pengeluaran: rawPengeluaran,
+    pendingTransactions: rawPending,
     settings: {
       ...INITIAL_DATA.settings,
       ...(data.settings || {})
