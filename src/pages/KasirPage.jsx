@@ -251,7 +251,12 @@ const KasirPage = () => {
                 : (item.supplier || item.suplier || item.nama_suplier || '');
 
               return (
-                <div key={item.nama_barang} className={`product-card${oos ? ' out-of-stock' : ''}`}>
+                <div
+                  key={item.nama_barang}
+                  className={`product-card${oos ? ' out-of-stock' : ''}`}
+                  onClick={() => !oos && addToCart(item)}
+                  title={oos ? 'Stok habis' : 'Klik untuk tambah ke keranjang'}
+                >
                   <div className="product-stock-badge">
                     {oos ? <span className="badge badge-red">Habis</span>
                       : low ? <span className="badge badge-amber">Sisa {item.stokTersedia}</span>
@@ -265,7 +270,7 @@ const KasirPage = () => {
                     </div>
                   )}
                   <div className="product-price">{formatRp(item.hargaJual)}</div>
-                  <button className="product-add-btn" onClick={() => addToCart(item)} disabled={oos}>
+                  <button className="product-add-btn" onClick={(e) => { e.stopPropagation(); addToCart(item); }} disabled={oos}>
                     <i className="fa-solid fa-cart-plus" /> Tambah
                   </button>
                 </div>
