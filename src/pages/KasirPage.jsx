@@ -62,6 +62,10 @@ const KasirPage = () => {
     });
   };
 
+  const updatePrice = (name, newPrice) => {
+    setCart(prev => prev.map(c => c.nama_barang === name ? { ...c, hargaJual: Math.max(0, newPrice) } : c));
+  };
+
   const total = cart.reduce((s, c) => s + c.hargaJual * c.qty, 0);
   const totalModal = cart.reduce((s, c) => s + (c.hargaModal || 0) * c.qty, 0);
   const laba = total - totalModal;
@@ -285,7 +289,32 @@ const KasirPage = () => {
               <div key={item.nama_barang} className="cart-item">
                 <div className="cart-item-info">
                   <div className="cart-item-name">{item.nama_barang}</div>
-                  <div className="cart-item-price">{formatRp(item.hargaJual)} / pcs</div>
+                  <div className="cart-item-price-edit" style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 3 }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>Rp</span>
+                    <input
+                      type="number"
+                      className="form-input cart-price-input"
+                      value={item.hargaJual}
+                      onChange={e => {
+                        const val = parseFloat(e.target.value);
+                        updatePrice(item.nama_barang, isNaN(val) ? 0 : val);
+                      }}
+                      onClick={e => e.stopPropagation()}
+                      style={{
+                        width: '85px',
+                        padding: '2px 5px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        height: '24px',
+                        color: 'var(--brand)',
+                        borderRadius: '4px',
+                        border: '1px solid var(--border)'
+                      }}
+                      title="Ubah harga jual per item"
+                      placeholder="Harga"
+                    />
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>/pcs</span>
+                  </div>
                 </div>
                 <div className="cart-item-qty">
                   <button className="qty-btn" onClick={() => updateQty(item.nama_barang, -1)}>−</button>

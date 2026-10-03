@@ -94,7 +94,7 @@ const StokLaporanPage = () => {
   return (
     <div className="tab-page active fade-up">
       {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>
+      <div className="stok-laporan-stats-grid">
         <div className="stat-card violet">
           <i className="stat-icon fa-solid fa-tags" />
           <div className="stat-label">Total SKU</div>
@@ -146,7 +146,7 @@ const StokLaporanPage = () => {
       )}
 
       {/* Charts Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16, marginBottom: 20 }}>
+      <div className="stok-laporan-charts-grid">
         {/* Bar chart stok per produk */}
         <div className="card">
           <div className="card-header">
@@ -173,7 +173,7 @@ const StokLaporanPage = () => {
           <div style={{ height: 220, padding: '8px 0' }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={byCategory} dataKey="items" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`} labelLine={false} style={{ fontSize: 9 }}>
+                <Pie data={byCategory} dataKey="items" nameKey="name" cx="50%" cy="50%" outerRadius={75} label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`} labelLine={false} style={{ fontSize: 9 }}>
                   {byCategory.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Pie>
                 <Tooltip content={<PieTooltip />} />
@@ -198,7 +198,9 @@ const StokLaporanPage = () => {
           <div className="card-header">
             <div className="card-title"><i className="fa-solid fa-trophy" style={{ color: '#d97706' }} /> Produk Terlaris</div>
           </div>
-          <div className="overflow-x-auto">
+          
+          {/* Desktop Table */}
+          <div className="overflow-x-auto desktop-table-view">
             <table className="data-table">
               <thead>
                 <tr>
@@ -237,6 +239,46 @@ const StokLaporanPage = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Cards View */}
+          <div className="mobile-cards-view">
+            {topProducts.map((p, idx) => {
+              const stokItem = stok.find(s => s.nama_barang === p.nama);
+              return (
+                <div key={p.nama} className="stok-mobile-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 16, fontWeight: 800 }}>
+                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx+1}`}
+                      </span>
+                      <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.nama}
+                      </span>
+                    </div>
+                    <span className="badge badge-violet">{p.qty} pcs terjual</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, paddingTop: 8, borderTop: '1px solid var(--border)', background: '#f8fafc', padding: '8px 10px', borderRadius: 6 }}>
+                    <div>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', fontWeight: 700 }}>OMSET</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--emerald)' }}>{formatRp(p.omset)}</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', fontWeight: 700 }}>LABA</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand)' }}>{formatRp(p.laba)}</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', fontWeight: 700 }}>SISA STOK</span>
+                      {stokItem ? (
+                        <span className={`badge ${stokItem.stokTersedia <= 0 ? 'badge-red' : stokItem.stokTersedia <= 5 ? 'badge-amber' : 'badge-green'}`} style={{ marginTop: 2 }}>
+                          {stokItem.stokTersedia} pcs
+                        </span>
+                      ) : <span className="badge badge-gray">—</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -247,7 +289,9 @@ const StokLaporanPage = () => {
             <div className="card-title"><i className="fa-solid fa-triangle-exclamation" style={{ color: 'var(--amber)' }} /> Perlu Perhatian — Stok Rendah</div>
             <span className="badge badge-amber">{warningList.length} produk</span>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Desktop Table */}
+          <div className="overflow-x-auto desktop-table-view">
             <table className="data-table">
               <thead>
                 <tr>
@@ -276,6 +320,41 @@ const StokLaporanPage = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Cards View */}
+          <div className="mobile-cards-view">
+            {warningList.map(item => (
+              <div key={item.nama_barang} className="stok-mobile-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 16 }}>{CAT_EMOJI[item.kategori] || '📦'}</span>
+                    <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.nama_barang}
+                    </span>
+                  </div>
+                  {item.stokTersedia <= 0
+                    ? <span className="badge badge-red">🚫 Habis</span>
+                    : <span className="badge badge-amber">⚠️ Sisa {item.stokTersedia}</span>}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, paddingTop: 8, borderTop: '1px solid var(--border)', background: '#f8fafc', padding: '8px 10px', borderRadius: 6 }}>
+                  <div>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', fontWeight: 700 }}>KATEGORI</span>
+                    <span className="badge badge-violet" style={{ marginTop: 2 }}>{item.kategori}</span>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', fontWeight: 700 }}>HARGA JUAL</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand)' }}>{formatRp(item.hargaJual)}</span>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)', display: 'block', fontWeight: 700 }}>SUPPLIER</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                      {item.supplierList?.[0] || '—'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

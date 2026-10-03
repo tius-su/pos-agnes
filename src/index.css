@@ -504,6 +504,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
 
 /* ============================================================ STOK RESPONSIVE CARDS ============================================================ */
 .stok-stats-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 14px; margin-bottom: 20px; }
+.stok-laporan-stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 20px; }
+.stok-laporan-charts-grid { display: grid; grid-template-columns: 1fr 340px; gap: 16px; margin-bottom: 20px; }
 .stok-header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .stok-header-actions .search-input-wrap { width: 200px; }
 .stok-header-actions .filter-select { width: 150px; }
@@ -526,6 +528,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
 @media (max-width: 1024px) {
   .stats-grid { grid-template-columns: repeat(2,1fr); }
   .stok-stats-grid { grid-template-columns: repeat(3,1fr); }
+  .stok-laporan-stats-grid { grid-template-columns: repeat(2,1fr); gap: 12px; }
+  .stok-laporan-charts-grid { grid-template-columns: 1fr; }
   .stock-report-grid { grid-template-columns: repeat(2,1fr); }
 }
 @media (max-width: 768px) {
@@ -573,7 +577,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
   .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2,1fr); gap: 10px; }
   .stok-stats-grid { grid-template-columns: repeat(2,1fr); gap: 10px; }
+  .stok-laporan-stats-grid { grid-template-columns: repeat(2,1fr); gap: 10px; }
+  .stok-laporan-charts-grid { grid-template-columns: 1fr; gap: 12px; }
   .stock-report-grid { grid-template-columns: 1fr; }
+  .cart-price-input { width: 80px !important; }
   
   /* ✅ FIX STOK MOBILE: Card view untuk stok barang pada hp */
   .desktop-table-view { display: none; }
@@ -593,6 +600,9 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
 @media (max-width: 480px) {
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .stok-stats-grid { grid-template-columns: 1fr 1fr; }
+  .stok-laporan-stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
   .payment-methods { grid-template-columns: repeat(3,1fr); }
   .product-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 4px; }
+  .cart-item { flex-wrap: wrap; }
+  .cart-price-input { width: 75px !important; }
 }
