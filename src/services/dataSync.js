@@ -196,6 +196,21 @@ export const subscribeToFirebaseCloud = (onData, onError) => {
         if (snap.exists() && snap.data()) {
           // Dokumen ditemukan → normalize dan kirim ke DataContext
           const firebaseData = normalizeAppData(snap.data());
+          
+          // Gabungkan pendingTransactions dari cache lokal agar tidak hilang jika push gagal/unauthenticated
+          try {
+            const localCache = loadLocalData();
+            if (localCache && Array.isArray(localCache.pendingTransactions) && localCache.pendingTransactions.length > 0) {
+              const cloudList = firebaseData.pendingTransactions || [];
+              const map = {};
+              cloudList.forEach(item => { if (item && item.id) map[item.id] = item; });
+              localCache.pendingTransactions.forEach(item => { if (item && item.id && !map[item.id]) map[item.id] = item; });
+              firebaseData.pendingTransactions = Object.values(map);
+            }
+          } catch (e) {
+            console.warn('[Firebase] Local pending merge error:', e);
+          }
+
           if (firebaseData.stok && firebaseData.stok.length > 0) {
             onData(firebaseData);
           } else {

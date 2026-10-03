@@ -153,10 +153,14 @@ export const DataProvider = ({ children, isPublic = false }) => {
     if (fbRes.success) {
       setSyncStatus('ok');
       setLastSync(new Date());
-      toast('✅ Tersimpan & tersinkron ke Firebase!', 'success');
+      toast('✅ Tersimpan & tersinkron ke Firebase Cloud!', 'success');
     } else {
       setSyncStatus('ok');
-      toast('✅ Tersimpan lokal (offline mode)', 'info');
+      if (fbRes.error && fbRes.error.toLowerCase().includes('permission')) {
+        toast('💾 Tersimpan di perangkat (Login akun untuk sinkron Cloud)', 'info');
+      } else {
+        toast('💾 Tersimpan lokal (offline mode)', 'info');
+      }
     }
 
     return saved;
