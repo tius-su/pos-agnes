@@ -20,10 +20,12 @@ export const INITIAL_DATA = {
   stok: SAMPLE_STOK,
   pembelian: [],
   penjualan: [],
+  pengeluaran: [],
   settings: {
     storeName:     'Agnes Fashion',
     storeAddress:  'Pasar Baru Cikarang Blok C',
     storePhone:    '0851-1702-1168',
+    monthlyTarget: 50000000,
     receiptFooter: 'Terima Kasih Telah Berbelanja di Agnes Fashion! Barang yang sudah dibeli tidak dapat ditukar.'
   }
 };
@@ -115,12 +117,27 @@ export const normalizeAppData = (data) => {
     rawPembelian = Object.values(data.purchases);
   }
 
+  let rawPengeluaran = [];
+  if (Array.isArray(data.pengeluaran)) {
+    rawPengeluaran = data.pengeluaran;
+  } else if (data.pengeluaran && typeof data.pengeluaran === 'object') {
+    rawPengeluaran = Object.values(data.pengeluaran);
+  } else if (Array.isArray(data.expenses)) {
+    rawPengeluaran = data.expenses;
+  } else if (data.expenses && typeof data.expenses === 'object') {
+    rawPengeluaran = Object.values(data.expenses);
+  }
+
   return {
     ...data,
     stok: rawStok.map(normalizeItem).filter(Boolean),
     pembelian: rawPembelian,
     penjualan: rawPenjualan,
-    settings: data.settings || INITIAL_DATA.settings
+    pengeluaran: rawPengeluaran,
+    settings: {
+      ...INITIAL_DATA.settings,
+      ...(data.settings || {})
+    }
   };
 };
 

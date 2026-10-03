@@ -7,8 +7,8 @@ const isoDate = d => d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-
 const DashboardPage = () => {
   const { appData, saveAndSync, toast } = useData();
   const today = isoDate(new Date());
-  const [targetInput, setTargetInput] = useState('');
-  const [editingTarget, setEditingTarget] = useState(false);
+  const [editingMonthlyTarget, setEditingMonthlyTarget] = useState(false);
+  const [monthlyTargetInput, setMonthlyTargetInput] = useState('');
 
   const penjualan = appData.penjualan || [];
   const stok = appData.stok || [];
@@ -21,6 +21,14 @@ const DashboardPage = () => {
   const omsetHariIni = todaySales.reduce((s, t) => s + t.totalPenjualan, 0);
   const labaHariIni  = todaySales.reduce((s, t) => s + t.laba, 0);
   const trxHariIni   = todaySales.length;
+
+  // Monthly sales
+  const currentMonthPrefix = today.slice(0, 7);
+  const monthlySales = penjualan.filter(t => t.tanggal && t.tanggal.startsWith(currentMonthPrefix));
+  const omsetBulanIni = monthlySales.reduce((s, t) => s + t.totalPenjualan, 0);
+  const monthlyTarget = settings.monthlyTarget || 50000000;
+  const monthlyPct = monthlyTarget > 0 ? Math.round((omsetBulanIni / monthlyTarget) * 100) : 0;
+  const monthlyProgressColor = monthlyPct >= 100 ? 'linear-gradient(90deg, #10b981, #059669)' : monthlyPct >= 60 ? 'linear-gradient(90deg, #7c3aed, #6366f1)' : 'linear-gradient(90deg, #f59e0b, #ec4899)';
 
   // Yesterday
   const yesterday = isoDate(new Date(Date.now() - 86400000));
@@ -57,6 +65,16 @@ const DashboardPage = () => {
     await saveAndSync({ ...appData, targets: { ...targets, [today]: val } });
     toast(`🎯 Target hari ini diset: ${formatRp(val)}`, 'success');
     setEditingTarget(false);
+  };
+
+  const saveMonthlyTarget = async () => {
+    const val = parseFloat(monthlyTargetInput) || 0;
+    await saveAndSync({
+      ...appData,
+      settings: { ...settings, monthlyTarget: val }
+    });
+    toast(`🎯 Target omset bulanan diset: ${formatRp(val)}`, 'success');
+    setEditingMonthlyTarget(false);
   };
 
   const progressColor = targetPct >= 100 ? 'var(--emerald)' : targetPct >= 60 ? 'var(--amber)' : 'var(--rose)';
@@ -113,58 +131,163 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* ── Target Harian ── */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header">
-          <div className="card-title"><i className="fa-solid fa-bullseye" /> Target Penjualan Harian</div>
-          <button className="btn btn-ghost btn-sm" onClick={() => { setTargetInput(todayTarget || ''); setEditingTarget(e => !e); }}>
-            <i className="fa-solid fa-pen-to-square" /> {editingTarget ? 'Batal' : 'Ubah Target'}
-          </button>
-        </div>
-        <div style={{ padding: '12px 16px 16px' }}>
-          {editingTarget ? (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input
-                type="number"
-                className="form-input"
-                style={{ flex: 1 }}
-                placeholder="Contoh: 1000000"
-                value={targetInput}
-                onChange={e => setTargetInput(e.target.value)}
-                id="target-input"
-              />
-              <button className="btn btn-purple" onClick={saveTarget}>
-                <i className="fa-solid fa-floppy-disk" /> Simpan
-              </button>
+      {/* ── Progress Bar Dashboard: Target Omset Bulanan & Harian ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+        
+        {/* Target Omset Bulanan */}
+        <div className="card" style={{ borderLeft: '4px solid #7c3aed' }}>
+          <div className="card-header" style={{ padding: '12px 16px' }}>
+            <div className="card-title" style={{ fontSize: 14 }}>
+              <i className="fa-solid fa-chart-pie" style={{ color: '#7c3aed' }} /> Target Omset Bulanan
             </div>
-          ) : (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-                <span style={{ color: 'var(--text-muted)' }}>
-                  {todayTarget > 0 ? `Target: ${formatRp(todayTarget)}` : 'Belum ada target untuk hari ini'}
-                </span>
-                <span style={{ fontWeight: 700, color: progressColor }}>
-                  {todayTarget > 0 ? `${targetPct}%` : formatRp(omsetHariIni)}
-                </span>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setMonthlyTargetInput(monthlyTarget); setEditingMonthlyTarget(e => !e); }}>
+              <i className="fa-solid fa-pen-to-square" /> {editingMonthlyTarget ? 'Batal' : 'Ubah'}
+            </button>
+          </div>
+          <div style={{ padding: '0 16px 16px' }}>
+            {editingMonthlyTarget ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="number"
+                  className="form-input"
+                  style={{ flex: 1 }}
+                  placeholder="Contoh: 50000000"
+                  value={monthlyTargetInput}
+                  onChange={e => setMonthlyTargetInput(e.target.value)}
+                  id="monthly-target-input"
+                />
+                <button className="btn btn-purple" onClick={saveMonthlyTarget}>
+                  Simpan
+                </button>
               </div>
-              {todayTarget > 0 && (
-                <div style={{ height: 10, background: 'var(--bg-hover)', borderRadius: 99, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${targetPct}%`, background: progressColor, borderRadius: 99, transition: 'width .6s ease', minWidth: targetPct > 0 ? 6 : 0 }} />
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                  <div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>
+                      {formatRp(omsetBulanIni)}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      Target: {formatRp(monthlyTarget)}
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: 14,
+                    fontWeight: 900,
+                    padding: '4px 10px',
+                    borderRadius: 99,
+                    background: monthlyPct >= 100 ? 'rgba(16,185,129,0.15)' : 'rgba(124,58,237,0.15)',
+                    color: monthlyPct >= 100 ? '#059669' : '#7c3aed'
+                  }}>
+                    {monthlyPct}%
+                  </span>
                 </div>
-              )}
-              {todayTarget > 0 && targetPct < 100 && (
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-                  Sisa: {formatRp(todayTarget - omsetHariIni)} lagi untuk mencapai target
+
+                {/* Main Progress Bar */}
+                <div style={{ height: 12, background: 'var(--bg-hover)', borderRadius: 99, overflow: 'hidden', margin: '10px 0 6px 0', position: 'relative' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${Math.min(100, monthlyPct)}%`,
+                    background: monthlyProgressColor,
+                    borderRadius: 99,
+                    transition: 'width .6s ease',
+                    minWidth: monthlyPct > 0 ? 8 : 0
+                  }} />
                 </div>
-              )}
-              {targetPct >= 100 && (
-                <div style={{ fontSize: 12, color: 'var(--emerald)', fontWeight: 700, marginTop: 6 }}>
-                  🎉 Target hari ini tercapai! +{formatRp(omsetHariIni - todayTarget)}
-                </div>
-              )}
-            </>
-          )}
+
+                {monthlyPct < 100 ? (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Sisa omset: <strong>{formatRp(Math.max(0, monthlyTarget - omsetBulanIni))}</strong></span>
+                    <span>{monthlySales.length} transaksi bulan ini</span>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: '#059669', fontWeight: 800 }}>
+                    🎉 Target bulan ini tercapai! Terlampaui +{formatRp(omsetBulanIni - monthlyTarget)}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Target Penjualan Harian */}
+        <div className="card" style={{ borderLeft: '4px solid #059669' }}>
+          <div className="card-header" style={{ padding: '12px 16px' }}>
+            <div className="card-title" style={{ fontSize: 14 }}>
+              <i className="fa-solid fa-bullseye" style={{ color: '#059669' }} /> Target Penjualan Harian
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setTargetInput(todayTarget || ''); setEditingTarget(e => !e); }}>
+              <i className="fa-solid fa-pen-to-square" /> {editingTarget ? 'Batal' : 'Ubah'}
+            </button>
+          </div>
+          <div style={{ padding: '0 16px 16px' }}>
+            {editingTarget ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="number"
+                  className="form-input"
+                  style={{ flex: 1 }}
+                  placeholder="Contoh: 1000000"
+                  value={targetInput}
+                  onChange={e => setTargetInput(e.target.value)}
+                  id="target-input"
+                />
+                <button className="btn btn-purple" onClick={saveTarget}>
+                  Simpan
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                  <div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>
+                      {formatRp(omsetHariIni)}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {todayTarget > 0 ? `Target: ${formatRp(todayTarget)}` : 'Belum diset'}
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: 14,
+                    fontWeight: 900,
+                    padding: '4px 10px',
+                    borderRadius: 99,
+                    background: targetPct >= 100 ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                    color: targetPct >= 100 ? '#059669' : '#d97706'
+                  }}>
+                    {todayTarget > 0 ? `${targetPct}%` : '0%'}
+                  </span>
+                </div>
+
+                <div style={{ height: 12, background: 'var(--bg-hover)', borderRadius: 99, overflow: 'hidden', margin: '10px 0 6px 0' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${Math.min(100, targetPct)}%`,
+                    background: progressColor,
+                    borderRadius: 99,
+                    transition: 'width .6s ease',
+                    minWidth: targetPct > 0 ? 8 : 0
+                  }} />
+                </div>
+
+                {todayTarget > 0 && targetPct < 100 ? (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Sisa: {formatRp(todayTarget - omsetHariIni)} lagi untuk mencapai target hari ini
+                  </div>
+                ) : targetPct >= 100 ? (
+                  <div style={{ fontSize: 11, color: 'var(--emerald)', fontWeight: 800 }}>
+                    🎉 Target hari ini tercapai!
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Klik 'Ubah' untuk memasang target harian
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>

@@ -94,11 +94,23 @@ const LabaRugiPage = () => {
     return Object.values(map);
   }, [itemData]);
 
+  const pengeluaran = appData.pengeluaran || [];
+
+  // Filtered expenses by date range
+  const filteredExpenses = useMemo(() => {
+    return pengeluaran.filter(e => {
+      if (!start && !end) return true;
+      return e.tanggal >= start && e.tanggal <= end;
+    });
+  }, [pengeluaran, start, end]);
+
   // ── Summary ──────────────────────────────────────────────────────────
-  const totalOmset = itemData.reduce((s, i) => s + i.omset, 0);
-  const totalModal = itemData.reduce((s, i) => s + i.modal, 0);
-  const totalLaba  = itemData.reduce((s, i) => s + i.laba,  0);
-  const totalQty   = itemData.reduce((s, i) => s + i.qty,   0);
+  const totalOmset       = itemData.reduce((s, i) => s + i.omset, 0);
+  const totalModal       = itemData.reduce((s, i) => s + i.modal, 0);
+  const totalLabaKotor   = itemData.reduce((s, i) => s + i.laba,  0);
+  const totalQty         = itemData.reduce((s, i) => s + i.qty,   0);
+  const totalPengeluaran = filteredExpenses.reduce((s, e) => s + (e.nominal || 0), 0);
+  const labaBersihAkhir  = totalLabaKotor - totalPengeluaran;
 
   // ── Sorting helper ───────────────────────────────────────────────────
   const sortFn = (a, b) => {
@@ -171,14 +183,50 @@ const LabaRugiPage = () => {
         <div className="stat-card violet">
           <i className="stat-icon fa-solid fa-chart-line" />
           <div className="stat-label">Laba Kotor</div>
-          <div className="stat-value" style={{ fontSize: 15 }}>{formatRp(totalLaba)}</div>
-          <div className="stat-meta">Margin {pct(totalLaba, totalOmset)}%</div>
+          <div className="stat-value" style={{ fontSize: 15 }}>{formatRp(totalLabaKotor)}</div>
+          <div className="stat-meta">Margin {pct(totalLabaKotor, totalOmset)}%</div>
         </div>
-        <div className="stat-card amber">
-          <i className="stat-icon fa-solid fa-tags" />
-          <div className="stat-label">Jumlah Produk</div>
-          <div className="stat-value">{itemData.length}</div>
-          <div className="stat-meta">SKU terjual · {supplierData.length} supplier</div>
+        <div className="stat-card rose">
+          <i className="stat-icon fa-solid fa-receipt" />
+          <div className="stat-label">Pengeluaran</div>
+          <div className="stat-value" style={{ fontSize: 15 }}>{formatRp(totalPengeluaran)}</div>
+          <div className="stat-meta">{filteredExpenses.length} transaksi</div>
+        </div>
+      </div>
+
+      {/* ── Laba Bersih Akhir Highlight Banner ── */}
+      <div className="card" style={{
+        marginBottom: 16,
+        padding: '16px 20px',
+        background: labaBersihAkhir >= 0
+          ? 'linear-gradient(135deg, #059669, #10b981)'
+          : 'linear-gradient(135deg, #be123c, #e11d48)',
+        color: '#fff',
+        borderRadius: 14,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 12
+      }}>
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <i className="fa-solid fa-scale-balanced" style={{ marginRight: 6 }} />
+            Laba Bersih Akhir (Nett Profit)
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 900, marginTop: 4 }}>
+            {formatRp(labaBersihAkhir)}
+          </div>
+          <div style={{ fontSize: 11, opacity: 0.88, marginTop: 4 }}>
+            Rumus: Laba Kotor ({formatRp(totalLabaKotor)}) - Total Pengeluaran ({formatRp(totalPengeluaran)})
+          </div>
+        </div>
+
+        <div style={{ background: 'rgba(255,255,255,0.2)', padding: '10px 16px', borderRadius: 10, textAlign: 'right' }}>
+          <div style={{ fontSize: 11, opacity: 0.9 }}>Nett Margin</div>
+          <div style={{ fontSize: 20, fontWeight: 900 }}>
+            {totalOmset > 0 ? ((labaBersihAkhir / totalOmset) * 100).toFixed(1) : '0.0'}%
+          </div>
         </div>
       </div>
 

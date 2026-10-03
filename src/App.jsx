@@ -11,7 +11,9 @@ import LabaRugiPage from './pages/LabaRugiPage';
 import PelangganPage from './pages/PelangganPage';
 import ReturPage from './pages/ReturPage';
 import HutangPage from './pages/HutangPage';
+import PengeluaranPage from './pages/PengeluaranPage';
 import SettingsPage from './pages/SettingsPage';
+import EKatalogPage from './components/EKatalogPage';
 import Sidebar from './components/Sidebar';
 
 const PAGE_META = {
@@ -19,18 +21,20 @@ const PAGE_META = {
   kasir:        { title: 'Kasir & Point of Sale',       sub: 'Proses transaksi penjualan Agnes Fashion',             icon: 'fa-cash-register' },
   stok:         { title: 'Manajemen Stok Barang',       sub: 'Kelola stok, restock, dan harga produk',               icon: 'fa-boxes-stacked' },
   laporan:      { title: 'Laporan Keuangan',            sub: 'Omset, laba bersih, dan riwayat transaksi',            icon: 'fa-chart-line' },
+  pengeluaran:  { title: 'Pengeluaran Operasional',     sub: 'Pencatatan beban usaha & operasional toko',            icon: 'fa-receipt' },
   'stok-laporan': { title: 'Dashboard Laporan Stok',   sub: 'Analitik stok barang, tren, dan peringatan',           icon: 'fa-warehouse' },
-  'laba-rugi':  { title: 'Laporan Laba Rugi',          sub: 'Analisis laba rugi per produk dan per supplier',        icon: 'fa-scale-balanced' },
+  'laba-rugi':  { title: 'Laporan Laba Rugi',          sub: 'Analisis laba kotor, pengeluaran & laba bersih akhir',   icon: 'fa-scale-balanced' },
   pelanggan:    { title: 'Database Pelanggan',          sub: 'Kelola data dan riwayat belanja pelanggan',            icon: 'fa-users' },
   retur:        { title: 'Retur & Refund Barang',       sub: 'Proses pengembalian barang dan restore stok',          icon: 'fa-rotate-left' },
   hutang:       { title: 'Hutang & Piutang',            sub: 'Kelola piutang pelanggan dan hutang toko ke supplier',  icon: 'fa-hand-holding-dollar' },
+  katalog:      { title: 'E-Katalog Digital Online',    sub: 'Katalog belanja publik siap sebar ke WhatsApp',        icon: 'fa-shop' },
   settings:     { title: 'Pengaturan & Sinkronisasi',  sub: 'Konfigurasi GitHub, Firebase, dan profil toko',        icon: 'fa-gear' },
 };
 
 const BOTTOM_NAV = [
   { key: 'dashboard',   icon: 'fa-house',          label: 'Home' },
   { key: 'kasir',       icon: 'fa-cash-register',  label: 'Kasir' },
-  { key: 'stok',        icon: 'fa-boxes-stacked',  label: 'Stok' },
+  { key: 'katalog',     icon: 'fa-shop',           label: 'Katalog' },
   { key: 'laporan',     icon: 'fa-chart-line',     label: 'Laporan' },
   { key: 'settings',    icon: 'fa-gear',           label: 'Setting' },
 ];
@@ -43,6 +47,24 @@ const App = () => (
 
 const DataProviderWrapper = () => {
   const { user, loading } = useAuth();
+  const [isHashKatalog, setIsHashKatalog] = useState(window.location.hash === '#katalog');
+
+  useEffect(() => {
+    const checkHash = () => setIsHashKatalog(window.location.hash === '#katalog');
+    window.addEventListener('hashchange', checkHash);
+    return () => window.removeEventListener('hashchange', checkHash);
+  }, []);
+
+  // Jika URL dibuka dengan hash #katalog (pembeli), langsung tampilkan katalog publik tanpa harus login!
+  if (isHashKatalog) {
+    return (
+      <DataProvider>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 12px' }}>
+          <EKatalogPage isStandalone={true} />
+        </div>
+      </DataProvider>
+    );
+  }
 
   if (loading) {
     return (
@@ -68,7 +90,7 @@ const DataProviderWrapper = () => {
 };
 
 const AppInner = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => window.location.hash === '#katalog' ? 'katalog' : 'dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [clock, setClock] = useState('');
   const { toasts, appData } = useData();
@@ -99,11 +121,13 @@ const AppInner = () => {
       case 'kasir':        return <KasirPage />;
       case 'stok':         return <StokPage />;
       case 'laporan':      return <LaporanPage />;
+      case 'pengeluaran':  return <PengeluaranPage />;
       case 'stok-laporan': return <StokLaporanPage />;
       case 'laba-rugi':    return <LabaRugiPage />;
       case 'pelanggan':    return <PelangganPage />;
       case 'retur':        return <ReturPage />;
       case 'hutang':       return <HutangPage />;
+      case 'katalog':      return <EKatalogPage />;
       case 'settings':     return <SettingsPage />;
       default:             return <DashboardPage />;
     }

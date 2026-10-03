@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useData } from '../context/DataContext';
+import LabelPrintModal from '../components/LabelPrintModal';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 const CAT_EMOJI = { 'Pakaian Wanita': '👗', 'Pakaian Pria': '👕', 'Hijab': '🧕', 'Aksesoris': '💍', 'Lainnya': '📦' };
@@ -30,6 +31,7 @@ const StokPage = () => {
   const [form, setForm] = useState(emptyForm);
   const [deleting, setDeleting] = useState(null);
   const [customVariantInput, setCustomVariantInput] = useState('');
+  const [printModalItems, setPrintModalItems] = useState(null);
 
   const activeVariants = (form.r_variants || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -228,6 +230,9 @@ const StokPage = () => {
               <option value="">Semua Kategori</option>
               {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
+            <button className="btn btn-ghost btn-sm" onClick={() => setPrintModalItems(filtered)} title="Cetak Barcode untuk semua produk di list">
+              <i className="fa-solid fa-barcode" style={{ color: 'var(--brand)' }} /> Cetak Label Barcode
+            </button>
             <button className="btn btn-purple btn-sm btn-restock-head" onClick={openRestock} id="btn-restock">
               <i className="fa-solid fa-plus" /> Restock / Tambah
             </button>
@@ -276,6 +281,9 @@ const StokPage = () => {
                     <td style={{ fontSize: 11 }}>{suppliers}</td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setPrintModalItems([item])} title="Cetak Barcode / Label Harga">
+                          <i className="fa-solid fa-barcode" style={{ color: 'var(--brand)' }} />
+                        </button>
                         <button className="btn btn-ghost btn-sm" onClick={() => openEdit(item)} title="Edit / Restock">
                           <i className="fa-solid fa-pen-to-square" />
                         </button>
@@ -593,6 +601,15 @@ const StokPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Printable Label & Barcode Modal */}
+      {printModalItems && (
+        <LabelPrintModal
+          items={printModalItems}
+          storeName={appData.settings?.storeName || 'Agnes Fashion'}
+          onClose={() => setPrintModalItems(null)}
+        />
       )}
     </div>
   );
