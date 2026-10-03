@@ -2,58 +2,45 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider, useData } from './context/DataContext';
 import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
 import KasirPage from './pages/KasirPage';
 import StokPage from './pages/StokPage';
 import LaporanPage from './pages/LaporanPage';
 import StokLaporanPage from './pages/StokLaporanPage';
+import LabaRugiPage from './pages/LabaRugiPage';
+import PelangganPage from './pages/PelangganPage';
+import ReturPage from './pages/ReturPage';
+import HutangPage from './pages/HutangPage';
 import SettingsPage from './pages/SettingsPage';
 import Sidebar from './components/Sidebar';
 
-// Toast container
-const ToastContainer = () => {
-  const { toasts } = useData();
-  if (!toasts?.length) return null;
-  return (
-    <div className="toast-container">
-      {toasts.map(t => (
-        <div key={t.id} className={`toast toast-${t.type}`}>
-          <i className={`fa-solid ${
-            t.type === 'success' ? 'fa-check-circle' :
-            t.type === 'error'   ? 'fa-triangle-exclamation' :
-            t.type === 'warning' ? 'fa-exclamation-circle' : 'fa-info-circle'
-          }`} />
-          {t.message}
-        </div>
-      ))}
-    </div>
-  );
-};
-
 const PAGE_META = {
-  kasir:        { title: 'Kasir & Point of Sale',    sub: 'Proses transaksi penjualan Agnes Fashion',             icon: 'fa-cash-register' },
-  stok:         { title: 'Manajemen Stok Barang',    sub: 'Kelola stok, restock, dan harga produk',               icon: 'fa-boxes-stacked' },
-  laporan:      { title: 'Laporan Keuangan',          sub: 'Omset, laba bersih, dan riwayat transaksi',            icon: 'fa-chart-line' },
-  'stok-laporan': { title: 'Dashboard Laporan Stok', sub: 'Analitik stok barang, tren, dan peringatan',           icon: 'fa-warehouse' },
-  settings:     { title: 'Pengaturan & Sinkronisasi', sub: 'Konfigurasi GitHub, Firebase, dan profil toko',       icon: 'fa-gear' },
+  dashboard:    { title: 'Dashboard',                  sub: 'Ringkasan omset, target, dan stok hari ini',            icon: 'fa-house' },
+  kasir:        { title: 'Kasir & Point of Sale',       sub: 'Proses transaksi penjualan Agnes Fashion',             icon: 'fa-cash-register' },
+  stok:         { title: 'Manajemen Stok Barang',       sub: 'Kelola stok, restock, dan harga produk',               icon: 'fa-boxes-stacked' },
+  laporan:      { title: 'Laporan Keuangan',            sub: 'Omset, laba bersih, dan riwayat transaksi',            icon: 'fa-chart-line' },
+  'stok-laporan': { title: 'Dashboard Laporan Stok',   sub: 'Analitik stok barang, tren, dan peringatan',           icon: 'fa-warehouse' },
+  'laba-rugi':  { title: 'Laporan Laba Rugi',          sub: 'Analisis laba rugi per produk dan per supplier',        icon: 'fa-scale-balanced' },
+  pelanggan:    { title: 'Database Pelanggan',          sub: 'Kelola data dan riwayat belanja pelanggan',            icon: 'fa-users' },
+  retur:        { title: 'Retur & Refund Barang',       sub: 'Proses pengembalian barang dan restore stok',          icon: 'fa-rotate-left' },
+  hutang:       { title: 'Hutang Pelanggan',            sub: 'Catat dan pantau hutang serta cicilan pelanggan',      icon: 'fa-hand-holding-dollar' },
+  settings:     { title: 'Pengaturan & Sinkronisasi',  sub: 'Konfigurasi GitHub, Firebase, dan profil toko',        icon: 'fa-gear' },
 };
 
 const BOTTOM_NAV = [
-  { key: 'kasir',         icon: 'fa-cash-register', label: 'Kasir' },
-  { key: 'stok',          icon: 'fa-boxes-stacked',  label: 'Stok' },
-  { key: 'laporan',       icon: 'fa-chart-line',     label: 'Laporan' },
-  { key: 'stok-laporan',  icon: 'fa-warehouse',      label: 'Stok' },
-  { key: 'settings',      icon: 'fa-gear',           label: 'Setting' },
+  { key: 'dashboard',   icon: 'fa-house',          label: 'Home' },
+  { key: 'kasir',       icon: 'fa-cash-register',  label: 'Kasir' },
+  { key: 'stok',        icon: 'fa-boxes-stacked',  label: 'Stok' },
+  { key: 'laporan',     icon: 'fa-chart-line',     label: 'Laporan' },
+  { key: 'settings',    icon: 'fa-gear',           label: 'Setting' },
 ];
 
-// Root App — AuthProvider wraps everything, DataProvider is inside AppContent
-// so it only mounts after user is authenticated
 const App = () => (
   <AuthProvider>
     <DataProviderWrapper />
   </AuthProvider>
 );
 
-// Wrapper that only renders DataProvider after auth is known
 const DataProviderWrapper = () => {
   const { user, loading } = useAuth();
 
@@ -81,10 +68,10 @@ const DataProviderWrapper = () => {
 };
 
 const AppInner = () => {
-  const [activeTab, setActiveTab] = useState('kasir');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [clock, setClock] = useState('');
-  const { toasts } = useData();
+  const { toasts, appData } = useData();
 
   useEffect(() => {
     const tick = () => {
@@ -99,16 +86,26 @@ const AppInner = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const meta = PAGE_META[activeTab] || PAGE_META.kasir;
+  // Badge hutang belum lunas
+  const hutangCount = (appData?.hutang || []).filter(h => h.sisaHutang > 0).length;
+  // Badge stok kritis
+  const stokKritis = (appData?.stok || []).filter(i => i.stokTersedia <= 5).length;
+
+  const meta = PAGE_META[activeTab] || PAGE_META.dashboard;
 
   const renderPage = () => {
     switch (activeTab) {
+      case 'dashboard':    return <DashboardPage />;
       case 'kasir':        return <KasirPage />;
       case 'stok':         return <StokPage />;
       case 'laporan':      return <LaporanPage />;
       case 'stok-laporan': return <StokLaporanPage />;
+      case 'laba-rugi':    return <LabaRugiPage />;
+      case 'pelanggan':    return <PelangganPage />;
+      case 'retur':        return <ReturPage />;
+      case 'hutang':       return <HutangPage />;
       case 'settings':     return <SettingsPage />;
-      default:             return <KasirPage />;
+      default:             return <DashboardPage />;
     }
   };
 
@@ -117,7 +114,14 @@ const AppInner = () => {
       <div className={`sidebar-overlay${sidebarOpen ? ' show' : ''}`} onClick={() => setSidebarOpen(false)} />
 
       <div className={`sidebar-wrapper${sidebarOpen ? ' open' : ''}`} id="sidebar-wrapper">
-        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} onClose={() => setSidebarOpen(false)} isOpen={sidebarOpen} />
+        <Sidebar
+          activeTab={activeTab}
+          onTabChange={(tab) => { setActiveTab(tab); setSidebarOpen(false); }}
+          onClose={() => setSidebarOpen(false)}
+          isOpen={sidebarOpen}
+          hutangCount={hutangCount}
+          stokKritis={stokKritis}
+        />
       </div>
 
       <div className="main-area">

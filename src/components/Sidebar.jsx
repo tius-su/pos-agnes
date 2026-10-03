@@ -1,18 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { logoutUser } from '../firebase';
-import { pushToGitHub, pushToFirebaseCloud, getGitHubSettings, saveGitHubSettings } from '../services/dataSync';
 
-const tabs = [
-  { key: 'kasir',    icon: 'fa-cash-register',    label: 'Kasir & POS',        sub: 'Proses transaksi penjualan Agnes Fashion' },
-  { key: 'stok',     icon: 'fa-boxes-stacked',    label: 'Stok Barang',        sub: 'Kelola stok, restock, dan harga produk' },
-  { key: 'laporan',  icon: 'fa-chart-line',        label: 'Laporan Keuangan',   sub: 'Omset, laba bersih, dan riwayat transaksi' },
-  { key: 'stok-laporan', icon: 'fa-warehouse',    label: 'Laporan Stok',       sub: 'Dashboard & analitik stok barang lengkap' },
-  { key: 'settings', icon: 'fa-gear',             label: 'Pengaturan',         sub: 'Konfigurasi sync dan profil toko' },
+const MENU_GROUPS = [
+  {
+    label: 'Utama',
+    items: [
+      { key: 'dashboard',  icon: 'fa-house',           label: 'Dashboard',         badge: null },
+      { key: 'kasir',      icon: 'fa-cash-register',   label: 'Kasir & POS',       badge: null },
+    ],
+  },
+  {
+    label: 'Inventori',
+    items: [
+      { key: 'stok',          icon: 'fa-boxes-stacked', label: 'Stok Barang',      badge: 'stokKritis' },
+      { key: 'stok-laporan',  icon: 'fa-warehouse',     label: 'Laporan Stok',     badge: null },
+      { key: 'retur',         icon: 'fa-rotate-left',   label: 'Retur & Refund',   badge: null },
+    ],
+  },
+  {
+    label: 'Keuangan & Pelanggan',
+    items: [
+      { key: 'laporan',    icon: 'fa-chart-line',           label: 'Laporan Keuangan', badge: null },
+      { key: 'laba-rugi',  icon: 'fa-scale-balanced',       label: 'Laba Rugi',        badge: null },
+      { key: 'pelanggan',  icon: 'fa-users',                label: 'Pelanggan',        badge: null },
+      { key: 'hutang',     icon: 'fa-hand-holding-dollar',  label: 'Hutang',           badge: 'hutangCount' },
+    ],
+  },
+  {
+    label: 'Sistem',
+    items: [
+      { key: 'settings', icon: 'fa-gear', label: 'Pengaturan', badge: null },
+    ],
+  },
 ];
 
-const Sidebar = ({ activeTab, onTabChange, onClose, isOpen }) => {
+const Sidebar = ({ activeTab, onTabChange, onClose, isOpen, hutangCount = 0, stokKritis = 0 }) => {
   const { syncStatus, lastSync } = useData();
   const { user } = useAuth();
 
@@ -25,6 +49,12 @@ const Sidebar = ({ activeTab, onTabChange, onClose, isOpen }) => {
   const syncDotClass = syncStatus === 'syncing' ? 'sync-dot pulse' : 'sync-dot';
   const syncDotColor = syncStatus === 'error' ? '#e11d48' : syncStatus === 'ok' ? '#10b981' : '#f59e0b';
 
+  const getBadge = (badgeKey) => {
+    if (badgeKey === 'hutangCount') return hutangCount;
+    if (badgeKey === 'stokKritis') return stokKritis;
+    return 0;
+  };
+
   return (
     <aside className={`sidebar${isOpen ? ' open' : ''}`} id="sidebar">
       <div className="sidebar-logo">
@@ -32,23 +62,46 @@ const Sidebar = ({ activeTab, onTabChange, onClose, isOpen }) => {
           <div className="logo-icon"><i className="fa-solid fa-shirt" /></div>
           <div className="logo-text">
             <h1>Agnes Fashion</h1>
-            <p>POS & Management</p>
+            <p>POS &amp; Management</p>
           </div>
         </div>
       </div>
 
       <nav className="sidebar-nav">
-        <div className="nav-section-label">Menu Utama</div>
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            className={`nav-item${activeTab === t.key ? ' active' : ''}`}
-            data-tab={t.key}
-            onClick={() => { onTabChange(t.key); onClose?.(); }}
-          >
-            <i className={`fa-solid ${t.icon}`} />
-            {t.label}
-          </button>
+        {MENU_GROUPS.map(group => (
+          <div key={group.label}>
+            <div className="nav-section-label">{group.label}</div>
+            {group.items.map(t => {
+              const badgeCount = t.badge ? getBadge(t.badge) : 0;
+              return (
+                <button
+                  key={t.key}
+                  className={`nav-item${activeTab === t.key ? ' active' : ''}`}
+                  data-tab={t.key}
+                  onClick={() => { onTabChange(t.key); onClose?.(); }}
+                  style={{ position: 'relative' }}
+                >
+                  <i className={`fa-solid ${t.icon}`} />
+                  {t.label}
+                  {badgeCount > 0 && (
+                    <span style={{
+                      marginLeft: 'auto',
+                      background: t.badge === 'hutangCount' ? 'var(--rose)' : 'var(--amber)',
+                      color: '#fff',
+                      fontSize: 10,
+                      fontWeight: 800,
+                      borderRadius: 99,
+                      padding: '1px 7px',
+                      minWidth: 18,
+                      textAlign: 'center',
+                    }}>
+                      {badgeCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         ))}
       </nav>
 

@@ -15,13 +15,18 @@ const formatRpShort = v => {
 const CAT_EMOJI = { 'Pakaian Wanita': '👗', 'Pakaian Pria': '👕', 'Hijab': '🧕', 'Aksesoris': '💍', 'Lainnya': '📦' };
 const PIE_COLORS = ['#7c3aed', '#0284c7', '#059669', '#d97706', '#e11d48', '#8b5cf6'];
 
+const isoDate = d => d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
+
 const StokLaporanPage = () => {
   const { appData } = useData();
   const allStok = appData.stok || [];
-  const penjualan = appData.penjualan || [];
+  const allPenjualan = appData.penjualan || [];
   const [supplierFilter, setSupplierFilter] = useState('');
   const [searchFilter, setSearchFilter]     = useState('');
   const [catFilter, setCatFilter]           = useState('');
+  const [datePreset, setDatePreset]         = useState('month');
+  const [dateStart, setDateStart]           = useState('');
+  const [dateEnd, setDateEnd]               = useState('');
 
   // Unique supplier list dari semua stok
   const supplierList = useMemo(() => {
@@ -71,6 +76,25 @@ const StokLaporanPage = () => {
     });
     return Object.values(map).sort((a, b) => b.nilai - a.nilai);
   }, [stok]);
+
+  // Date range for penjualan filter
+  const getRange = () => {
+    const today = new Date();
+    if (datePreset === 'today')     { const d = isoDate(today); return { start: d, end: d }; }
+    if (datePreset === 'yesterday') { const y = new Date(today); y.setDate(y.getDate()-1); const d = isoDate(y); return { start: d, end: d }; }
+    if (datePreset === 'week')      { const w = new Date(today); w.setDate(w.getDate()-6); return { start: isoDate(w), end: isoDate(today) }; }
+    if (datePreset === 'month')     { const m = new Date(today.getFullYear(), today.getMonth(), 1); return { start: isoDate(m), end: isoDate(today) }; }
+    if (datePreset === 'year')      { return { start: `${today.getFullYear()}-01-01`, end: isoDate(today) }; }
+    if (datePreset === 'custom')    { return { start: dateStart, end: dateEnd }; }
+    return { start: '', end: '' };
+  };
+  const { start: dStart, end: dEnd } = getRange();
+
+  // Filter penjualan by date
+  const penjualan = useMemo(() => allPenjualan.filter(t => {
+    if (!dStart && !dEnd) return true;
+    return t.tanggal >= dStart && t.tanggal <= dEnd;
+  }), [allPenjualan, dStart, dEnd]);
 
   // Produk terlaris — difilter by nama produk yang ada di stok terfilter
   const filteredStokNames = useMemo(() => new Set(stok.map(i => i.nama_barang)), [stok]);
@@ -134,10 +158,10 @@ const StokLaporanPage = () => {
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header" style={{ padding: '12px 16px' }}>
           <div className="card-title"><i className="fa-solid fa-filter" /> Filter Laporan Stok</div>
-          {(supplierFilter || searchFilter || catFilter) && (
+          {(supplierFilter || searchFilter || catFilter || datePreset !== 'month') && (
             <button
               className="btn btn-ghost btn-sm"
-              onClick={() => { setSupplierFilter(''); setSearchFilter(''); setCatFilter(''); }}
+              onClick={() => { setSupplierFilter(''); setSearchFilter(''); setCatFilter(''); setDatePreset('month'); }}
             >
               <i className="fa-solid fa-xmark" /> Reset
             </button>
@@ -180,6 +204,25 @@ const StokLaporanPage = () => {
             <option value="">Semua Kategori</option>
             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+        </div>
+        {/* Date range for produk terlaris */}
+        <div style={{ padding: '0 16px 12px' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>
+            <i className="fa-solid fa-calendar" style={{ marginRight: 4 }} /> Periode Produk Terlaris:
+          </div>
+          <div className="date-filter-bar">
+            {[['today','Hari Ini'],['yesterday','Kemarin'],['week','7 Hari'],['month','Bulan Ini'],['year','Tahun Ini'],['all','Semua'],['custom','Custom']].map(([p,l]) => (
+              <button key={p} className={`date-preset-btn${datePreset === p ? ' active' : ''}`} onClick={() => setDatePreset(p)}>{l}</button>
+            ))}
+          </div>
+          {datePreset === 'custom' && (
+            <div className="date-range-inputs" style={{ marginTop: 6 }}>
+              <span>Dari</span>
+              <input type="date" className="date-input" value={dateStart} onChange={e => setDateStart(e.target.value)} />
+              <span>–</span>
+              <input type="date" className="date-input" value={dateEnd} onChange={e => setDateEnd(e.target.value)} />
+            </div>
+          )}
         </div>
         {/* Active filter badges */}
         {(supplierFilter || catFilter) && (
