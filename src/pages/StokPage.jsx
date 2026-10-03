@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import LabelPrintModal from '../components/LabelPrintModal';
 
@@ -16,7 +16,8 @@ const emptyForm = {
   r_price: '',
   r_min_grosir: '',
   r_price_grosir: '',
-  r_variants: ''
+  r_variants: '',
+  r_image_url: ''
 };
 
 const QUICK_SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'LLL', '3XL', 'All Size'];
@@ -32,6 +33,7 @@ const StokPage = () => {
   const [deleting, setDeleting] = useState(null);
   const [customVariantInput, setCustomVariantInput] = useState('');
   const [printModalItems, setPrintModalItems] = useState(null);
+  const fileInputRef = useRef(null);
 
   const activeVariants = (form.r_variants || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -88,8 +90,10 @@ const StokPage = () => {
       r_price: String(item.hargaJual),
       r_min_grosir: item.minQtyGrosir ? String(item.minQtyGrosir) : '',
       r_price_grosir: item.hargaGrosir ? String(item.hargaGrosir) : '',
-      r_variants: item.variasiText || ''
+      r_variants: item.variasiText || '',
+      r_image_url: item.imageUrl || ''
     });
+    setUploadProgress(0);
     setShowModal(true);
   };
 
@@ -120,6 +124,7 @@ const StokPage = () => {
         variasiText: variants,
         stokTersedia: newStok[existIdx].stokTersedia + qty,
         kategori: form.r_category,
+        imageUrl: form.r_image_url || newStok[existIdx].imageUrl || '',
         supplierList: [...new Set([...(newStok[existIdx].supplierList || []), form.r_supplier].filter(Boolean))]
       };
     } else {
@@ -132,6 +137,7 @@ const StokPage = () => {
         minQtyGrosir: minGrosir,
         hargaGrosir: priceGrosir,
         variasiText: variants,
+        imageUrl: form.r_image_url || '',
         stokTersedia: qty,
         supplierList: form.r_supplier ? [form.r_supplier] : []
       });
@@ -559,6 +565,61 @@ const StokPage = () => {
                     {form.r_qty ? <> | Total modal: <b>{formatRp(form.r_cost * form.r_qty)}</b></> : ''}
                   </div>
                 )}
+
+                {/* ═══ FOTO PRODUK ═══ */}
+                <div style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginTop: 2 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>
+                    <i className="fa-solid fa-image" style={{ color: 'var(--brand)', marginRight: 6 }} />
+                    Foto Produk (ditampilkan di E-Katalog)
+                  </div>
+
+                  {/* Preview foto jika sudah ada URL */}
+                  {form.r_image_url && (
+                    <div style={{ marginBottom: 10, textAlign: 'center', position: 'relative' }}>
+                      <img
+                        src={form.r_image_url}
+                        alt="Preview"
+                        style={{ maxWidth: '100%', maxHeight: 160, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border)', background: '#fff' }}
+                        onError={e => e.target.style.display = 'none'}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, r_image_url: '' }))}
+                        style={{ position: 'absolute', top: 4, right: 4, background: 'var(--rose)', color: '#fff', border: 'none', borderRadius: 99, width: 22, height: 22, fontSize: 10, cursor: 'pointer' }}
+                        title="Hapus foto"
+                      >
+                        <i className="fa-solid fa-xmark" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Upload dari perangkat */}
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 700 }}>
+                      📤 Upload dari HP: Foto produk → Share → copy link → paste di bawah
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                      Atau upload ke <b>imgbb.com</b> / <b>postimages.org</b> → copy link langsung
+                    </div>
+                  </div>
+
+                  {/* Atau paste URL langsung */}
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 700 }}>
+                      🔗 Atau tempel URL foto dari internet:
+                    </div>
+                    <input
+                      type="url"
+                      className="form-input"
+                      name="r_image_url"
+                      value={form.r_image_url}
+                      onChange={handleFormChange}
+                      placeholder="https://contoh.com/foto-produk.jpg"
+                      style={{ fontSize: 12 }}
+                    />
+                  </div>
+                </div>
+
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Batal</button>

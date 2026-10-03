@@ -4,6 +4,7 @@ import {
   subscribeToFirebaseCloud, pushToFirebaseCloud,
   INITIAL_DATA, normalizeAppData
 } from '../services/dataSync';
+import { auth } from '../firebase';
 
 const DataContext = createContext(null);
 
@@ -52,49 +53,64 @@ export const DataProvider = ({ children }) => {
     setSyncStatus('ok');
   }, []);
 
-  // ─── FIREBASE REALTIME SUBSCRIPTION ──────────────────────────────────────────
+  // ─── FIREBASE REALTIME SUBSCRIPTION (hanya jika user sudah login) ─────────────
   useEffect(() => {
-    setSyncStatus('syncing');
-
-    const unsub = subscribeToFirebaseCloud(
-      (cloudData) => {
-        // cloudData bisa null (doc tidak ada), objek kosong, atau objek dengan stok
-        if (hasValidStock(cloudData)) {
-          // Firebase punya data lengkap → pakai langsung
-          saveLocalData(cloudData);
-          setAppData(cloudData);
-          setLastSync(new Date());
-          setSyncStatus('ok');
-        } else {
-          // Firebase kosong/null → coba cache lokal, lalu INITIAL_DATA
-          const localData = loadLocalData();
-          const bestData = mergeWithFallback(null, localData);
-
-          setAppData(bestData);
-          setSyncStatus('ok');
-          setLastSync(new Date());
-
-          // Push INITIAL_DATA ke Firebase agar tersimpan untuk sesi berikutnya
-          // (hanya jika Firebase benar-benar kosong/null, bukan jika cloudData ada tapi stok kosong)
-          if (!cloudData) {
-            pushToFirebaseCloud(bestData).then(res => {
-              if (res.success) {
-                console.info('[DataContext] INITIAL_DATA pushed to Firebase');
-              }
-            });
-          }
-        }
-      },
-      (err) => {
-        // Firebase error (offline, permission denied, dll) → pakai state yang sudah ada
-        console.warn('[DataContext] Firebase error:', err.message);
-        setSyncStatus('error');
-        // Jangan override appData, biarkan state saat ini tetap (sudah ada INITIAL_DATA)
+    // Tunggu auth state berubah sebelum subscribe ke Firestore
+    const unsubAuth = auth.onAuthStateChanged((user) => {
+      // Bersihkan subscription lama
+      if (unsubRef.current) {
+        unsubRef.current();
+        unsubRef.current = null;
       }
-    );
 
-    unsubRef.current = unsub;
+      if (!user) {
+        // Belum login → pakai data lokal saja, tidak subscribe Firebase
+        setSyncStatus('idle');
+        return;
+      }
+
+      // User sudah login → subscribe Firestore
+      setSyncStatus('syncing');
+      const unsub = subscribeToFirebaseCloud(
+        (cloudData) => {
+          // cloudData bisa null (doc tidak ada), objek kosong, atau objek dengan stok
+          if (hasValidStock(cloudData)) {
+            // Firebase punya data lengkap → pakai langsung
+            saveLocalData(cloudData);
+            setAppData(cloudData);
+            setLastSync(new Date());
+            setSyncStatus('ok');
+          } else {
+            // Firebase kosong/null → coba cache lokal, lalu INITIAL_DATA
+            const localData = loadLocalData();
+            const bestData = mergeWithFallback(null, localData);
+
+            setAppData(bestData);
+            setSyncStatus('ok');
+            setLastSync(new Date());
+
+            // Push INITIAL_DATA ke Firebase agar tersimpan untuk sesi berikutnya
+            if (!cloudData) {
+              pushToFirebaseCloud(bestData).then(res => {
+                if (res.success) {
+                  console.info('[DataContext] INITIAL_DATA pushed to Firebase');
+                }
+              });
+            }
+          }
+        },
+        (err) => {
+          // Firebase error → pakai state yang sudah ada
+          console.warn('[DataContext] Firebase error:', err.message);
+          setSyncStatus('error');
+        }
+      );
+
+      unsubRef.current = unsub;
+    });
+
     return () => {
+      unsubAuth();
       if (unsubRef.current) unsubRef.current();
     };
   }, []);

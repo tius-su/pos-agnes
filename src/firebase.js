@@ -6,13 +6,7 @@ import {
   signOut,
   onAuthStateChanged
 } from 'firebase/auth';
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc,
-  onSnapshot
-} from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 
 // Baca dari env variables (lokal: .env.local | GitHub Actions: Secrets)
 const firebaseConfig = {

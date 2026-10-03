@@ -12,6 +12,10 @@ export const EXPENSE_CATEGORIES = [
   'Plastik & Struk',
   'Transportasi & Logistik',
   'Pemasaran & Iklan',
+  'Makan & Minum Karyawan',
+  'Perlengkapan Toko',
+  'Biaya Pengiriman',
+  'Kebersihan & Keamanan',
   'Lain-lain'
 ];
 
@@ -248,9 +252,9 @@ const PengeluaranPage = () => {
         </div>
       </div>
 
-      {/* ── Table Section ── */}
-      <div className="card">
-        <div className="overflow-x-auto desktop-table-view">
+      {/* ── Desktop Table ── */}
+      <div className="card desktop-table-view" style={{ marginBottom: 12 }}>
+        <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>
@@ -267,7 +271,7 @@ const PengeluaranPage = () => {
                 <tr>
                   <td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
                     <i className="fa-solid fa-folder-open" style={{ fontSize: 24, marginBottom: 8, display: 'block' }} />
-                    Belum ada pencatatan pengeluaran. Klik "+ Tambah Pengeluaran" untuk mulai.
+                    Belum ada catatan pengeluaran. Klik "+ Tambah Pengeluaran" untuk mulai.
                   </td>
                 </tr>
               ) : (
@@ -277,7 +281,7 @@ const PengeluaranPage = () => {
                     <td>
                       <span className="badge badge-amber">{item.kategori}</span>
                     </td>
-                    <td style={{ fontSize: 12 }}>{item.keterangan || '—'}</td>
+                    <td style={{ fontSize: 12, maxWidth: 200 }}>{item.keterangan || '—'}</td>
                     <td>
                       <span className="badge badge-sky">{item.pembayaran}</span>
                     </td>
@@ -297,7 +301,6 @@ const PengeluaranPage = () => {
                   </tr>
                 ))
               )}
-
               {filteredExpenses.length > 0 && (
                 <tr style={{ background: 'var(--bg-hover)', fontWeight: 800 }}>
                   <td colSpan={4}>TOTAL PENGELUARAN</td>
@@ -311,6 +314,99 @@ const PengeluaranPage = () => {
           </table>
         </div>
       </div>
+
+      {/* ── Mobile Card View ── */}
+      <div className="mobile-cards-view">
+        {filteredExpenses.length === 0 ? (
+          <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>
+            <i className="fa-solid fa-folder-open" style={{ fontSize: 30, marginBottom: 10, display: 'block' }} />
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Belum ada pengeluaran</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>Tap "+ Tambah Pengeluaran" untuk mulai mencatat</div>
+          </div>
+        ) : (
+          filteredExpenses.map(item => (
+            <div key={item.id} className="card" style={{
+              marginBottom: 10,
+              borderLeft: '4px solid var(--rose)',
+              padding: '12px 14px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 2 }}>
+                    {item.kategori}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {item.tanggal} &middot; <span style={{ color: item.pembayaran === 'Tunai' ? 'var(--emerald)' : 'var(--brand)' }}>{item.pembayaran}</span>
+                  </div>
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--rose)' }}>
+                  -{formatRp(item.nominal)}
+                </div>
+              </div>
+
+              {item.keterangan && (
+                <div style={{
+                  fontSize: 11,
+                  color: 'var(--text-secondary)',
+                  background: 'var(--bg-hover)',
+                  borderRadius: 6,
+                  padding: '6px 10px',
+                  marginBottom: 8,
+                  fontStyle: 'italic'
+                }}>
+                  📝 {item.keterangan}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => openEditModal(item)}>
+                  <i className="fa-solid fa-pen-to-square" /> Edit
+                </button>
+                <button className="btn btn-danger btn-sm" onClick={() => setDeleteConfirmId(item.id)}>
+                  <i className="fa-solid fa-trash" /> Hapus
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+
+        {/* Total footer mobile */}
+        {filteredExpenses.length > 0 && (
+          <div className="card" style={{ background: 'rgba(225,29,72,0.08)', border: '1px solid rgba(225,29,72,0.2)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--rose)' }}>
+              <i className="fa-solid fa-receipt" style={{ marginRight: 6 }} />
+              Total Pengeluaran
+            </div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--rose)' }}>
+              {formatRp(totalPengeluaran)}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Breakdown per Kategori ── */}
+      {categoryBreakdown.length > 0 && (
+        <div className="card" style={{ marginTop: 12, padding: '14px 16px' }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <i className="fa-solid fa-chart-pie" style={{ color: 'var(--amber)', marginRight: 6 }} />
+            Breakdown per Kategori
+          </div>
+          {categoryBreakdown.map(([cat, total]) => {
+            const pct = totalPengeluaran > 0 ? Math.round((total / totalPengeluaran) * 100) : 0;
+            return (
+              <div key={cat} style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                  <span>{cat}</span>
+                  <span style={{ color: 'var(--rose)' }}>{formatRp(total)} <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>({pct}%)</span></span>
+                </div>
+                <div style={{ height: 6, background: 'var(--bg-hover)', borderRadius: 99, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg, var(--rose), #fb7185)', borderRadius: 99, transition: 'width 0.5s ease' }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Add / Edit Expense Modal ── */}
       {showModal && (
