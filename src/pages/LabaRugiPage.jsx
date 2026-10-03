@@ -108,6 +108,7 @@ const LabaRugiPage = () => {
   const totalOmset       = itemData.reduce((s, i) => s + i.omset, 0);
   const totalModal       = itemData.reduce((s, i) => s + i.modal, 0);
   const totalLabaKotor   = itemData.reduce((s, i) => s + i.laba,  0);
+  const totalLaba        = totalLabaKotor;
   const totalQty         = itemData.reduce((s, i) => s + i.qty,   0);
   const totalPengeluaran = filteredExpenses.reduce((s, e) => s + (e.nominal || 0), 0);
   const labaBersihAkhir  = totalLabaKotor - totalPengeluaran;

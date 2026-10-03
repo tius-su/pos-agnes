@@ -411,83 +411,115 @@ const PengeluaranPage = () => {
       {/* ── Add / Edit Expense Modal ── */}
       {showModal && (
         <div className="modal-overlay show" style={{ zIndex: 9999 }}>
-          <div className="modal-content modal-md">
-            <div className="modal-header">
-              <div className="modal-title">
-                <i className="fa-solid fa-file-invoice-dollar" style={{ color: 'var(--rose)', marginRight: 8 }} />
-                {editItem ? 'Edit Pengeluaran' : 'Catat Pengeluaran Baru'}
+          <div className="modal-content modal-md" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)' }}>
+            <div className="modal-header" style={{ background: 'linear-gradient(135deg, rgba(225,29,72,0.08), rgba(124,58,237,0.05))', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+              <div className="modal-title" style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(225,29,72,0.12)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                  <i className="fa-solid fa-receipt" style={{ color: 'var(--rose)', fontSize: 16 }} />
+                </div>
+                {editItem ? 'Edit Catatan Pengeluaran' : 'Catat Pengeluaran Baru'}
               </div>
               <button className="btn-icon" onClick={() => setShowModal(false)}>
                 <i className="fa-solid fa-xmark" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label className="form-label">Tanggal</label>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={form.tanggal}
-                  onChange={e => setForm({ ...form, tanggal: e.target.value })}
-                  required
-                />
+            <form onSubmit={handleSubmit}>
+              <div className="modal-body" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                
+                {/* Row 1: Tanggal & Metode Pembayaran */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label className="form-label" style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <i className="fa-regular fa-calendar-days" style={{ color: 'var(--brand)' }} />
+                      Tanggal
+                    </label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={form.tanggal}
+                      onChange={e => setForm({ ...form, tanggal: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label" style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <i className="fa-solid fa-wallet" style={{ color: 'var(--sky)' }} />
+                      Metode Pembayaran
+                    </label>
+                    <select
+                      className="form-input"
+                      value={form.pembayaran}
+                      onChange={e => setForm({ ...form, pembayaran: e.target.value })}
+                    >
+                      <option value="Tunai">Tunai / Kas Toko</option>
+                      <option value="Transfer">Transfer / Bank</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Kategori Pengeluaran */}
+                <div>
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <i className="fa-solid fa-layer-group" style={{ color: 'var(--amber)' }} />
+                    Kategori Pengeluaran
+                  </label>
+                  <select
+                    className="form-input"
+                    value={form.kategori}
+                    onChange={e => setForm({ ...form, kategori: e.target.value })}
+                    style={{ fontWeight: 600 }}
+                  >
+                    {EXPENSE_CATEGORIES.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Nominal */}
+                <div>
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <i className="fa-solid fa-money-bill-wave" style={{ color: 'var(--emerald)' }} />
+                    Nominal Biaya (Rp)
+                  </label>
+                  <div className="form-input-icon">
+                    <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontWeight: 800, fontSize: 13, color: 'var(--emerald)' }}>Rp</span>
+                    <input
+                      type="number"
+                      className="form-input"
+                      placeholder="0"
+                      style={{ paddingLeft: 38, fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}
+                      value={form.nominal}
+                      onChange={e => setForm({ ...form, nominal: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Keterangan */}
+                <div>
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <i className="fa-solid fa-align-left" style={{ color: 'var(--text-muted)' }} />
+                    Keterangan / Catatan Tambahan (Opsional)
+                  </label>
+                  <textarea
+                    className="form-input"
+                    rows="2"
+                    placeholder="Contoh: Sewa toko bulan ini, bayar kantong plastik 10 pack..."
+                    value={form.keterangan}
+                    onChange={e => setForm({ ...form, keterangan: e.target.value })}
+                  />
+                </div>
+
               </div>
 
-              <div>
-                <label className="form-label">Kategori Pengeluaran</label>
-                <select
-                  className="form-input"
-                  value={form.kategori}
-                  onChange={e => setForm({ ...form, kategori: e.target.value })}
-                >
-                  {EXPENSE_CATEGORIES.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="form-label">Nominal (Rp)</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="Contoh: 150000"
-                  value={form.nominal}
-                  onChange={e => setForm({ ...form, nominal: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="form-label">Metode Pembayaran</label>
-                <select
-                  className="form-input"
-                  value={form.pembayaran}
-                  onChange={e => setForm({ ...form, pembayaran: e.target.value })}
-                >
-                  <option value="Tunai">Tunai / Kas Toko</option>
-                  <option value="Transfer">Transfer / Bank</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="form-label">Keterangan / Catatan (Opsional)</label>
-                <textarea
-                  className="form-input"
-                  rows="2"
-                  placeholder="Contoh: Bayar sewa lapak pasar, kantong plastik 10 pack..."
-                  value={form.keterangan}
-                  onChange={e => setForm({ ...form, keterangan: e.target.value })}
-                />
-              </div>
-
-              <div className="modal-footer" style={{ padding: 0, marginTop: 8, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>
+              <div className="modal-footer" style={{ padding: '14px 20px', background: 'var(--bg-hover)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)} style={{ borderRadius: 10, padding: '8px 18px' }}>
                   Batal
                 </button>
-                <button type="submit" className="btn btn-purple">
-                  <i className="fa-solid fa-floppy-disk" /> Simpan Pengeluaran
+                <button type="submit" className="btn btn-purple" style={{ borderRadius: 10, padding: '8px 22px', fontWeight: 800 }}>
+                  <i className="fa-solid fa-floppy-disk" style={{ marginRight: 6 }} /> Simpan Pengeluaran
                 </button>
               </div>
             </form>
