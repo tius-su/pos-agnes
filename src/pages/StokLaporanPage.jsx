@@ -17,10 +17,42 @@ const PIE_COLORS = ['#7c3aed', '#0284c7', '#059669', '#d97706', '#e11d48', '#8b5
 
 const StokLaporanPage = () => {
   const { appData } = useData();
-  const stok = appData.stok || [];
+  const allStok = appData.stok || [];
   const penjualan = appData.penjualan || [];
+  const [supplierFilter, setSupplierFilter] = useState('');
+  const [searchFilter, setSearchFilter]     = useState('');
+  const [catFilter, setCatFilter]           = useState('');
 
-  // Summary stats
+  // Unique supplier list dari semua stok
+  const supplierList = useMemo(() => {
+    const set = new Set();
+    allStok.forEach(i => {
+      (i.supplierList || []).forEach(s => { if (s) set.add(s); });
+      if (i.supplier)     set.add(i.supplier);
+      if (i.suplier)      set.add(i.suplier);
+      if (i.nama_suplier) set.add(i.nama_suplier);
+    });
+    return [...set].sort();
+  }, [allStok]);
+
+  // Filtered stok berdasarkan supplier, search, dan kategori
+  const stok = useMemo(() => {
+    return allStok.filter(i => {
+      const suppliers = [
+        ...(i.supplierList || []),
+        i.supplier, i.suplier, i.nama_suplier
+      ].filter(Boolean);
+      const matchSupplier = !supplierFilter || suppliers.includes(supplierFilter);
+      const sTerm = searchFilter.toLowerCase().trim();
+      const matchSearch = !sTerm ||
+        (i.nama_barang && i.nama_barang.toLowerCase().includes(sTerm)) ||
+        suppliers.some(s => s.toLowerCase().includes(sTerm));
+      const matchCat = !catFilter || i.kategori === catFilter;
+      return matchSupplier && matchSearch && matchCat;
+    });
+  }, [allStok, supplierFilter, searchFilter, catFilter]);
+
+  // Summary stats (dari stok terfilter)
   const totalSkus   = stok.length;
   const totalItems  = stok.reduce((s, i) => s + i.stokTersedia, 0);
   const nilaiModal  = stok.reduce((s, i) => s + i.hargaModal * i.stokTersedia, 0);
@@ -40,11 +72,13 @@ const StokLaporanPage = () => {
     return Object.values(map).sort((a, b) => b.nilai - a.nilai);
   }, [stok]);
 
-  // Produk terlaris (dari penjualan)
+  // Produk terlaris — difilter by nama produk yang ada di stok terfilter
+  const filteredStokNames = useMemo(() => new Set(stok.map(i => i.nama_barang)), [stok]);
   const topProducts = useMemo(() => {
     const map = {};
     penjualan.forEach(t => {
       (t.items || []).forEach(i => {
+        if ((supplierFilter || catFilter || searchFilter) && !filteredStokNames.has(i.barang)) return;
         if (!map[i.barang]) map[i.barang] = { nama: i.barang, qty: 0, omset: 0, laba: 0 };
         map[i.barang].qty   += i.jumlah;
         map[i.barang].omset += i.subtotal;
@@ -52,7 +86,7 @@ const StokLaporanPage = () => {
       });
     });
     return Object.values(map).sort((a, b) => b.qty - a.qty).slice(0, 10);
-  }, [penjualan]);
+  }, [penjualan, supplierFilter, catFilter, searchFilter, filteredStokNames]);
 
   // Stok rendah / warning list
   const warningList = stok
@@ -65,6 +99,8 @@ const StokLaporanPage = () => {
     .sort((a, b) => b.stokTersedia - a.stokTersedia)
     .slice(0, 15)
     .map(i => ({ nama: i.nama_barang.length > 14 ? i.nama_barang.slice(0, 14) + '…' : i.nama_barang, stok: i.stokTersedia, nilai: i.hargaModal * i.stokTersedia }));
+
+  const CATEGORIES = ['Pakaian Wanita','Pakaian Pria','Hijab','Aksesoris','Lainnya'];
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
@@ -93,6 +129,80 @@ const StokLaporanPage = () => {
 
   return (
     <div className="tab-page active fade-up">
+
+      {/* ── Filter Bar ──────────────────────────────────────────────── */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header" style={{ padding: '12px 16px' }}>
+          <div className="card-title"><i className="fa-solid fa-filter" /> Filter Laporan Stok</div>
+          {(supplierFilter || searchFilter || catFilter) && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => { setSupplierFilter(''); setSearchFilter(''); setCatFilter(''); }}
+            >
+              <i className="fa-solid fa-xmark" /> Reset
+            </button>
+          )}
+        </div>
+        <div style={{ padding: '12px 16px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Cari barang */}
+          <div className="form-input-icon" style={{ flex: 1, minWidth: 160 }}>
+            <i className="fa-solid fa-search" />
+            <input
+              className="form-input"
+              placeholder="Cari nama barang..."
+              value={searchFilter}
+              onChange={e => setSearchFilter(e.target.value)}
+              id="stok-laporan-search"
+            />
+          </div>
+          {/* Filter Supplier */}
+          <div style={{ position: 'relative', flex: 1, minWidth: 180 }}>
+            <i className="fa-solid fa-truck" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 12, pointerEvents: 'none' }} />
+            <select
+              className="form-input"
+              style={{ paddingLeft: 32 }}
+              value={supplierFilter}
+              onChange={e => setSupplierFilter(e.target.value)}
+              id="stok-laporan-supplier"
+            >
+              <option value="">Semua Supplier</option>
+              {supplierList.map(s => <option key={s} value={s}>🏭 {s}</option>)}
+            </select>
+          </div>
+          {/* Filter Kategori */}
+          <select
+            className="form-input"
+            style={{ flex: 1, minWidth: 150 }}
+            value={catFilter}
+            onChange={e => setCatFilter(e.target.value)}
+            id="stok-laporan-cat"
+          >
+            <option value="">Semua Kategori</option>
+            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        {/* Active filter badges */}
+        {(supplierFilter || catFilter) && (
+          <div style={{ padding: '0 16px 12px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {supplierFilter && (
+              <span className="badge badge-violet" style={{ fontSize: 11, padding: '4px 10px' }}>
+                🏭 {supplierFilter}
+                <button onClick={() => setSupplierFilter('')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: 4, color: 'inherit', fontSize: 11, padding: 0 }}>×</button>
+              </span>
+            )}
+            {catFilter && (
+              <span className="badge badge-sky" style={{ fontSize: 11, padding: '4px 10px' }}>
+                {catFilter}
+                <button onClick={() => setCatFilter('')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: 4, color: 'inherit', fontSize: 11, padding: 0 }}>×</button>
+              </span>
+            )}
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center' }}>
+              {totalSkus} produk ditemukan
+            </span>
+          </div>
+        )}
+      </div>
+
       {/* KPI Cards */}
       <div className="stok-laporan-stats-grid">
         <div className="stat-card violet">

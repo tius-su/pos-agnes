@@ -161,6 +161,37 @@ const LaporanPage = () => {
     setSaving(false);
   };
 
+  // ── KIRIM ULANG STRUK VIA WHATSAPP ────────────────────────────────────
+  const sendStrukWA = (trx) => {
+    const noWa = (trx.noWa || '').replace(/\D/g, '');
+    if (!noWa) {
+      toast('No WhatsApp pelanggan tidak tersedia untuk transaksi ini', 'warning');
+      return;
+    }
+    const s = appData.settings;
+    let msg = `*STRUK BELANJA ${(s.storeName || 'AGNES FASHION').toUpperCase()}*\n`;
+    msg += `${s.storeAddress || ''}\n`;
+    msg += `───────────────────\n`;
+    msg += `No TRX : ${trx.kodeTrx}\n`;
+    msg += `Tanggal: ${trx.tanggal} ${trx.waktu}\n`;
+    msg += `Pelanggan: ${trx.pelanggan || 'Umum'}\n`;
+    msg += `───────────────────\n`;
+    (trx.items || []).forEach(i => {
+      msg += `${i.barang} x${i.jumlah}  ${formatRp(i.subtotal)}\n`;
+    });
+    msg += `───────────────────\n`;
+    msg += `*TOTAL: ${formatRp(trx.totalPenjualan)}*\n`;
+    msg += `Metode: ${trx.metodeBayar}\n`;
+    if (trx.metodeBayar === 'Tunai') {
+      msg += `Bayar: ${formatRp(trx.uangDiterima)}\n`;
+      msg += `Kembalian: ${formatRp(trx.kembalian)}\n`;
+    }
+    msg += `───────────────────\n`;
+    msg += `${s.receiptFooter || 'Terima kasih!'}`;
+    window.open(`https://wa.me/${noWa}?text=${encodeURIComponent(msg)}`, '_blank');
+    toast('📤 Struk dikirim ke WhatsApp!', 'success');
+  };
+
   // ── SHARE / EXPORT ───────────────────────────────────────────────────
   const shareReportWA = () => {
     const s = appData.settings;
@@ -346,7 +377,7 @@ const LaporanPage = () => {
                   <td className="cell-amount cell-green">{formatRp(t.totalPenjualan)}</td>
                   <td className="cell-amount cell-violet">{formatRp(t.laba)}</td>
                   <td style={{ textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: 5, justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: 5, justifyContent: 'center', flexWrap: 'wrap' }}>
                       <button
                         className="btn btn-ghost btn-sm"
                         title="Edit Transaksi"
@@ -354,6 +385,14 @@ const LaporanPage = () => {
                         style={{ padding: '4px 8px' }}
                       >
                         <i className="fa-solid fa-pen-to-square" />
+                      </button>
+                      <button
+                        className="btn btn-wa btn-sm"
+                        title={t.noWa ? `Kirim struk ke ${t.noWa}` : 'No WA tidak tersedia'}
+                        onClick={() => sendStrukWA(t)}
+                        style={{ padding: '4px 8px', opacity: t.noWa ? 1 : 0.45 }}
+                      >
+                        <i className="fa-brands fa-whatsapp" />
                       </button>
                       <button
                         className="btn btn-danger btn-sm"
