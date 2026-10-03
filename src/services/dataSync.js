@@ -1,5 +1,5 @@
 import { db } from '../firebase';
-import { doc, setDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 const LOCAL_CACHE_KEY = 'agnes_pos_cache';
 const GH_TOKEN_KEY   = 'agnes_token';
@@ -172,96 +172,25 @@ export const saveLocalData = (data) => {
 const FIREBASE_DOC = () => doc(db, 'pos_data', 'store_data');
 
 /**
- * Helper untuk membaca fallback collection jika single document tidak memiliki stok
- */
-const fetchFirestoreCollectionsFallback = async () => {
-  const collectionNames = ['stok', 'products', 'items', 'barang', 'inventory'];
-  let itemsFromCol = [];
-
-  for (const colName of collectionNames) {
-    try {
-      const colSnap = await getDocs(collection(db, colName));
-      if (!colSnap.empty) {
-        itemsFromCol = colSnap.docs.map(d => normalizeItem({ id: d.id, ...d.data() })).filter(Boolean);
-        if (itemsFromCol.length > 0) break;
-      }
-    } catch (e) {
-      console.warn(`[Firebase] Fallback collection check '${colName}':`, e.message);
-    }
-  }
-
-  let salesFromCol = [];
-  const salesColNames = ['penjualan', 'sales', 'transactions'];
-  for (const colName of salesColNames) {
-    try {
-      const colSnap = await getDocs(collection(db, colName));
-      if (!colSnap.empty) {
-        salesFromCol = colSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (salesFromCol.length > 0) break;
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  return { itemsFromCol, salesFromCol };
-};
-
-/**
  * Subscribe realtime ke Firebase.
+ * Hanya baca dari pos_data/store_data (sesuai Firestore Rules).
  */
 export const subscribeToFirebaseCloud = (onData, onError) => {
   try {
     const unsub = onSnapshot(
       FIREBASE_DOC(),
-      async (snap) => {
-        // Cek apakah dokumen utama ada dan punya stok
+      (snap) => {
         if (snap.exists() && snap.data()) {
+          // Dokumen ditemukan → normalize dan kirim ke DataContext
           const firebaseData = normalizeAppData(snap.data());
-
-          // Jika stok ada dari dokumen utama, langsung gunakan
           if (firebaseData.stok && firebaseData.stok.length > 0) {
             onData(firebaseData);
-            return;
+          } else {
+            // Dokumen ada tapi stok kosong → kirim null agar DataContext pakai local cache
+            onData(null);
           }
-
-          // Dokumen ada tapi stok kosong → cek sub-collection Firestore
-          try {
-            const { itemsFromCol, salesFromCol } = await fetchFirestoreCollectionsFallback();
-            if (itemsFromCol.length > 0) {
-              const mergedData = normalizeAppData({
-                ...firebaseData,
-                stok: itemsFromCol,
-                penjualan: salesFromCol.length > 0 ? salesFromCol : (firebaseData.penjualan || [])
-              });
-              onData(mergedData);
-              return;
-            }
-          } catch (colErr) {
-            console.warn('[Firebase] Collection fallback error:', colErr);
-          }
-
-          // Dokumen ada tapi stok tetap kosong setelah fallback → kirim null agar DataContext pakai INITIAL_DATA
-          onData(null);
         } else {
-          // Dokumen tidak ada sama sekali di Firestore
-          // Cek collection-level fallback
-          try {
-            const { itemsFromCol, salesFromCol } = await fetchFirestoreCollectionsFallback();
-            if (itemsFromCol.length > 0) {
-              const mergedData = normalizeAppData({
-                ...INITIAL_DATA,
-                stok: itemsFromCol,
-                penjualan: salesFromCol.length > 0 ? salesFromCol : []
-              });
-              onData(mergedData);
-              return;
-            }
-          } catch (colErr) {
-            console.warn('[Firebase] Collection fallback error:', colErr);
-          }
-
-          // Firestore benar-benar kosong → kirim null
+          // Dokumen tidak ada → kirim null agar DataContext pakai local cache / INITIAL_DATA
           onData(null);
         }
       },
