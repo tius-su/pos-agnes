@@ -172,7 +172,7 @@ export const saveLocalData = (data) => {
 const FIREBASE_DOC = () => doc(db, 'pos_data', 'store_data');
 
 /**
- * Subscribe realtime ke Firebase.
+ * Subscribe realtime ke Firebase (hanya untuk user yang sudah login).
  * Hanya baca dari pos_data/store_data (sesuai Firestore Rules).
  */
 export const subscribeToFirebaseCloud = (onData, onError) => {
@@ -202,6 +202,40 @@ export const subscribeToFirebaseCloud = (onData, onError) => {
     return unsub;
   } catch (e) {
     console.error('[Firebase] Subscribe error:', e);
+    if (onError) onError(e);
+    return () => {};
+  }
+};
+
+/**
+ * Fetch data katalog publik dari Firebase (TANPA auth).
+ * Membutuhkan Firestore rules: allow read: if true;
+ * Digunakan oleh halaman E-Katalog yang dibuka tanpa login.
+ */
+export const subscribePublicCatalog = (onData, onError) => {
+  try {
+    const unsub = onSnapshot(
+      FIREBASE_DOC(),
+      (snap) => {
+        if (snap.exists() && snap.data()) {
+          const firebaseData = normalizeAppData(snap.data());
+          if (firebaseData.stok && firebaseData.stok.length > 0) {
+            onData(firebaseData);
+          } else {
+            onData(null);
+          }
+        } else {
+          onData(null);
+        }
+      },
+      (err) => {
+        // Jika rules tidak izinkan public read, gunakan localStorage/INITIAL_DATA
+        console.warn('[Firebase] Public catalog read failed (update Firestore rules to allow read: if true):', err.message);
+        if (onError) onError(err);
+      }
+    );
+    return unsub;
+  } catch (e) {
     if (onError) onError(e);
     return () => {};
   }

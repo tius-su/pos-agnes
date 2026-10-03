@@ -58,7 +58,7 @@ const DataProviderWrapper = () => {
   // Jika URL dibuka dengan hash #katalog (pembeli), langsung tampilkan katalog publik tanpa harus login!
   if (isHashKatalog) {
     return (
-      <DataProvider>
+      <DataProvider isPublic={true}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 12px' }}>
           <EKatalogPage isStandalone={true} />
         </div>

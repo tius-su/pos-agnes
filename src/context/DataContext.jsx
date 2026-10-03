@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   loadLocalData, saveLocalData,
-  subscribeToFirebaseCloud, pushToFirebaseCloud,
+  subscribeToFirebaseCloud, subscribePublicCatalog, pushToFirebaseCloud,
   INITIAL_DATA, normalizeAppData
 } from '../services/dataSync';
 import { auth } from '../firebase';
@@ -19,7 +19,7 @@ const mergeWithFallback = (cloudData, fallback) => {
   return INITIAL_DATA;
 };
 
-export const DataProvider = ({ children }) => {
+export const DataProvider = ({ children, isPublic = false }) => {
   // State awal: coba dari cache lokal, jika kosong pakai INITIAL_DATA (ada sample stok)
   const [appData, setAppData] = useState(() => {
     try {
@@ -53,18 +53,46 @@ export const DataProvider = ({ children }) => {
     setSyncStatus('ok');
   }, []);
 
-  // ─── FIREBASE REALTIME SUBSCRIPTION (hanya jika user sudah login) ─────────────
+  // ─── FIREBASE SUBSCRIPTION ──────────────────────────────────────────────
   useEffect(() => {
-    // Tunggu auth state berubah sebelum subscribe ke Firestore
+    // ── MODE PUBLIK (E-Katalog tanpa login) ──
+    if (isPublic) {
+      setSyncStatus('syncing');
+      const unsub = subscribePublicCatalog(
+        (cloudData) => {
+          if (cloudData && cloudData.stok && cloudData.stok.length > 0) {
+            setAppData(cloudData);
+            setSyncStatus('ok');
+          } else {
+            // Firebase publik belum bisa dibaca (rules belum diupdate) → pakai localStorage
+            const localData = loadLocalData();
+            if (localData && localData.stok && localData.stok.length > 0) {
+              setAppData(localData);
+            }
+            setSyncStatus('ok');
+          }
+        },
+        () => {
+          // Error → pakai localStorage
+          const localData = loadLocalData();
+          if (localData && localData.stok && localData.stok.length > 0) {
+            setAppData(localData);
+          }
+          setSyncStatus('ok');
+        }
+      );
+      unsubRef.current = unsub;
+      return () => { if (unsubRef.current) unsubRef.current(); };
+    }
+
+    // ── MODE ADMIN (tunggu login dulu) ──
     const unsubAuth = auth.onAuthStateChanged((user) => {
-      // Bersihkan subscription lama
       if (unsubRef.current) {
         unsubRef.current();
         unsubRef.current = null;
       }
 
       if (!user) {
-        // Belum login → pakai data lokal saja, tidak subscribe Firebase
         setSyncStatus('idle');
         return;
       }
@@ -73,34 +101,26 @@ export const DataProvider = ({ children }) => {
       setSyncStatus('syncing');
       const unsub = subscribeToFirebaseCloud(
         (cloudData) => {
-          // cloudData bisa null (doc tidak ada), objek kosong, atau objek dengan stok
-          if (hasValidStock(cloudData)) {
-            // Firebase punya data lengkap → pakai langsung
+          if (cloudData && cloudData.stok && cloudData.stok.length > 0) {
             saveLocalData(cloudData);
             setAppData(cloudData);
             setLastSync(new Date());
             setSyncStatus('ok');
           } else {
-            // Firebase kosong/null → coba cache lokal, lalu INITIAL_DATA
             const localData = loadLocalData();
             const bestData = mergeWithFallback(null, localData);
-
             setAppData(bestData);
             setSyncStatus('ok');
             setLastSync(new Date());
 
-            // Push INITIAL_DATA ke Firebase agar tersimpan untuk sesi berikutnya
             if (!cloudData) {
               pushToFirebaseCloud(bestData).then(res => {
-                if (res.success) {
-                  console.info('[DataContext] INITIAL_DATA pushed to Firebase');
-                }
+                if (res.success) console.info('[DataContext] INITIAL_DATA pushed to Firebase');
               });
             }
           }
         },
         (err) => {
-          // Firebase error → pakai state yang sudah ada
           console.warn('[DataContext] Firebase error:', err.message);
           setSyncStatus('error');
         }
@@ -113,7 +133,7 @@ export const DataProvider = ({ children }) => {
       unsubAuth();
       if (unsubRef.current) unsubRef.current();
     };
-  }, []);
+  }, [isPublic]);
 
   // Save dan sync ke Firebase
   const saveAndSync = useCallback(async (newData) => {
