@@ -18,6 +18,9 @@ const emptyForm = {
   r_variants: ''
 };
 
+const QUICK_SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'LLL', '3XL', 'All Size'];
+const QUICK_COLORS = ['Hitam', 'Putih', 'Navy', 'Maroon', 'Sage Green', 'Rose', 'Mocca', 'Kuning', 'Cokelat'];
+
 const StokPage = () => {
   const { appData, saveAndSync, toast } = useData();
   const [search, setSearch] = useState('');
@@ -26,6 +29,30 @@ const StokPage = () => {
   const [editItem, setEditItem] = useState(null); // for edit
   const [form, setForm] = useState(emptyForm);
   const [deleting, setDeleting] = useState(null);
+  const [customVariantInput, setCustomVariantInput] = useState('');
+
+  const activeVariants = (form.r_variants || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  const toggleVariantItem = (val) => {
+    if (!val) return;
+    let next;
+    if (activeVariants.includes(val)) {
+      next = activeVariants.filter(s => s !== val);
+    } else {
+      next = [...activeVariants, val];
+    }
+    setForm(f => ({ ...f, r_variants: next.join(', ') }));
+  };
+
+  const addCustomVariant = () => {
+    if (!customVariantInput || !customVariantInput.trim()) return;
+    const item = customVariantInput.trim();
+    if (!activeVariants.includes(item)) {
+      const next = [...activeVariants, item];
+      setForm(f => ({ ...f, r_variants: next.join(', ') }));
+    }
+    setCustomVariantInput('');
+  };
 
   const filtered = (appData.stok || []).filter(i => {
     const sTerm = search.toLowerCase().trim();
@@ -392,13 +419,129 @@ const StokPage = () => {
                     </div>
                   </div>
                 </div>
-                {/* ═══ VARIASI PRODUK (OPSIONAL) ═══ */}
-                <div className="form-group" style={{ marginBottom: 12 }}>
-                  <label className="form-label">Variasi Produk (Opsional - Pisahkan Koma)</label>
-                  <input type="text" className="form-input" name="r_variants" value={form.r_variants} onChange={handleFormChange} placeholder="Misal: M - Navy, L - Navy, XL - Rose..." />
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, display: 'block' }}>
-                    Contoh: <code>Navy - M, Navy - L, Rose - M, Sage - XL</code>
-                  </span>
+                {/* ═══ VARIASI PRODUK (INTERAKTIF UKURAN & WARNA) ═══ */}
+                <div style={{ background: 'var(--brand-dim)', border: '1px solid rgba(124,58,237,.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <i className="fa-solid fa-palette" /> Variasi Produk (Ukuran & Warna)
+                  </div>
+
+                  {/* Quick Sizes */}
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>📐 Pilih Ukuran Cepat:</div>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                      {QUICK_SIZES.map(size => {
+                        const active = activeVariants.includes(size);
+                        return (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => toggleVariantItem(size)}
+                            style={{
+                              padding: '3px 9px',
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              border: active ? '1.5px solid var(--brand)' : '1px solid var(--border)',
+                              background: active ? 'var(--brand)' : '#fff',
+                              color: active ? '#fff' : 'var(--text-primary)',
+                              transition: '.12s'
+                            }}
+                          >
+                            {active ? '✓ ' : ''}{size}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Quick Colors */}
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>🎨 Pilih Warna Cepat:</div>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                      {QUICK_COLORS.map(color => {
+                        const active = activeVariants.includes(color);
+                        return (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => toggleVariantItem(color)}
+                            style={{
+                              padding: '3px 9px',
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              border: active ? '1.5px solid var(--brand)' : '1px solid var(--border)',
+                              background: active ? 'var(--brand)' : '#fff',
+                              color: active ? '#fff' : 'var(--text-primary)',
+                              transition: '.12s'
+                            }}
+                          >
+                            {active ? '✓ ' : ''}{color}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Custom Input Size / Color */}
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{ fontSize: 11, padding: '4px 8px', height: 30 }}
+                      placeholder="+ Ukuran / Warna Lain (misal: LLL, Dusty Pink...)"
+                      value={customVariantInput}
+                      onChange={e => setCustomVariantInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomVariant(); } }}
+                    />
+                    <button type="button" className="btn btn-purple btn-sm" onClick={addCustomVariant} style={{ height: 30, fontSize: 11, padding: '0 10px', whiteSpace: 'nowrap' }}>
+                      <i className="fa-solid fa-plus" /> Tambah
+                    </button>
+                  </div>
+
+                  {/* Selected Chips */}
+                  {activeVariants.length > 0 && (
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center', paddingTop: 6, borderTop: '1px dashed var(--border)' }}>
+                      <span style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 700 }}>Terpilih ({activeVariants.length}):</span>
+                      {activeVariants.map(v => (
+                        <span
+                          key={v}
+                          onClick={() => toggleVariantItem(v)}
+                          style={{
+                            background: '#fff',
+                            border: '1px solid var(--brand)',
+                            color: 'var(--brand)',
+                            borderRadius: 99,
+                            padding: '2px 8px',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4
+                          }}
+                          title="Klik untuk hapus"
+                        >
+                          {v} <i className="fa-solid fa-xmark" style={{ fontSize: 9 }} />
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Textarea edit manual */}
+                  <div style={{ marginTop: 8 }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      name="r_variants"
+                      value={form.r_variants}
+                      onChange={handleFormChange}
+                      placeholder="Atau ketik manual pisahkan koma: S, M, L, XL, LLL..."
+                      style={{ fontSize: 11, padding: '4px 8px', height: 28, background: '#fff' }}
+                    />
+                  </div>
                 </div>
                 {form.r_cost && form.r_price && (
                   <div style={{ background: 'var(--emerald-dim)', border: '1px solid rgba(5,150,105,.2)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--emerald)' }}>
