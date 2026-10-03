@@ -592,6 +592,13 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
     padding: 14px;
     box-shadow: 0 2px 8px rgba(0,0,0,.06);
   }
+  .trx-mobile-card {
+    background: var(--bg-card);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  }
   .stok-header-actions { width: 100%; display: flex; flex-direction: column; gap: 8px; }
   .stok-header-actions .search-input-wrap,
   .stok-header-actions .filter-select,

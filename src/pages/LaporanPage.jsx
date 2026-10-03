@@ -338,76 +338,142 @@ const LaporanPage = () => {
           </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Kode TRX</th>
-                <th>Tanggal &amp; Jam</th>
-                <th>Pelanggan</th>
-                <th>Item</th>
-                <th>Metode</th>
-                <th>Omset</th>
-                <th>Laba</th>
-                <th style={{ textAlign: 'center' }}>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSales.length === 0 ? (
-                <tr><td colSpan={8}>
-                  <div className="empty-state">
-                    <i className="fa-solid fa-receipt" />
-                    <p>Belum ada transaksi di periode ini.</p>
-                  </div>
-                </td></tr>
-              ) : filteredSales.map(t => (
-                <tr key={t.id}>
-                  <td className="cell-main" style={{ fontFamily: 'monospace', fontSize: 11 }}>{t.kodeTrx}</td>
-                  <td>{t.tanggal}<br /><span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t.waktu}</span></td>
-                  <td>
-                    {t.pelanggan || '—'}
-                    {t.noWa && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t.noWa}</div>}
-                  </td>
-                  <td>
-                    {(t.items || []).map((i, ix) => (
-                      <div key={ix} style={{ fontSize: 11 }}>{i.barang} ×{i.jumlah}</div>
-                    ))}
-                  </td>
-                  <td><span className="badge badge-violet">{t.metodeBayar}</span></td>
-                  <td className="cell-amount cell-green">{formatRp(t.totalPenjualan)}</td>
-                  <td className="cell-amount cell-violet">{formatRp(t.laba)}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: 5, justifyContent: 'center', flexWrap: 'wrap' }}>
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        title="Edit Transaksi"
-                        onClick={() => openEdit(t)}
-                        style={{ padding: '4px 8px' }}
-                      >
-                        <i className="fa-solid fa-pen-to-square" />
-                      </button>
-                      <button
-                        className="btn btn-wa btn-sm"
-                        title={t.noWa ? `Kirim struk ke ${t.noWa}` : 'No WA tidak tersedia'}
-                        onClick={() => sendStrukWA(t)}
-                        style={{ padding: '4px 8px', opacity: t.noWa ? 1 : 0.45 }}
-                      >
-                        <i className="fa-brands fa-whatsapp" />
-                      </button>
-                      <button
-                        className="btn btn-danger btn-sm"
-                        title="Hapus Transaksi"
-                        onClick={() => setDeleteTrx(t)}
-                        style={{ padding: '4px 8px' }}
-                      >
-                        <i className="fa-solid fa-trash" />
-                      </button>
-                    </div>
-                  </td>
+        {/* ── DESKTOP TABLE ── */}
+        <div className="desktop-table-view">
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Kode TRX</th>
+                  <th>Tanggal &amp; Jam</th>
+                  <th>Pelanggan</th>
+                  <th>Item</th>
+                  <th>Metode</th>
+                  <th>Omset</th>
+                  <th>Laba</th>
+                  <th style={{ textAlign: 'center' }}>Aksi</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredSales.length === 0 ? (
+                  <tr><td colSpan={8}>
+                    <div className="empty-state">
+                      <i className="fa-solid fa-receipt" />
+                      <p>Belum ada transaksi di periode ini.</p>
+                    </div>
+                  </td></tr>
+                ) : filteredSales.map(t => (
+                  <tr key={t.id}>
+                    <td className="cell-main" style={{ fontFamily: 'monospace', fontSize: 11 }}>{t.kodeTrx}</td>
+                    <td>{t.tanggal}<br /><span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t.waktu}</span></td>
+                    <td>
+                      {t.pelanggan || '—'}
+                      {t.noWa && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t.noWa}</div>}
+                    </td>
+                    <td>
+                      {(t.items || []).map((i, ix) => (
+                        <div key={ix} style={{ fontSize: 11 }}>{i.barang} ×{i.jumlah}</div>
+                      ))}
+                    </td>
+                    <td><span className="badge badge-violet">{t.metodeBayar}</span></td>
+                    <td className="cell-amount cell-green">{formatRp(t.totalPenjualan)}</td>
+                    <td className="cell-amount cell-violet">{formatRp(t.laba)}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: 5, justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => openEdit(t)} style={{ padding: '4px 8px' }}>
+                          <i className="fa-solid fa-pen-to-square" />
+                        </button>
+                        <button className="btn btn-wa btn-sm" title={t.noWa ? `Kirim struk ke ${t.noWa}` : 'No WA tidak tersedia'} onClick={() => sendStrukWA(t)} style={{ padding: '4px 8px', opacity: t.noWa ? 1 : 0.45 }}>
+                          <i className="fa-brands fa-whatsapp" />
+                        </button>
+                        <button className="btn btn-danger btn-sm" title="Hapus" onClick={() => setDeleteTrx(t)} style={{ padding: '4px 8px' }}>
+                          <i className="fa-solid fa-trash" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── MOBILE CARDS VIEW ── */}
+        <div className="mobile-cards-view" style={{ padding: '0 12px 12px' }}>
+          {filteredSales.length === 0 ? (
+            <div className="empty-state">
+              <i className="fa-solid fa-receipt" />
+              <p>Belum ada transaksi di periode ini.</p>
+            </div>
+          ) : filteredSales.map(t => (
+            <div key={t.id} className="trx-mobile-card">
+              {/* Header card */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: 'var(--brand)' }}>{t.kodeTrx}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t.tanggal} · {t.waktu}</div>
+                </div>
+                <span className="badge badge-violet" style={{ fontSize: 10 }}>{t.metodeBayar}</span>
+              </div>
+
+              {/* Pelanggan */}
+              {(t.pelanggan && t.pelanggan !== 'Umum') && (
+                <div style={{ fontSize: 12, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <i className="fa-solid fa-user" style={{ color: 'var(--text-muted)', fontSize: 10 }} />
+                  <span style={{ fontWeight: 600 }}>{t.pelanggan}</span>
+                  {t.noWa && <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>· {t.noWa}</span>}
+                </div>
+              )}
+
+              {/* Items */}
+              <div style={{ marginBottom: 8 }}>
+                {(t.items || []).map((i, ix) => (
+                  <div key={ix} style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>{i.barang} ×{i.jumlah}</span>
+                    <span>{formatRp(i.subtotal)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Totals */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Omset</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--emerald)' }}>{formatRp(t.totalPenjualan)}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Laba</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--brand)' }}>{formatRp(t.laba)}</div>
+                </div>
+              </div>
+
+              {/* Action buttons — full width, always visible */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => openEdit(t)}
+                  style={{ padding: '7px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                >
+                  <i className="fa-solid fa-pen-to-square" /> Edit
+                </button>
+                <button
+                  className="btn btn-wa btn-sm"
+                  onClick={() => sendStrukWA(t)}
+                  style={{ padding: '7px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, opacity: t.noWa ? 1 : 0.45 }}
+                  title={t.noWa ? `Kirim ke ${t.noWa}` : 'No WA belum diisi'}
+                >
+                  <i className="fa-brands fa-whatsapp" /> Struk
+                </button>
+                <button
+                  className="btn btn-danger btn-sm"
+                  onClick={() => setDeleteTrx(t)}
+                  style={{ padding: '7px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                >
+                  <i className="fa-solid fa-trash" /> Hapus
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

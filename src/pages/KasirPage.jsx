@@ -17,6 +17,9 @@ const KasirPage = () => {
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastTrx, setLastTrx] = useState(null);
   const [mobileTab, setMobileTab] = useState('catalog');
+  // Diskon
+  const [diskonType, setDiskonType] = useState('persen'); // 'persen' | 'nominal'
+  const [diskonValue, setDiskonValue] = useState('');
 
   useEffect(() => {
     const now = new Date();
@@ -66,11 +69,16 @@ const KasirPage = () => {
     setCart(prev => prev.map(c => c.nama_barang === name ? { ...c, hargaJual: Math.max(0, newPrice) } : c));
   };
 
-  const total = cart.reduce((s, c) => s + c.hargaJual * c.qty, 0);
+  const subtotal  = cart.reduce((s, c) => s + c.hargaJual * c.qty, 0);
+  const diskonNum  = parseFloat(diskonValue) || 0;
+  const diskonAmt  = diskonType === 'persen'
+    ? Math.round(subtotal * diskonNum / 100)
+    : Math.min(diskonNum, subtotal);
+  const total      = Math.max(0, subtotal - diskonAmt);
   const totalModal = cart.reduce((s, c) => s + (c.hargaModal || 0) * c.qty, 0);
-  const laba = total - totalModal;
-  const cashNum = parseFloat(cashInput) || 0;
-  const kembalian = cashNum - total;
+  const laba       = total - totalModal;
+  const cashNum    = parseFloat(cashInput) || 0;
+  const kembalian  = cashNum - total;
 
   const handleCheckout = async () => {
     if (!cart.length) { toast('Keranjang masih kosong!', 'error'); return; }
@@ -94,6 +102,10 @@ const KasirPage = () => {
         hargaJual: c.hargaJual,
         subtotal: c.hargaJual * c.qty
       })),
+      subtotalSebelumDiskon: subtotal,
+      diskonType,
+      diskonValue: diskonNum,
+      diskonAmt,
       totalPenjualan: total,
       totalModal,
       laba,
@@ -121,6 +133,8 @@ const KasirPage = () => {
     setCashInput('');
     setCustomerName('');
     setCustomerWa('');
+    setDiskonValue('');
+    setDiskonType('persen');
 
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -140,6 +154,10 @@ const KasirPage = () => {
     msg += `───────────────────\n`;
     lastTrx.items.forEach(i => { msg += `${i.barang} x${i.jumlah}  ${formatRp(i.subtotal)}\n`; });
     msg += `───────────────────\n`;
+    if (lastTrx.diskonAmt > 0) {
+      msg += `Subtotal  : ${formatRp(lastTrx.subtotalSebelumDiskon)}\n`;
+      msg += `Diskon    : -${formatRp(lastTrx.diskonAmt)}${lastTrx.diskonType === 'persen' ? ` (${lastTrx.diskonValue}%)` : ''}\n`;
+    }
     msg += `*TOTAL: ${formatRp(lastTrx.totalPenjualan)}*\n`;
     msg += `Metode: ${lastTrx.metodeBayar}\n`;
     if (lastTrx.metodeBayar === 'Tunai') {
@@ -336,10 +354,55 @@ const KasirPage = () => {
               ))}
             </div>
 
+            {/* Diskon */}
+            {cart.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', background: 'var(--amber-dim)', border: '1px solid rgba(217,119,6,.2)', borderRadius: 8, padding: '8px 10px' }}>
+                <i className="fa-solid fa-tag" style={{ color: 'var(--amber)', fontSize: 12 }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--amber)', whiteSpace: 'nowrap' }}>Diskon</span>
+                <select
+                  className="form-input"
+                  style={{ width: 70, padding: '4px 6px', fontSize: 11, height: 28 }}
+                  value={diskonType}
+                  onChange={e => setDiskonType(e.target.value)}
+                >
+                  <option value="persen">%</option>
+                  <option value="nominal">Rp</option>
+                </select>
+                <input
+                  type="number"
+                  className="form-input"
+                  style={{ flex: 1, padding: '4px 8px', fontSize: 11, height: 28 }}
+                  placeholder={diskonType === 'persen' ? '0' : '0'}
+                  value={diskonValue}
+                  onChange={e => setDiskonValue(e.target.value)}
+                  min="0"
+                  max={diskonType === 'persen' ? 100 : undefined}
+                  id="diskon-input"
+                />
+                {diskonAmt > 0 && (
+                  <span style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 700, whiteSpace: 'nowrap' }}>-{formatRp(diskonAmt)}</span>
+                )}
+              </div>
+            )}
+
             {/* Total */}
-            <div className="total-box">
-              <span className="total-label">Total Belanja</span>
-              <span className="total-value">{formatRp(total)}</span>
+            <div className="total-box" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+              {diskonAmt > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)' }}>
+                  <span>Subtotal</span>
+                  <span style={{ textDecoration: 'line-through' }}>{formatRp(subtotal)}</span>
+                </div>
+              )}
+              {diskonAmt > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--amber)', fontWeight: 700 }}>
+                  <span>Diskon {diskonType === 'persen' ? `${diskonNum}%` : ''}</span>
+                  <span>-{formatRp(diskonAmt)}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="total-label">Total Bayar</span>
+                <span className="total-value">{formatRp(total)}</span>
+              </div>
             </div>
 
             {/* Cash input */}
@@ -426,6 +489,14 @@ const KasirPage = () => {
                     </div>
                   </div>
                 ))}
+                <hr className="receipt-divider" />
+                {lastTrx.diskonAmt > 0 && <>
+                  <div className="receipt-row"><span>Subtotal</span><span>{formatRp(lastTrx.subtotalSebelumDiskon)}</span></div>
+                  <div className="receipt-row" style={{ color: '#d97706', fontWeight: 700 }}>
+                    <span>Diskon{lastTrx.diskonType === 'persen' ? ` ${lastTrx.diskonValue}%` : ''}</span>
+                    <span>-{formatRp(lastTrx.diskonAmt)}</span>
+                  </div>
+                </>}
                 <hr className="receipt-divider" />
                 <div className="receipt-row bold"><span>TOTAL BAYAR</span><span style={{ color: '#059669' }}>{formatRp(lastTrx.totalPenjualan)}</span></div>
                 {lastTrx.metodeBayar === 'Tunai' && <>
