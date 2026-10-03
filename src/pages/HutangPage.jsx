@@ -4,17 +4,41 @@ import { exportToCSV, printReportHTML } from '../services/exportUtils';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 const isoDate = d => d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
+const STORE_OWNER_WA = '6285117027358';
+
+const formatWaNumber = (inputNo) => {
+  if (!inputNo) return '';
+  let clean = String(inputNo).replace(/\D/g, '');
+  if (clean.startsWith('0')) {
+    clean = '62' + clean.slice(1);
+  }
+  return clean;
+};
 
 const HutangPage = () => {
   const { appData, saveAndSync, toast } = useData();
   const [showForm, setShowForm] = useState(false);
   const [showBayar, setShowBayar] = useState(null);
   const [bayarInput, setBayarInput] = useState('');
-  const [form, setForm] = useState({ pelanggan: '', noWa: '', jumlah: '', keterangan: '', tanggalJatuhTempo: '' });
+  
+  // Form State
+  const [form, setForm] = useState({
+    type: 'piutang', // 'piutang' (Pelanggan berhutang ke toko) | 'hutang' (Toko berhutang ke supplier)
+    nama: '',
+    noWa: '',
+    jumlah: '',
+    keterangan: '',
+    tanggalJatuhTempo: ''
+  });
+  
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [filter, setFilter] = useState('semua');
+  const [typeFilter, setTypeFilter] = useState('semua'); // 'semua' | 'piutang' | 'hutang'
+  const [statusFilter, setStatusFilter] = useState('semua'); // 'semua' | 'belum' | 'lunas'
+  const [searchQuery, setSearchQuery] = useState('');
   const [deleteId, setDeleteId] = useState(null);
+  
+  // Date Presets
   const [datePreset, setDatePreset] = useState('all');
   const [dateStart, setDateStart]   = useState('');
   const [dateEnd, setDateEnd]       = useState('');
@@ -31,37 +55,58 @@ const HutangPage = () => {
   };
   const { start: dStart, end: dEnd } = getRange();
 
-  const hutangList = appData.hutang || [];
+  const rawList = appData.hutang || [];
 
+  // Filtered List
   const filtered = useMemo(() => {
-    return hutangList.filter(h => {
-      if (filter === 'lunas') { if (h.sisaHutang > 0)  return false; }
-      if (filter === 'belum') { if (h.sisaHutang <= 0) return false; }
+    return rawList.filter(h => {
+      // Type Filter
+      const hType = h.type || (h.supplier ? 'hutang' : 'piutang');
+      if (typeFilter !== 'semua' && hType !== typeFilter) return false;
+
+      // Status Filter
+      if (statusFilter === 'lunas' && h.sisaHutang > 0)  return false;
+      if (statusFilter === 'belum' && h.sisaHutang <= 0) return false;
+
+      // Date Range Filter
       if (dStart && dEnd && h.tanggal) {
         if (h.tanggal < dStart || h.tanggal > dEnd) return false;
       }
+
+      // Search Query Filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const nama = (h.pelanggan || h.nama || h.supplier || '').toLowerCase();
+        const wa = (h.noWa || '').toLowerCase();
+        const ket = (h.keterangan || '').toLowerCase();
+        if (!nama.includes(q) && !wa.includes(q) && !ket.includes(q)) return false;
+      }
+
       return true;
     }).sort((a, b) => {
       if (a.sisaHutang > 0 && b.sisaHutang <= 0) return -1;
       if (a.sisaHutang <= 0 && b.sisaHutang > 0) return 1;
-      return b.tanggal?.localeCompare(a.tanggal || '');
+      return (b.tanggal || '').localeCompare(a.tanggal || '');
     });
-  }, [hutangList, filter, dStart, dEnd]);
+  }, [rawList, typeFilter, statusFilter, dStart, dEnd, searchQuery]);
 
-  const totalHutang = hutangList.reduce((s, h) => s + (h.sisaHutang || 0), 0);
-  const totalLunas  = hutangList.filter(h => h.sisaHutang <= 0).length;
-  const totalBelum  = hutangList.filter(h => h.sisaHutang > 0).length;
+  // Statistics
+  const totalPiutang = rawList.filter(h => (h.type || 'piutang') === 'piutang').reduce((s, h) => s + (h.sisaHutang || 0), 0);
+  const totalHutangToko = rawList.filter(h => h.type === 'hutang').reduce((s, h) => s + (h.sisaHutang || 0), 0);
+  const countBelumLunas = rawList.filter(h => h.sisaHutang > 0).length;
+  const countLunas = rawList.filter(h => h.sisaHutang <= 0).length;
 
-  const openAdd = () => {
+  const openAdd = (type = 'piutang') => {
     setEditId(null);
-    setForm({ pelanggan: '', noWa: '', jumlah: '', keterangan: '', tanggalJatuhTempo: '' });
+    setForm({ type, nama: '', noWa: '', jumlah: '', keterangan: '', tanggalJatuhTempo: '' });
     setShowForm(true);
   };
 
   const openEdit = (h) => {
     setEditId(h.id);
     setForm({
-      pelanggan: h.pelanggan,
+      type: h.type || 'piutang',
+      nama: h.pelanggan || h.nama || h.supplier || '',
       noWa: h.noWa || '',
       jumlah: h.jumlahAwal,
       keterangan: h.keterangan || '',
@@ -71,20 +116,36 @@ const HutangPage = () => {
   };
 
   const handleSave = async () => {
-    if (!form.pelanggan.trim()) { toast('Nama pelanggan wajib', 'error'); return; }
+    if (!form.nama.trim()) { toast('Nama wajib diisi', 'error'); return; }
     const jumlah = parseFloat(form.jumlah) || 0;
-    if (jumlah <= 0) { toast('Jumlah hutang harus > 0', 'error'); return; }
+    if (jumlah <= 0) { toast('Jumlah harus > 0', 'error'); return; }
+    
     setSaving(true);
     const existing = appData.hutang || [];
     let newList;
+    
     if (editId) {
-      newList = existing.map(h => h.id === editId ? { ...h, ...form, jumlahAwal: jumlah, sisaHutang: h.sisaHutang + (jumlah - h.jumlahAwal) } : h);
+      newList = existing.map(h => h.id === editId ? {
+        ...h,
+        type: form.type,
+        pelanggan: form.type === 'piutang' ? form.nama : undefined,
+        supplier: form.type === 'hutang' ? form.nama : undefined,
+        nama: form.nama,
+        noWa: form.noWa,
+        keterangan: form.keterangan,
+        tanggalJatuhTempo: form.tanggalJatuhTempo,
+        jumlahAwal: jumlah,
+        sisaHutang: h.sisaHutang + (jumlah - h.jumlahAwal)
+      } : h);
     } else {
       const today = isoDate(new Date());
       newList = [...existing, {
         id: Date.now(),
+        type: form.type,
         tanggal: today,
-        pelanggan: form.pelanggan,
+        pelanggan: form.type === 'piutang' ? form.nama : undefined,
+        supplier: form.type === 'hutang' ? form.nama : undefined,
+        nama: form.nama,
         noWa: form.noWa,
         keterangan: form.keterangan,
         tanggalJatuhTempo: form.tanggalJatuhTempo,
@@ -93,8 +154,9 @@ const HutangPage = () => {
         riwayatBayar: [],
       }];
     }
+    
     await saveAndSync({ ...appData, hutang: newList });
-    toast(editId ? '✅ Data hutang diperbarui' : '✅ Hutang baru dicatat', 'success');
+    toast(editId ? '✅ Data berhasil diperbarui' : `✅ ${form.type === 'piutang' ? 'Piutang' : 'Hutang'} baru dicatat`, 'success');
     setShowForm(false);
     setSaving(false);
   };
@@ -103,7 +165,8 @@ const HutangPage = () => {
     const nominal = parseFloat(bayarInput) || 0;
     if (nominal <= 0) { toast('Nominal bayar harus > 0', 'error'); return; }
     if (!showBayar) return;
-    if (nominal > showBayar.sisaHutang) { toast('Pembayaran melebihi sisa hutang', 'error'); return; }
+    if (nominal > showBayar.sisaHutang) { toast('Pembayaran melebihi sisa sisa tagihan', 'error'); return; }
+    
     setSaving(true);
     const today = isoDate(new Date());
     const newList = (appData.hutang || []).map(h => {
@@ -115,6 +178,7 @@ const HutangPage = () => {
         riwayatBayar: [...(h.riwayatBayar || []), { tanggal: today, nominal }],
       };
     });
+    
     await saveAndSync({ ...appData, hutang: newList });
     toast(`✅ Pembayaran ${formatRp(nominal)} tercatat`, 'success');
     setShowBayar(null);
@@ -127,24 +191,59 @@ const HutangPage = () => {
     setSaving(true);
     const newList = (appData.hutang || []).filter(h => h.id !== deleteId);
     await saveAndSync({ ...appData, hutang: newList });
-    toast('🗑️ Data hutang dihapus', 'success');
+    toast('🗑️ Data berhasil dihapus', 'success');
     setDeleteId(null);
     setSaving(false);
   };
 
+  // Kirim WhatsApp Notifikasi Tagihan ke Pelanggan / Supplier
   const sendTagihanWA = (h) => {
-    const no = (h.noWa || '').replace(/\D/g, '');
-    if (!no) { toast('No WA tidak tersedia', 'warning'); return; }
-    const s = appData.settings;
-    let msg = `Halo ${h.pelanggan},\n`;
-    msg += `Kami ingin menginformasikan bahwa masih terdapat *sisa hutang* di *${s.storeName || 'Agnes Fashion'}*.\n\n`;
+    const rawNo = h.noWa || '';
+    const no = formatWaNumber(rawNo);
+    const s = appData.settings || {};
+    const isPiutang = (h.type || 'piutang') === 'piutang';
+
+    let msg = `Halo *${h.pelanggan || h.nama || h.supplier}*,\n`;
+    if (isPiutang) {
+      msg += `Kami menginformasikan rincian *Piutang / Tagihan* di *${s.storeName || 'AGNES FASHION'}*:\n\n`;
+    } else {
+      msg += `Berikut rincian *Hutang Toko* ke Supplier di *${s.storeName || 'AGNES FASHION'}*:\n\n`;
+    }
     msg += `📌 Keterangan: ${h.keterangan || '-'}\n`;
     msg += `💰 Jumlah Awal: ${formatRp(h.jumlahAwal)}\n`;
-    msg += `✅ Sudah Dibayar: ${formatRp(h.jumlahAwal - h.sisaHutang)}\n`;
-    msg += `🔴 *Sisa Hutang: ${formatRp(h.sisaHutang)}*\n`;
+    msg += `✅ Total Dibayar: ${formatRp(h.jumlahAwal - h.sisaHutang)}\n`;
+    msg += `🔴 *Sisa Tagihan: ${formatRp(h.sisaHutang)}*\n`;
     if (h.tanggalJatuhTempo) msg += `📅 Jatuh Tempo: ${h.tanggalJatuhTempo}\n`;
     msg += `\nTerima kasih atas kerjasamanya. 🙏`;
-    window.open(`https://wa.me/${no}?text=${encodeURIComponent(msg)}`, '_blank');
+
+    const encoded = encodeURIComponent(msg);
+    if (no) {
+      window.open(`https://wa.me/${no}?text=${encoded}`, '_blank');
+      toast(`📲 Notifikasi WA terkirim ke ${h.pelanggan || h.nama}`, 'success');
+    } else {
+      // Fallback ke WA Toko
+      window.open(`https://wa.me/${STORE_OWNER_WA}?text=${encoded}`, '_blank');
+      toast(`📲 Rincian dikirim ke WA Toko (${STORE_OWNER_WA})`, 'info');
+    }
+  };
+
+  // Kirim Rangkuman Laporan Hutang & Piutang ke WA Toko (6285117027358)
+  const sendReportToStoreWA = () => {
+    const s = appData.settings || {};
+    let msg = `*LAPORAN HUTANG & PIUTANG — ${s.storeName?.toUpperCase() || 'AGNES FASHION'}*\n`;
+    msg += `Tanggal: ${new Date().toLocaleDateString('id-ID')}\n`;
+    msg += `─────────────────────────\n`;
+    msg += `💰 *Total Piutang Pelanggan* : ${formatRp(totalPiutang)}\n`;
+    msg += `🏬 *Total Hutang Toko/Supplier*: ${formatRp(totalHutangToko)}\n`;
+    msg += `─────────────────────────\n`;
+    msg += `📋 Total Record  : ${filtered.length} data\n`;
+    msg += `⏳ Belum Lunas   : ${countBelumLunas} data\n`;
+    msg += `✅ Lunas         : ${countLunas} data\n`;
+    msg += `─────────────────────────\n`;
+    msg += `Dikirim dari Agnes Fashion POS`;
+
+    window.open(`https://wa.me/${STORE_OWNER_WA}?text=${encodeURIComponent(msg)}`, '_blank');
+    toast(`📲 Rangkuman laporan dikirim ke WA Toko (${STORE_OWNER_WA})`, 'success');
   };
 
   const jatuhTempoWarning = (h) => {
@@ -160,40 +259,51 @@ const HutangPage = () => {
   return (
     <div className="tab-page active fade-up">
 
-      {/* Stats */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 16 }}>
+      {/* KPI Stats */}
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 16 }}>
         <div className="stat-card rose">
           <i className="stat-icon fa-solid fa-hand-holding-dollar" />
-          <div className="stat-label">Total Sisa Hutang</div>
-          <div className="stat-value" style={{ fontSize: 15 }}>{formatRp(totalHutang)}</div>
-          <div className="stat-meta">{totalBelum} pelanggan belum lunas</div>
+          <div className="stat-label">Piutang Pelanggan</div>
+          <div className="stat-value" style={{ fontSize: 16 }}>{formatRp(totalPiutang)}</div>
+          <div className="stat-meta">Tagihan ke pelanggan</div>
+        </div>
+        <div className="stat-card amber">
+          <i className="stat-icon fa-solid fa-truck-ramp-box" />
+          <div className="stat-label">Hutang Toko / Supplier</div>
+          <div className="stat-value" style={{ fontSize: 16 }}>{formatRp(totalHutangToko)}</div>
+          <div className="stat-meta">Kewajiban bayar supplier</div>
+        </div>
+        <div className="stat-card sky">
+          <i className="stat-icon fa-solid fa-clock" />
+          <div className="stat-label">Belum Lunas</div>
+          <div className="stat-value">{countBelumLunas}</div>
+          <div className="stat-meta">Transaksi aktif</div>
         </div>
         <div className="stat-card emerald">
           <i className="stat-icon fa-solid fa-circle-check" />
           <div className="stat-label">Sudah Lunas</div>
-          <div className="stat-value">{totalLunas}</div>
-          <div className="stat-meta">pelanggan</div>
-        </div>
-        <div className="stat-card amber">
-          <i className="stat-icon fa-solid fa-clock" />
-          <div className="stat-label">Belum Lunas</div>
-          <div className="stat-value">{totalBelum}</div>
-          <div className="stat-meta">pelanggan</div>
+          <div className="stat-value">{countLunas}</div>
+          <div className="stat-meta">Selesai</div>
         </div>
       </div>
 
       <div className="card">
-        <div className="card-header">
+        <div className="card-header" style={{ flexWrap: 'wrap', gap: 10 }}>
           <div>
-            <div className="card-title"><i className="fa-solid fa-hand-holding-dollar" /> Manajemen Hutang Pelanggan</div>
+            <div className="card-title"><i className="fa-solid fa-scale-balanced" /> Laporan Hutang &amp; Piutang</div>
+            <div className="card-subtitle">{filtered.length} data ditemukan</div>
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button className="btn btn-wa btn-sm" onClick={sendReportToStoreWA} title="Kirim rangkuman laporan ke WA Toko (6285117027358)">
+              <i className="fa-brands fa-whatsapp" /> WA Toko
+            </button>
             <button
               className="btn btn-ghost btn-sm"
               onClick={() => {
-                const headers = ['Pelanggan', 'No WA', 'Keterangan', 'Tgl Catat', 'Jatuh Tempo', 'Jumlah Awal', 'Sisa Hutang', 'Status'];
+                const headers = ['Jenis', 'Nama (Pelanggan/Supplier)', 'No WA', 'Keterangan', 'Tgl Catat', 'Jatuh Tempo', 'Jumlah Awal', 'Sisa Tagihan', 'Status'];
                 const rows = filtered.map(h => [
-                  h.pelanggan,
+                  (h.type || 'piutang') === 'piutang' ? 'Piutang Pelanggan' : 'Hutang Supplier',
+                  h.pelanggan || h.nama || h.supplier || '',
                   h.noWa || '',
                   h.keterangan || '',
                   h.tanggal,
@@ -202,7 +312,7 @@ const HutangPage = () => {
                   h.sisaHutang,
                   h.sisaHutang <= 0 ? 'Lunas' : 'Belum Lunas'
                 ]);
-                exportToCSV('Laporan_Hutang_Pelanggan', headers, rows);
+                exportToCSV('Laporan_Hutang_Piutang', headers, rows);
               }}
               title="Unduh CSV/Excel"
             >
@@ -211,37 +321,93 @@ const HutangPage = () => {
             <button
               className="btn btn-ghost btn-sm"
               onClick={() => {
-                let html = '<table><thead><tr><th>Pelanggan</th><th>No WA</th><th>Keterangan</th><th>Tgl Catat</th><th>Jatuh Tempo</th><th>Jumlah Awal</th><th>Sisa Hutang</th></tr></thead><tbody>';
+                let html = '<table><thead><tr><th>Jenis</th><th>Nama</th><th>No WA</th><th>Keterangan</th><th>Tgl Catat</th><th>Jatuh Tempo</th><th>Jumlah Awal</th><th>Sisa Tagihan</th></tr></thead><tbody>';
                 filtered.forEach(h => {
-                  html += `<tr><td>${h.pelanggan}</td><td>${h.noWa || '—'}</td><td>${h.keterangan || '—'}</td><td>${h.tanggal}</td><td>${h.tanggalJatuhTempo || '—'}</td><td>${formatRp(h.jumlahAwal)}</td><td>${formatRp(h.sisaHutang)}</td></tr>`;
+                  html += `<tr><td>${(h.type || 'piutang') === 'piutang' ? 'Piutang Pelanggan' : 'Hutang Supplier'}</td><td>${h.pelanggan || h.nama || h.supplier}</td><td>${h.noWa || '—'}</td><td>${h.keterangan || '—'}</td><td>${h.tanggal}</td><td>${h.tanggalJatuhTempo || '—'}</td><td>${formatRp(h.jumlahAwal)}</td><td>${formatRp(h.sisaHutang)}</td></tr>`;
                 });
                 html += '</tbody></table>';
-                printReportHTML('LAPORAN HUTANG PELANGGAN', 'Data piutang toko Agnes Fashion POS', html);
+                printReportHTML('LAPORAN HUTANG & PIUTANG LENGKAP', 'Rincian Piutang Pelanggan & Hutang Supplier Toko Agnes POS', html);
               }}
               title="Cetak PDF / Print"
             >
               <i className="fa-solid fa-print" style={{ color: 'var(--brand)' }} /> PDF
             </button>
-            <button className="btn btn-purple btn-sm" onClick={openAdd}>
-              <i className="fa-solid fa-plus" /> Catat Hutang
+            <button className="btn btn-purple btn-sm" onClick={() => openAdd('piutang')}>
+              <i className="fa-solid fa-plus" /> Catat Piutang Pelanggan
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => openAdd('hutang')} style={{ border: '1px solid var(--amber)', color: 'var(--amber)' }}>
+              <i className="fa-solid fa-plus" /> Catat Hutang Supplier
             </button>
           </div>
         </div>
 
-        {/* Filter status + date */}
-        <div style={{ padding: '8px 16px 0' }}>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-            {[['semua','Semua'],['belum','Belum Lunas'],['lunas','Lunas']].map(([k,l]) => (
-              <button key={k} className={`btn btn-sm ${filter === k ? 'btn-purple' : 'btn-ghost'}`} onClick={() => setFilter(k)}>{l}</button>
-            ))}
+        {/* Filter Controls (Type, Status, Date & Search) */}
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-hover)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          
+          {/* Row 1: Filter Jenis & Status & Search */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            
+            {/* Filter Jenis */}
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>Jenis:</span>
+              {[
+                ['semua', 'Semua'],
+                ['piutang', '💰 Piutang Pelanggan'],
+                ['hutang', '🏬 Hutang Supplier']
+              ].map(([k, l]) => (
+                <button key={k} className={`btn btn-sm ${typeFilter === k ? 'btn-purple' : 'btn-ghost'}`} onClick={() => setTypeFilter(k)} style={{ fontSize: 11 }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+
+            {/* Filter Status */}
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 'auto' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>Status:</span>
+              {[
+                ['semua', 'Semua'],
+                ['belum', '🔴 Belum Lunas'],
+                ['lunas', '✅ Lunas']
+              ].map(([k, l]) => (
+                <button key={k} className={`btn btn-sm ${statusFilter === k ? 'btn-purple' : 'btn-ghost'}`} onClick={() => setStatusFilter(k)} style={{ fontSize: 11 }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingBottom: 10 }}>
-            {[['today','Hari Ini'],['yesterday','Kemarin'],['week','7 Hari'],['month','Bulan Ini'],['year','Tahun Ini'],['all','Semua'],['custom','Custom']].map(([p,l]) => (
-              <button key={p} className={`date-preset-btn${datePreset === p ? ' active' : ''}`} onClick={() => setDatePreset(p)}>{l}</button>
-            ))}
+
+          {/* Row 2: Search Input & Date Presets */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="form-input-icon" style={{ flex: 1, minWidth: 200 }}>
+              <i className="fa-solid fa-search" />
+              <input
+                className="form-input"
+                placeholder="Cari nama pelanggan, supplier, WA, atau keterangan..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{ fontSize: 11, height: 32 }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {[
+                ['today', 'Hari Ini'],
+                ['yesterday', 'Kemarin'],
+                ['week', '7 Hari'],
+                ['month', 'Bulan Ini'],
+                ['year', 'Tahun Ini'],
+                ['all', 'Semua'],
+                ['custom', 'Custom']
+              ].map(([p, l]) => (
+                <button key={p} className={`date-preset-btn${datePreset === p ? ' active' : ''}`} onClick={() => setDatePreset(p)} style={{ fontSize: 10, padding: '4px 8px' }}>
+                  {l}
+                </button>
+              ))}
+            </div>
           </div>
+
           {datePreset === 'custom' && (
-            <div className="date-range-inputs" style={{ paddingBottom: 10 }}>
+            <div className="date-range-inputs" style={{ paddingTop: 4 }}>
               <span>Dari</span>
               <input type="date" className="date-input" value={dateStart} onChange={e => setDateStart(e.target.value)} />
               <span>–</span>
@@ -250,21 +416,39 @@ const HutangPage = () => {
           )}
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Data Table */}
+        <div className="overflow-x-auto desktop-table-view">
           <table className="data-table">
             <thead>
-              <tr><th>Pelanggan</th><th>Keterangan</th><th>Tgl Catat</th><th>Jatuh Tempo</th><th>Jumlah Awal</th><th>Sisa Hutang</th><th style={{ textAlign: 'center' }}>Aksi</th></tr>
+              <tr>
+                <th>Jenis</th>
+                <th>Nama Pelanggan / Supplier</th>
+                <th>Keterangan</th>
+                <th>Tgl Catat</th>
+                <th>Jatuh Tempo</th>
+                <th>Jumlah Awal</th>
+                <th>Sisa Tagihan</th>
+                <th style={{ textAlign: 'center' }}>Aksi &amp; WA</th>
+              </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={7}><div className="empty-state"><i className="fa-solid fa-hand-holding-dollar" /><p>Belum ada data hutang.</p></div></td></tr>
+                <tr><td colSpan={8}><div className="empty-state"><i className="fa-solid fa-scale-balanced" /><p>Belum ada data hutang / piutang yang cocok.</p></div></td></tr>
               ) : filtered.map(h => {
+                const isPiutang = (h.type || 'piutang') === 'piutang';
                 const jtWarn = jatuhTempoWarning(h);
+                const namaDisp = h.pelanggan || h.nama || h.supplier;
+
                 return (
                   <tr key={h.id}>
+                    <td>
+                      <span className={`badge ${isPiutang ? 'badge-violet' : 'badge-amber'}`}>
+                        {isPiutang ? '💰 Piutang' : '🏬 Hutang Toko'}
+                      </span>
+                    </td>
                     <td className="cell-main">
-                      {h.pelanggan}
-                      {h.noWa && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{h.noWa}</div>}
+                      {namaDisp}
+                      {h.noWa && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>📱 {h.noWa}</div>}
                     </td>
                     <td style={{ fontSize: 12 }}>{h.keterangan || '—'}</td>
                     <td style={{ fontSize: 12 }}>{h.tanggal}</td>
@@ -279,15 +463,13 @@ const HutangPage = () => {
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap' }}>
                         {h.sisaHutang > 0 && (
-                          <button className="btn btn-purple btn-sm" title="Catat Pembayaran" onClick={() => { setShowBayar(h); setBayarInput(''); }} style={{ padding: '4px 8px' }}>
-                            <i className="fa-solid fa-money-bill-wave" />
+                          <button className="btn btn-purple btn-sm" title="Catat Pembayaran" onClick={() => { setShowBayar(h); setBayarInput(''); }} style={{ padding: '4px 8px', fontSize: 11 }}>
+                            <i className="fa-solid fa-money-bill-wave" /> Bayar
                           </button>
                         )}
-                        {h.noWa && h.sisaHutang > 0 && (
-                          <button className="btn btn-wa btn-sm" title="Kirim tagihan WA" onClick={() => sendTagihanWA(h)} style={{ padding: '4px 8px' }}>
-                            <i className="fa-brands fa-whatsapp" />
-                          </button>
-                        )}
+                        <button className="btn btn-wa btn-sm" title="Kirim Notifikasi WA" onClick={() => sendTagihanWA(h)} style={{ padding: '4px 8px', fontSize: 11 }}>
+                          <i className="fa-brands fa-whatsapp" /> WA
+                        </button>
                         <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => openEdit(h)} style={{ padding: '4px 8px' }}>
                           <i className="fa-solid fa-pen-to-square" />
                         </button>
@@ -302,44 +484,128 @@ const HutangPage = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile View (Cards) */}
+        <div className="mobile-cards-view" style={{ padding: 12 }}>
+          {filtered.length === 0 ? (
+            <div className="empty-state">
+              <i className="fa-solid fa-scale-balanced" />
+              <p>Belum ada data hutang/piutang.</p>
+            </div>
+          ) : filtered.map(h => {
+            const isPiutang = (h.type || 'piutang') === 'piutang';
+            const jtWarn = jatuhTempoWarning(h);
+            const namaDisp = h.pelanggan || h.nama || h.supplier;
+
+            return (
+              <div key={h.id} className="trx-mobile-card" style={{ borderLeft: `3px solid ${h.sisaHutang <= 0 ? 'var(--emerald)' : isPiutang ? 'var(--brand)' : 'var(--amber)'}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                  <div>
+                    <span className={`badge ${isPiutang ? 'badge-violet' : 'badge-amber'}`} style={{ marginBottom: 4 }}>
+                      {isPiutang ? '💰 Piutang Pelanggan' : '🏬 Hutang Toko'}
+                    </span>
+                    <div style={{ fontWeight: 800, fontSize: 14, marginTop: 4 }}>{namaDisp}</div>
+                    {h.noWa && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>📱 {h.noWa}</div>}
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: h.sisaHutang <= 0 ? 'var(--emerald)' : 'var(--rose)' }}>
+                    {h.sisaHutang <= 0 ? '✅ LUNAS' : formatRp(h.sisaHutang)}
+                  </span>
+                </div>
+
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8, background: 'var(--bg-hover)', padding: '6px 8px', borderRadius: 6 }}>
+                  <div>📌 {h.keterangan || 'Tanpa keterangan'}</div>
+                  <div>📅 Tgl: {h.tanggal} {h.tanggalJatuhTempo ? `· JT: ${h.tanggalJatuhTempo}` : ''}</div>
+                  {jtWarn && <div style={{ fontWeight: 700, color: jtWarn.color }}>{jtWarn.label}</div>}
+                </div>
+
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {h.sisaHutang > 0 && (
+                    <button className="btn btn-purple btn-sm" onClick={() => { setShowBayar(h); setBayarInput(''); }} style={{ flex: 1 }}>
+                      <i className="fa-solid fa-money-bill-wave" /> Bayar
+                    </button>
+                  )}
+                  <button className="btn btn-wa btn-sm" onClick={() => sendTagihanWA(h)} style={{ flex: 1 }}>
+                    <i className="fa-brands fa-whatsapp" /> WA Notif
+                  </button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => openEdit(h)}>
+                    <i className="fa-solid fa-pen-to-square" />
+                  </button>
+                  <button className="btn btn-danger btn-sm" onClick={() => setDeleteId(h.id)}>
+                    <i className="fa-solid fa-trash" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
       </div>
 
-      {/* ═══ FORM HUTANG ════════════════════════════════════════════ */}
+      {/* ═══ FORM INPUT MODAL ════════════════════════════════════════════ */}
       {showForm && (
         <div className="modal-overlay" onClick={e => e.target.classList.contains('modal-overlay') && setShowForm(false)}>
           <div className="modal" style={{ maxWidth: 440 }}>
             <div className="modal-header">
-              <div className="modal-title"><i className="fa-solid fa-hand-holding-dollar" style={{ color: 'var(--rose)' }} /> {editId ? 'Edit Hutang' : 'Catat Hutang Baru'}</div>
+              <div className="modal-title">
+                <i className="fa-solid fa-scale-balanced" style={{ color: 'var(--brand)' }} />
+                {editId ? 'Edit Record' : form.type === 'piutang' ? 'Catat Piutang Pelanggan' : 'Catat Hutang Toko'}
+              </div>
               <button className="modal-close" onClick={() => setShowForm(false)}><i className="fa-solid fa-xmark" /></button>
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              
+              {/* Type Switcher */}
+              <div className="form-group">
+                <label className="form-label">Kategori Transaksi</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <button
+                    type="button"
+                    className={`btn ${form.type === 'piutang' ? 'btn-purple' : 'btn-ghost'}`}
+                    onClick={() => setForm(f => ({ ...f, type: 'piutang' }))}
+                  >
+                    💰 Piutang Pelanggan
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${form.type === 'hutang' ? 'btn-purple' : 'btn-ghost'}`}
+                    onClick={() => setForm(f => ({ ...f, type: 'hutang' }))}
+                  >
+                    🏬 Hutang Supplier Toko
+                  </button>
+                </div>
+              </div>
+
               <div className="form-grid form-grid-2">
                 <div className="form-group">
-                  <label className="form-label">Nama Pelanggan *</label>
-                  <input className="form-input" value={form.pelanggan} onChange={e => setForm(f => ({ ...f, pelanggan: e.target.value }))} placeholder="Nama pelanggan" id="hutang-pelanggan" />
+                  <label className="form-label">{form.type === 'piutang' ? 'Nama Pelanggan *' : 'Nama Supplier *'}</label>
+                  <input className="form-input" value={form.nama} onChange={e => setForm(f => ({ ...f, nama: e.target.value }))} placeholder={form.type === 'piutang' ? 'Nama pelanggan...' : 'Nama supplier...'} id="hutang-nama" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">No WhatsApp</label>
                   <input className="form-input" value={form.noWa} onChange={e => setForm(f => ({ ...f, noWa: e.target.value }))} placeholder="0812..." />
                 </div>
               </div>
+
               <div className="form-group">
-                <label className="form-label">Jumlah Hutang (Rp) *</label>
+                <label className="form-label">Jumlah Tagihan / Hutang (Rp) *</label>
                 <input className="form-input" type="number" value={form.jumlah} onChange={e => setForm(f => ({ ...f, jumlah: e.target.value }))} placeholder="0" min="0" id="hutang-jumlah" />
               </div>
+
               <div className="form-group">
                 <label className="form-label">Keterangan</label>
-                <input className="form-input" value={form.keterangan} onChange={e => setForm(f => ({ ...f, keterangan: e.target.value }))} placeholder="Pembelian baju batik, cicilan, dll..." />
+                <input className="form-input" value={form.keterangan} onChange={e => setForm(f => ({ ...f, keterangan: e.target.value }))} placeholder="Pembelian batik, restok kain, dll..." />
               </div>
+
               <div className="form-group">
                 <label className="form-label">Tanggal Jatuh Tempo</label>
                 <input className="form-input" type="date" value={form.tanggalJatuhTempo} onChange={e => setForm(f => ({ ...f, tanggalJatuhTempo: e.target.value }))} />
               </div>
+
             </div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setShowForm(false)} disabled={saving}>Batal</button>
               <button className="btn btn-purple" onClick={handleSave} disabled={saving} style={{ flex: 1 }}>
-                {saving ? <><i className="fa-solid fa-circle-notch animate-spin" /> Menyimpan...</> : <><i className="fa-solid fa-floppy-disk" /> Simpan</>}
+                {saving ? <><i className="fa-solid fa-circle-notch animate-spin" /> Menyimpan...</> : <><i className="fa-solid fa-floppy-disk" /> Simpan Data</>}
               </button>
             </div>
           </div>
@@ -356,21 +622,24 @@ const HutangPage = () => {
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ background: 'var(--bg-hover)', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
-                <b>{showBayar.pelanggan}</b>
+                <b>{showBayar.pelanggan || showBayar.nama || showBayar.supplier}</b>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Sisa Hutang</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Sisa Tagihan</span>
                   <span style={{ fontWeight: 800, color: 'var(--rose)', fontSize: 16 }}>{formatRp(showBayar.sisaHutang)}</span>
                 </div>
               </div>
+
               <div className="form-group">
                 <label className="form-label">Nominal Pembayaran (Rp) *</label>
                 <input className="form-input" type="number" value={bayarInput} onChange={e => setBayarInput(e.target.value)} placeholder="0" min="0" max={showBayar.sisaHutang} id="hutang-bayar" />
               </div>
+
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {[showBayar.sisaHutang, Math.round(showBayar.sisaHutang / 2), 50000, 100000].filter((v, i, arr) => v > 0 && arr.indexOf(v) === i).slice(0, 4).map(v => (
                   <button key={v} className="btn btn-ghost btn-sm" onClick={() => setBayarInput(String(v))} style={{ fontSize: 11 }}>{formatRp(v)}</button>
                 ))}
               </div>
+
               {/* Riwayat bayar */}
               {showBayar.riwayatBayar?.length > 0 && (
                 <div>
@@ -394,15 +663,15 @@ const HutangPage = () => {
         </div>
       )}
 
-      {/* ═══ DELETE ════════════════════════════════════════════════ */}
+      {/* ═══ DELETE MODAL ════════════════════════════════════════════ */}
       {deleteId && (
         <div className="modal-overlay" onClick={e => e.target.classList.contains('modal-overlay') && setDeleteId(null)}>
           <div className="modal" style={{ maxWidth: 360 }}>
             <div className="modal-header">
-              <div className="modal-title" style={{ color: 'var(--rose)' }}><i className="fa-solid fa-triangle-exclamation" /> Hapus Data Hutang?</div>
+              <div className="modal-title" style={{ color: 'var(--rose)' }}><i className="fa-solid fa-triangle-exclamation" /> Hapus Record?</div>
               <button className="modal-close" onClick={() => setDeleteId(null)}><i className="fa-solid fa-xmark" /></button>
             </div>
-            <div className="modal-body"><p style={{ fontSize: 14 }}>Data hutang ini akan dihapus permanen.</p></div>
+            <div className="modal-body"><p style={{ fontSize: 14 }}>Data hutang/piutang ini akan dihapus permanen.</p></div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setDeleteId(null)} disabled={saving}>Batal</button>
               <button className="btn btn-danger" onClick={handleDelete} disabled={saving} style={{ flex: 1 }}>
@@ -412,6 +681,7 @@ const HutangPage = () => {
           </div>
         </div>
       )}
+
     </div>
   );
 };

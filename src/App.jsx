@@ -23,7 +23,7 @@ const PAGE_META = {
   'laba-rugi':  { title: 'Laporan Laba Rugi',          sub: 'Analisis laba rugi per produk dan per supplier',        icon: 'fa-scale-balanced' },
   pelanggan:    { title: 'Database Pelanggan',          sub: 'Kelola data dan riwayat belanja pelanggan',            icon: 'fa-users' },
   retur:        { title: 'Retur & Refund Barang',       sub: 'Proses pengembalian barang dan restore stok',          icon: 'fa-rotate-left' },
-  hutang:       { title: 'Hutang Pelanggan',            sub: 'Catat dan pantau hutang serta cicilan pelanggan',      icon: 'fa-hand-holding-dollar' },
+  hutang:       { title: 'Hutang & Piutang',            sub: 'Kelola piutang pelanggan dan hutang toko ke supplier',  icon: 'fa-hand-holding-dollar' },
   settings:     { title: 'Pengaturan & Sinkronisasi',  sub: 'Konfigurasi GitHub, Firebase, dan profil toko',        icon: 'fa-gear' },
 };
 
