@@ -39,34 +39,56 @@ const KasirPage = () => {
     return matchSearch && (!category || i.kategori === category);
   });
 
-  const addToCart = (item) => {
+  // State variant picker modal
+  const [variantModalItem, setVariantModalItem] = useState(null);
+
+  const addToCart = (item, selectedVariant = '') => {
     if (item.stokTersedia <= 0) return;
+    const cartName = selectedVariant ? `${item.nama_barang} (${selectedVariant})` : item.nama_barang;
+
     setCart(prev => {
-      const ex = prev.find(c => c.nama_barang === item.nama_barang);
+      const ex = prev.find(c => c.cartKey === cartName || c.nama_barang === cartName);
       if (ex) {
         if (ex.qty >= item.stokTersedia) { toast('Stok tidak mencukupi!', 'error'); return prev; }
-        return prev.map(c => c.nama_barang === item.nama_barang ? { ...c, qty: c.qty + 1 } : c);
+        const newQty = ex.qty + 1;
+        const isGrosir = item.minQtyGrosir > 0 && item.hargaGrosir > 0 && newQty >= item.minQtyGrosir;
+        const effectivePrice = isGrosir ? item.hargaGrosir : item.hargaJual;
+        return prev.map(c => (c.cartKey === cartName || c.nama_barang === cartName) ? { ...c, qty: newQty, hargaJual: effectivePrice, isGrosirActive: isGrosir } : c);
       }
-      return [...prev, { ...item, qty: 1 }];
+      const isGrosir = item.minQtyGrosir > 0 && item.hargaGrosir > 0 && 1 >= item.minQtyGrosir;
+      const initialPrice = isGrosir ? item.hargaGrosir : item.hargaJual;
+      return [...prev, { ...item, cartKey: cartName, nama_barang: cartName, originalName: item.nama_barang, qty: 1, hargaJual: initialPrice, isGrosirActive: isGrosir }];
     });
+  };
+
+  const handleProductCardClick = (item) => {
+    if (item.stokTersedia <= 0) return;
+    if (item.variasiText && item.variasiText.trim()) {
+      setVariantModalItem(item);
+    } else {
+      addToCart(item);
+    }
   };
 
   const updateQty = (name, d) => {
     setCart(prev => {
       const updated = prev.map(c => {
         if (c.nama_barang !== name) return c;
-        const maxStock = appData.stok.find(s => s.nama_barang === name)?.stokTersedia || 0;
+        const originalName = c.originalName || c.nama_barang;
+        const maxStock = appData.stok.find(s => s.nama_barang === originalName)?.stokTersedia || 999;
         const newQty = c.qty + d;
         if (newQty <= 0) return null;
         if (newQty > maxStock) { toast('Melebihi stok tersedia!', 'warning'); return c; }
-        return { ...c, qty: newQty };
+        const isGrosir = c.minQtyGrosir > 0 && c.hargaGrosir > 0 && newQty >= c.minQtyGrosir;
+        const effectivePrice = (c.isCustomPrice) ? c.hargaJual : (isGrosir ? c.hargaGrosir : (c.hargaJualNormal || c.hargaJual));
+        return { ...c, qty: newQty, hargaJual: effectivePrice, isGrosirActive: isGrosir };
       }).filter(Boolean);
       return updated;
     });
   };
 
   const updatePrice = (name, newPrice) => {
-    setCart(prev => prev.map(c => c.nama_barang === name ? { ...c, hargaJual: Math.max(0, newPrice) } : c));
+    setCart(prev => prev.map(c => c.nama_barang === name ? { ...c, hargaJual: Math.max(0, newPrice), isCustomPrice: true } : c));
   };
 
   const subtotal  = cart.reduce((s, c) => s + c.hargaJual * c.qty, 0);
@@ -141,21 +163,31 @@ const KasirPage = () => {
     setDatetime(now.toISOString().slice(0, 16));
   };
 
+  const STORE_OWNER_WA = '6285117027358';
+
+  const formatWaNumber = (inputNo) => {
+    if (!inputNo) return '';
+    let clean = String(inputNo).replace(/\D/g, '');
+    if (clean.startsWith('0')) {
+      clean = '62' + clean.slice(1);
+    }
+    return clean;
+  };
+
   const sendWhatsApp = () => {
-    if (!lastTrx || !customerWa && !lastTrx.noWa) { toast('No WhatsApp tidak diisi', 'warning'); return; }
-    const no = (lastTrx.noWa || customerWa).replace(/\D/g, '');
-    const s = appData.settings;
+    if (!lastTrx) { toast('Tidak ada transaksi untuk dikirim', 'warning'); return; }
+    const s = appData.settings || {};
     let msg = `*STRUK BELANJA ${s.storeName?.toUpperCase() || 'AGNES FASHION'}*\n`;
-    msg += `${s.storeAddress || ''}\n`;
+    if (s.storeAddress) msg += `${s.storeAddress}\n`;
     msg += `───────────────────\n`;
     msg += `No TRX : ${lastTrx.kodeTrx}\n`;
-    msg += `Tanggal: ${lastTrx.tanggal} ${lastTrx.waktu}\n`;
-    msg += `Pelanggan: ${lastTrx.pelanggan}\n`;
+    msg += `Tanggal: ${lastTrx.tanggal} ${lastTrx.waktu || ''}\n`;
+    msg += `Pelanggan: ${lastTrx.pelanggan || 'Umum'}\n`;
     msg += `───────────────────\n`;
-    lastTrx.items.forEach(i => { msg += `${i.barang} x${i.jumlah}  ${formatRp(i.subtotal)}\n`; });
+    (lastTrx.items || []).forEach(i => { msg += `${i.barang} x${i.jumlah}  ${formatRp(i.subtotal)}\n`; });
     msg += `───────────────────\n`;
     if (lastTrx.diskonAmt > 0) {
-      msg += `Subtotal  : ${formatRp(lastTrx.subtotalSebelumDiskon)}\n`;
+      msg += `Subtotal  : ${formatRp(lastTrx.subtotalSebelumDiskon || lastTrx.totalPenjualan + lastTrx.diskonAmt)}\n`;
       msg += `Diskon    : -${formatRp(lastTrx.diskonAmt)}${lastTrx.diskonType === 'persen' ? ` (${lastTrx.diskonValue}%)` : ''}\n`;
     }
     msg += `*TOTAL: ${formatRp(lastTrx.totalPenjualan)}*\n`;
@@ -165,8 +197,26 @@ const KasirPage = () => {
       msg += `Kembalian: ${formatRp(lastTrx.kembalian)}\n`;
     }
     msg += `───────────────────\n`;
-    msg += `${s.receiptFooter || 'Terima kasih!'}`;
-    window.open(`https://wa.me/${no}?text=${encodeURIComponent(msg)}`, '_blank');
+    msg += `${s.receiptFooter || 'Terima kasih telah berbelanja!'}`;
+
+    const encodedMsg = encodeURIComponent(msg);
+    const rawCustWa = lastTrx.noWa || customerWa;
+    const custWa = formatWaNumber(rawCustWa);
+    const ownerWa = formatWaNumber(s.storePhone) || STORE_OWNER_WA;
+
+    if (custWa) {
+      // 1. Kirim ke nomor WhatsApp pelanggan
+      window.open(`https://wa.me/${custWa}?text=${encodedMsg}`, '_blank');
+      // 2. Kirim juga salinan ke nomor toko (6285117027358)
+      setTimeout(() => {
+        window.open(`https://wa.me/${ownerWa}?text=${encodedMsg}`, '_blank');
+      }, 500);
+      toast(`📲 Struk terkirim ke Pelanggan (${custWa}) & Toko (${ownerWa})`, 'success');
+    } else {
+      // Hanya kirim ke nomor toko (6285117027358)
+      window.open(`https://wa.me/${ownerWa}?text=${encodedMsg}`, '_blank');
+      toast(`📲 Struk terkirim ke WhatsApp Toko (${ownerWa})`, 'info');
+    }
   };
 
   const cartItemCount = cart.reduce((s, c) => s + c.qty, 0);
@@ -254,7 +304,7 @@ const KasirPage = () => {
                 <div
                   key={item.nama_barang}
                   className={`product-card${oos ? ' out-of-stock' : ''}`}
-                  onClick={() => !oos && addToCart(item)}
+                  onClick={() => !oos && handleProductCardClick(item)}
                   title={oos ? 'Stok habis' : 'Klik untuk tambah ke keranjang'}
                 >
                   <div className="product-stock-badge">
@@ -264,13 +314,23 @@ const KasirPage = () => {
                   </div>
                   <div className="product-emoji">{CAT_EMOJI[item.kategori] || '📦'}</div>
                   <div className="product-name">{item.nama_barang}</div>
+                  {item.minQtyGrosir > 0 && item.hargaGrosir > 0 && (
+                    <div style={{ fontSize: 9, color: 'var(--amber)', fontWeight: 700, textAlign: 'center' }}>
+                      ✨ Grosir ≥{item.minQtyGrosir} ({formatRp(item.hargaGrosir)})
+                    </div>
+                  )}
+                  {item.variasiText && (
+                    <div style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600, textAlign: 'center' }}>
+                      🎨 {item.variasiText.split(',').length} variasi
+                    </div>
+                  )}
                   {supplierText && (
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       🏭 {supplierText}
                     </div>
                   )}
                   <div className="product-price">{formatRp(item.hargaJual)}</div>
-                  <button className="product-add-btn" onClick={(e) => { e.stopPropagation(); addToCart(item); }} disabled={oos}>
+                  <button className="product-add-btn" onClick={(e) => { e.stopPropagation(); handleProductCardClick(item); }} disabled={oos}>
                     <i className="fa-solid fa-cart-plus" /> Tambah
                   </button>
                 </div>
@@ -518,6 +578,56 @@ const KasirPage = () => {
               </button>
               <button className="btn btn-wa" style={{ flex: 1 }} onClick={sendWhatsApp}>
                 <i className="fa-brands fa-whatsapp" /> Kirim WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Variant Chooser Modal */}
+      {variantModalItem && (
+        <div className="modal-overlay" onClick={e => e.target.classList.contains('modal-overlay') && setVariantModalItem(null)}>
+          <div className="modal" style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <div className="modal-title">
+                <i className="fa-solid fa-palette" style={{ color: 'var(--brand)' }} /> Pilih Variasi: {variantModalItem.nama_barang}
+              </div>
+              <button className="modal-close" onClick={() => setVariantModalItem(null)}>
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+                Pilih varian warna / ukuran untuk ditambahkan ke keranjang:
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {(variantModalItem.variasiText || '').split(',').map(v => v.trim()).filter(Boolean).map(variant => (
+                  <button
+                    key={variant}
+                    className="btn btn-ghost"
+                    style={{
+                      border: '1.5px solid var(--brand)',
+                      color: 'var(--brand)',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      background: 'var(--brand-dim)'
+                    }}
+                    onClick={() => {
+                      addToCart(variantModalItem, variant);
+                      setVariantModalItem(null);
+                      toast(`✅ ${variantModalItem.nama_barang} (${variant}) ditambahkan`, 'success');
+                    }}
+                  >
+                    🎨 {variant}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost btn-full" onClick={() => setVariantModalItem(null)}>
+                Batal
               </button>
             </div>
           </div>

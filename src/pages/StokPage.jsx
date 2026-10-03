@@ -12,7 +12,10 @@ const emptyForm = {
   r_category: 'Pakaian Wanita',
   r_qty: '',
   r_cost: '',
-  r_price: ''
+  r_price: '',
+  r_min_grosir: '',
+  r_price_grosir: '',
+  r_variants: ''
 };
 
 const StokPage = () => {
@@ -53,7 +56,10 @@ const StokPage = () => {
       r_category: item.kategori,
       r_qty: '',
       r_cost: String(item.hargaModal),
-      r_price: String(item.hargaJual)
+      r_price: String(item.hargaJual),
+      r_min_grosir: item.minQtyGrosir ? String(item.minQtyGrosir) : '',
+      r_price_grosir: item.hargaGrosir ? String(item.hargaGrosir) : '',
+      r_variants: item.variasiText || ''
     });
     setShowModal(true);
   };
@@ -63,6 +69,9 @@ const StokPage = () => {
     const qty = parseInt(form.r_qty) || 0;
     const cost = parseFloat(form.r_cost) || 0;
     const price = parseFloat(form.r_price) || 0;
+    const minGrosir = parseInt(form.r_min_grosir) || 0;
+    const priceGrosir = parseFloat(form.r_price_grosir) || 0;
+    const variants = form.r_variants ? form.r_variants.trim() : '';
 
     if (!form.r_name.trim()) { toast('Nama barang harus diisi', 'error'); return; }
 
@@ -77,6 +86,9 @@ const StokPage = () => {
         ...newStok[existIdx],
         hargaModal: cost || newStok[existIdx].hargaModal,
         hargaJual: price || newStok[existIdx].hargaJual,
+        minQtyGrosir: minGrosir,
+        hargaGrosir: priceGrosir,
+        variasiText: variants,
         stokTersedia: newStok[existIdx].stokTersedia + qty,
         kategori: form.r_category,
         supplierList: [...new Set([...(newStok[existIdx].supplierList || []), form.r_supplier].filter(Boolean))]
@@ -88,6 +100,9 @@ const StokPage = () => {
         kategori: form.r_category,
         hargaModal: cost,
         hargaJual: price,
+        minQtyGrosir: minGrosir,
+        hargaGrosir: priceGrosir,
+        variasiText: variants,
         stokTersedia: qty,
         supplierList: form.r_supplier ? [form.r_supplier] : []
       });
@@ -351,7 +366,7 @@ const StokPage = () => {
                     <input type="number" className="form-input" name="r_qty" value={form.r_qty} onChange={handleFormChange} min="0" placeholder="0 = hanya update harga" />
                   </div>
                 </div>
-                <div className="form-grid form-grid-2">
+                <div className="form-grid form-grid-2" style={{ marginBottom: 12 }}>
                   <div className="form-group">
                     <label className="form-label">Harga Modal / Unit (Rp)</label>
                     <input type="number" className="form-input" name="r_cost" value={form.r_cost} onChange={handleFormChange} min="0" placeholder="100000" required />
@@ -360,6 +375,30 @@ const StokPage = () => {
                     <label className="form-label">Harga Jual / Unit (Rp)</label>
                     <input type="number" className="form-input" name="r_price" value={form.r_price} onChange={handleFormChange} min="0" placeholder="150000" required />
                   </div>
+                </div>
+                {/* ═══ HARGA GROSIR (OPSIONAL) ═══ */}
+                <div style={{ background: 'var(--amber-dim)', border: '1px solid rgba(217,119,6,.2)', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--amber)', marginBottom: 6 }}>
+                    <i className="fa-solid fa-tags" /> Harga Grosir Otomatis (Opsional)
+                  </div>
+                  <div className="form-grid form-grid-2">
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 10 }}>Min. Pembelian Grosir (Qty)</label>
+                      <input type="number" className="form-input" name="r_min_grosir" value={form.r_min_grosir} onChange={handleFormChange} placeholder="Misal: 3" min="2" />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 10 }}>Harga Grosir Per Unit (Rp)</label>
+                      <input type="number" className="form-input" name="r_price_grosir" value={form.r_price_grosir} onChange={handleFormChange} placeholder="Misal: 135000" min="0" />
+                    </div>
+                  </div>
+                </div>
+                {/* ═══ VARIASI PRODUK (OPSIONAL) ═══ */}
+                <div className="form-group" style={{ marginBottom: 12 }}>
+                  <label className="form-label">Variasi Produk (Opsional - Pisahkan Koma)</label>
+                  <input type="text" className="form-input" name="r_variants" value={form.r_variants} onChange={handleFormChange} placeholder="Misal: M - Navy, L - Navy, XL - Rose..." />
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, display: 'block' }}>
+                    Contoh: <code>Navy - M, Navy - L, Rose - M, Sage - XL</code>
+                  </span>
                 </div>
                 {form.r_cost && form.r_price && (
                   <div style={{ background: 'var(--emerald-dim)', border: '1px solid rgba(5,150,105,.2)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--emerald)' }}>

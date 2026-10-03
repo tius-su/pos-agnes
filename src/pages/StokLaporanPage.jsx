@@ -5,6 +5,8 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts';
 
+import { exportToCSV, printReportHTML } from '../services/exportUtils';
+
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 const formatRpShort = v => {
   if (v >= 1000000) return `${(v / 1000000).toFixed(1)}jt`;
@@ -65,6 +67,36 @@ const StokLaporanPage = () => {
   const potensiLaba = nilaiJual - nilaiModal;
   const habis       = stok.filter(i => i.stokTersedia <= 0).length;
   const menipis     = stok.filter(i => i.stokTersedia > 0 && i.stokTersedia <= 5).length;
+
+  // 🚀 Fast Moving List
+  const fastMovingList = useMemo(() => {
+    const soldMap = {};
+    allPenjualan.forEach(t => {
+      (t.items || []).forEach(i => {
+        soldMap[i.barang] = (soldMap[i.barang] || 0) + i.jumlah;
+      });
+    });
+    return allStok
+      .map(s => ({ ...s, terjual: soldMap[s.nama_barang] || 0 }))
+      .filter(s => s.terjual >= 2)
+      .sort((a, b) => b.terjual - a.terjual)
+      .slice(0, 8);
+  }, [allStok, allPenjualan]);
+
+  // 🐢 Slow Moving List (Stok Mati)
+  const slowMovingList = useMemo(() => {
+    const soldMap = {};
+    allPenjualan.forEach(t => {
+      (t.items || []).forEach(i => {
+        soldMap[i.barang] = (soldMap[i.barang] || 0) + i.jumlah;
+      });
+    });
+    return allStok
+      .map(s => ({ ...s, terjual: soldMap[s.nama_barang] || 0 }))
+      .filter(s => s.stokTersedia > 0 && s.terjual <= 1)
+      .sort((a, b) => b.stokTersedia - a.stokTersedia)
+      .slice(0, 8);
+  }, [allStok, allPenjualan]);
 
   // Stok per kategori (pie chart)
   const byCategory = useMemo(() => {
@@ -204,6 +236,43 @@ const StokLaporanPage = () => {
             <option value="">Semua Kategori</option>
             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          {/* Export Buttons */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                const headers = ['Nama Barang', 'Kategori', 'Stok Tersedia', 'Harga Modal', 'Harga Jual', 'Nilai Stok Modal', 'Nilai Stok Jual', 'Supplier'];
+                const rows = stok.map(i => [
+                  i.nama_barang,
+                  i.kategori,
+                  i.stokTersedia,
+                  i.hargaModal,
+                  i.hargaJual,
+                  i.hargaModal * i.stokTersedia,
+                  i.hargaJual * i.stokTersedia,
+                  i.supplierList?.join(', ') || i.supplier || i.suplier || ''
+                ]);
+                exportToCSV('Laporan_Stok_Barang', headers, rows);
+              }}
+              title="Unduh CSV/Excel"
+            >
+              <i className="fa-solid fa-file-excel" style={{ color: 'var(--emerald)' }} /> Excel
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                let html = '<table><thead><tr><th>Produk</th><th>Kategori</th><th>Stok</th><th>Harga Modal</th><th>Harga Jual</th><th>Nilai Stok</th></tr></thead><tbody>';
+                stok.forEach(i => {
+                  html += `<tr><td>${i.nama_barang}</td><td>${i.kategori}</td><td>${i.stokTersedia} pcs</td><td>${formatRp(i.hargaModal)}</td><td>${formatRp(i.hargaJual)}</td><td>${formatRp(i.hargaModal * i.stokTersedia)}</td></tr>`;
+                });
+                html += '</tbody></table>';
+                printReportHTML('LAPORAN ANALITIK STOK BARANG', 'Rincian seluruh stok produk Agnes Fashion POS', html);
+              }}
+              title="Cetak PDF / Print"
+            >
+              <i className="fa-solid fa-print" style={{ color: 'var(--brand)' }} /> PDF
+            </button>
+          </div>
         </div>
         {/* Date range for produk terlaris */}
         <div style={{ padding: '0 16px 12px' }}>
@@ -341,6 +410,71 @@ const StokLaporanPage = () => {
                 <span style={{ fontWeight: 700 }}>{c.items} pcs</span>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 🚀 Fast-Moving vs 🐢 Slow-Moving Analysis */}
+      <div className="card mb-16" style={{ border: '1px solid var(--border)' }}>
+        <div className="card-header">
+          <div className="card-title">
+            <i className="fa-solid fa-gauge-high" style={{ color: 'var(--brand)' }} /> Analisis Perputaran Barang (Fast vs Slow Moving)
+          </div>
+          <span className="badge badge-violet">30 Hari Terakhir</span>
+        </div>
+        <div className="card-body" style={{ padding: 16 }}>
+          <div className="form-grid form-grid-2" style={{ gap: 16 }}>
+
+            {/* Fast Moving */}
+            <div style={{ background: 'var(--emerald-dim)', border: '1px solid rgba(5,150,105,.2)', borderRadius: 12, padding: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--emerald)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <i className="fa-solid fa-bolt" /> 🚀 Fast-Moving (Perputaran Cepat)
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+                Produk paling laris dengan tingkat penjualan tinggi. Segera persiapkan restok!
+              </p>
+              {fastMovingList.length === 0 ? (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Belum ada data transaksi yang cukup.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {fastMovingList.map(item => (
+                    <div key={item.nama_barang} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '6px 10px', borderRadius: 6, fontSize: 11 }}>
+                      <span style={{ fontWeight: 600 }}>{CAT_EMOJI[item.kategori] || '📦'} {item.nama_barang}</span>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <span className="badge badge-green">Terjual {item.terjual}</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Stok: {item.stokTersedia}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Slow Moving (Stok Mati) */}
+            <div style={{ background: 'var(--amber-dim)', border: '1px solid rgba(217,119,6,.2)', borderRadius: 12, padding: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--amber)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <i className="fa-solid fa-turtle" /> 🐢 Slow-Moving / Stok Mati
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+                Barang dengan penjualan lambat (≤1 unit). Rekomendasi: Adakan promo / discount sale!
+              </p>
+              {slowMovingList.length === 0 ? (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tidak ada stok mati yang terdeteksi.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {slowMovingList.map(item => (
+                    <div key={item.nama_barang} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '6px 10px', borderRadius: 6, fontSize: 11 }}>
+                      <span style={{ fontWeight: 600 }}>{CAT_EMOJI[item.kategori] || '📦'} {item.nama_barang}</span>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <span className="badge badge-amber">Sisa {item.stokTersedia} pcs</span>
+                        <span style={{ fontSize: 10, color: 'var(--rose)', fontWeight: 700 }}>💡 Discount Sale</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       </div>

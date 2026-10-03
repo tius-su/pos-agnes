@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
+import { exportToCSV, printReportHTML } from '../services/exportUtils';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 const isoDate = d => d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
@@ -186,9 +187,45 @@ const HutangPage = () => {
           <div>
             <div className="card-title"><i className="fa-solid fa-hand-holding-dollar" /> Manajemen Hutang Pelanggan</div>
           </div>
-          <button className="btn btn-purple btn-sm" onClick={openAdd}>
-            <i className="fa-solid fa-plus" /> Catat Hutang
-          </button>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                const headers = ['Pelanggan', 'No WA', 'Keterangan', 'Tgl Catat', 'Jatuh Tempo', 'Jumlah Awal', 'Sisa Hutang', 'Status'];
+                const rows = filtered.map(h => [
+                  h.pelanggan,
+                  h.noWa || '',
+                  h.keterangan || '',
+                  h.tanggal,
+                  h.tanggalJatuhTempo || '',
+                  h.jumlahAwal,
+                  h.sisaHutang,
+                  h.sisaHutang <= 0 ? 'Lunas' : 'Belum Lunas'
+                ]);
+                exportToCSV('Laporan_Hutang_Pelanggan', headers, rows);
+              }}
+              title="Unduh CSV/Excel"
+            >
+              <i className="fa-solid fa-file-excel" style={{ color: 'var(--emerald)' }} /> Excel
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                let html = '<table><thead><tr><th>Pelanggan</th><th>No WA</th><th>Keterangan</th><th>Tgl Catat</th><th>Jatuh Tempo</th><th>Jumlah Awal</th><th>Sisa Hutang</th></tr></thead><tbody>';
+                filtered.forEach(h => {
+                  html += `<tr><td>${h.pelanggan}</td><td>${h.noWa || '—'}</td><td>${h.keterangan || '—'}</td><td>${h.tanggal}</td><td>${h.tanggalJatuhTempo || '—'}</td><td>${formatRp(h.jumlahAwal)}</td><td>${formatRp(h.sisaHutang)}</td></tr>`;
+                });
+                html += '</tbody></table>';
+                printReportHTML('LAPORAN HUTANG PELANGGAN', 'Data piutang toko Agnes Fashion POS', html);
+              }}
+              title="Cetak PDF / Print"
+            >
+              <i className="fa-solid fa-print" style={{ color: 'var(--brand)' }} /> PDF
+            </button>
+            <button className="btn btn-purple btn-sm" onClick={openAdd}>
+              <i className="fa-solid fa-plus" /> Catat Hutang
+            </button>
+          </div>
         </div>
 
         {/* Filter status + date */}

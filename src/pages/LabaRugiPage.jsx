@@ -4,6 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   ResponsiveContainer, Legend, PieChart, Pie, Cell
 } from 'recharts';
+import { printReportHTML } from '../services/exportUtils';
 
 const formatRp  = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 const formatRpS = v => {
@@ -185,9 +186,27 @@ const LabaRugiPage = () => {
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header" style={{ padding: '12px 16px' }}>
           <div className="card-title"><i className="fa-solid fa-filter" /> Filter Periode</div>
-          <button className="btn btn-ghost btn-sm" onClick={exportCSV}>
-            <i className="fa-solid fa-file-csv" style={{ color: 'var(--emerald)' }} /> Export CSV
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn btn-ghost btn-sm" onClick={exportCSV}>
+              <i className="fa-solid fa-file-csv" style={{ color: 'var(--emerald)' }} /> Export CSV
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => {
+              let html = '<table><thead><tr><th>Produk / Supplier</th><th>Qty Terjual</th><th>Total Omset</th><th>Total Modal (HPP)</th><th>Laba Kotor</th><th>Margin</th></tr></thead><tbody>';
+              if (view === 'item') {
+                displayItems.forEach(i => {
+                  html += `<tr><td>${i.nama} (${i.supplier})</td><td>${i.qty}</td><td>${formatRp(i.omset)}</td><td>${formatRp(i.modal)}</td><td>${formatRp(i.laba)}</td><td>${pct(i.laba, i.omset)}%</td></tr>`;
+                });
+              } else {
+                displaySuppliers.forEach(s => {
+                  html += `<tr><td>${s.supplier}</td><td>${s.qty}</td><td>${formatRp(s.omset)}</td><td>${formatRp(s.modal)}</td><td>${formatRp(s.laba)}</td><td>${pct(s.laba, s.omset)}%</td></tr>`;
+                });
+              }
+              html += '</tbody></table>';
+              printReportHTML(`LAPORAN LABA RUGI PER ${view === 'item' ? 'PRODUK' : 'SUPPLIER'}`, `Periode: ${start || 'Semua'} s/d ${end || 'Semua'}`, html);
+            }}>
+              <i className="fa-solid fa-print" style={{ color: 'var(--brand)' }} /> PDF / Print
+            </button>
+          </div>
         </div>
         <div style={{ padding: '0 16px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {PRESET_BTNS.map(([p, l]) => (
