@@ -7,6 +7,8 @@ const isoDate = d => d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-
 const DashboardPage = () => {
   const { appData, saveAndSync, toast } = useData();
   const today = isoDate(new Date());
+  const [targetInput, setTargetInput] = useState('');
+  const [editingTarget, setEditingTarget] = useState(false);
   const [editingMonthlyTarget, setEditingMonthlyTarget] = useState(false);
   const [monthlyTargetInput, setMonthlyTargetInput] = useState('');
 
