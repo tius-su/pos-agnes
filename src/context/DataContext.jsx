@@ -58,6 +58,14 @@ export const DataProvider = ({ children, isPublic = false }) => {
     // ── MODE PUBLIK (E-Katalog tanpa login) ──
     if (isPublic) {
       setSyncStatus('syncing');
+
+      if (!auth) {
+        const localData = loadLocalData() || INITIAL_DATA;
+        setAppData(localData);
+        setSyncStatus('ok');
+        return undefined;
+      }
+
       const unsub = subscribePublicCatalog(
         (cloudData) => {
           if (cloudData && cloudData.stok && cloudData.stok.length > 0) {
@@ -86,6 +94,13 @@ export const DataProvider = ({ children, isPublic = false }) => {
     }
 
     // ── MODE ADMIN (tunggu login dulu) ──
+    if (!auth) {
+      setSyncStatus('idle');
+      const localData = loadLocalData() || INITIAL_DATA;
+      setAppData(localData);
+      return undefined;
+    }
+
     const unsubAuth = auth.onAuthStateChanged((user) => {
       if (unsubRef.current) {
         unsubRef.current();

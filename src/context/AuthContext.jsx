@@ -9,6 +9,12 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth) {
+      setUser(null);
+      setLoading(false);
+      return undefined;
+    }
+
     // 1. Tangkap hasil redirect login Google (jika user baru kembali dari redirect)
     getRedirectResult(auth)
       .then((result) => {

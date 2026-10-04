@@ -185,6 +185,7 @@ export const normalizeAppData = (data) => {
 export const loadLocalData = () => {
   try {
     const raw = localStorage.getItem(LOCAL_CACHE_KEY)
+             || localStorage.getItem('melan_jaya_pos_cache')
              || localStorage.getItem('agnes_pos_cache')
              || localStorage.getItem('agnes_pos_data');
     if (raw) {
@@ -210,16 +211,23 @@ export const saveLocalData = (data) => {
 };
 
 // ─── FIREBASE (DATABASE UTAMA) ────────────────────────────────────────────────
-const FIREBASE_DOC = () => doc(db, 'pos_data', 'store_data');
+const FIREBASE_DOC = () => (db ? doc(db, 'pos_data', 'store_data') : null);
 
 /**
  * Subscribe realtime ke Firebase (hanya untuk user yang sudah login).
  * Hanya baca dari pos_data/store_data (sesuai Firestore Rules).
  */
 export const subscribeToFirebaseCloud = (onData, onError) => {
+  const docRef = FIREBASE_DOC();
+  if (!docRef) {
+    if (onData) onData(null);
+    if (onError) onError(new Error('Firebase belum dikonfigurasi. Isi variabel VITE_FIREBASE_* di .env.local.'));
+    return () => {};
+  }
+
   try {
     const unsub = onSnapshot(
-      FIREBASE_DOC(),
+      docRef,
       (snap) => {
         if (snap.exists() && snap.data()) {
           // Dokumen ditemukan → normalize dan kirim ke DataContext
@@ -269,9 +277,16 @@ export const subscribeToFirebaseCloud = (onData, onError) => {
  * Digunakan oleh halaman E-Katalog yang dibuka tanpa login.
  */
 export const subscribePublicCatalog = (onData, onError) => {
+  const docRef = FIREBASE_DOC();
+  if (!docRef) {
+    if (onData) onData(null);
+    if (onError) onError(new Error('Firebase belum dikonfigurasi. Isi variabel VITE_FIREBASE_* di .env.local.'));
+    return () => {};
+  }
+
   try {
     const unsub = onSnapshot(
-      FIREBASE_DOC(),
+      docRef,
       (snap) => {
         if (snap.exists() && snap.data()) {
           const firebaseData = normalizeAppData(snap.data());
@@ -301,6 +316,13 @@ export const subscribePublicCatalog = (onData, onError) => {
  * Push data ke Firebase (DATABASE UTAMA).
  */
 export const pushToFirebaseCloud = async (data) => {
+  if (!db) {
+    return {
+      success: false,
+      error: 'Firebase belum dikonfigurasi. Isi variabel VITE_FIREBASE_* di .env.local.'
+    };
+  }
+
   try {
     const normalized = normalizeAppData(data) || data;
     const payload = { ...normalized, lastUpdated: new Date().toISOString() };
