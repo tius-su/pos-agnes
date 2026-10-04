@@ -109,6 +109,16 @@ const KasirPage = () => {
   const total      = Math.max(0, subtotal - diskonAmt);
   const totalModal = cart.reduce((s, c) => s + (c.hargaModal || 0) * c.qty, 0);
   const laba       = total - totalModal;
+  
+  // Auto-fill cashInput dengan total jika payMethod adalah Tunai dan cashInput kosong
+  useEffect(() => {
+    if (payMethod === 'Tunai' && cart.length > 0) {
+      if (!cashInput || cashInput === '0') {
+        setCashInput(String(total));
+      }
+    }
+  }, [total, payMethod, cart.length, cashInput]);
+  
   const cashNum    = parseFloat(cashInput) || 0;
   const kembalian  = cashNum - total;
 
@@ -617,10 +627,10 @@ const KasirPage = () => {
               </div>
             </div>
 
-            {/* Cash input */}
+            {/* Cash input - auto-fill dengan total bayar */}
             {payMethod === 'Tunai' && (
-              <div className="kembalian-row">
-                <div>
+              <div className="kembalian-row" style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
+                <div style={{ flex: 1, minWidth: 150 }}>
                   <label className="form-label">Uang Diterima (Rp)</label>
                   <input
                     className="form-input"
@@ -628,12 +638,46 @@ const KasirPage = () => {
                     placeholder="0"
                     value={cashInput}
                     onChange={e => setCashInput(e.target.value)}
+                    onFocus={e => {
+                      // Jika input kosong, isi otomatis dengan total bayar
+                      if (!cashInput || cashInput === '0') {
+                        setCashInput(String(total));
+                        // Auto-select text untuk mudah diedit
+                        setTimeout(() => e.target.select(), 50);
+                      } else {
+                        // Auto-select text jika sudah ada nilai
+                        setTimeout(() => e.target.select(), 50);
+                      }
+                    }}
+                    onClick={e => {
+                      // Jika input kosong, isi otomatis dengan total bayar
+                      if (!cashInput || cashInput === '0') {
+                        setCashInput(String(total));
+                        setTimeout(() => e.target.select(), 50);
+                      }
+                    }}
                     id="cash-input"
+                    style={{ fontSize: 14, fontWeight: 700, padding: '8px 12px' }}
+                    autoComplete="off"
                   />
                 </div>
-                <div>
+                <div style={{ minWidth: 140, textAlign: 'right' }}>
                   <label className="form-label">Kembalian</label>
-                  <div className="kembalian-display">
+                  <div 
+                    className="kembalian-display" 
+                    style={{
+                      fontSize: 14, 
+                      fontWeight: 700, 
+                      color: kembalian >= 0 ? 'var(--emerald)' : 'var(--rose)',
+                      padding: '8px 12px',
+                      background: 'var(--bg-hover)',
+                      borderRadius: 6,
+                      minHeight: 36,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-end'
+                    }}
+                  >
                     {cashNum >= total ? formatRp(kembalian) : '—'}
                   </div>
                 </div>
@@ -668,8 +712,23 @@ const KasirPage = () => {
               </button>
             </div>
 
-            <button className="btn btn-green btn-full btn-lg btn-checkout-main" onClick={handleCheckout} disabled={!cart.length} id="btn-checkout">
-              <i className="fa-solid fa-check-circle" /> Proses Pembayaran ({formatRp(total)})
+            <button 
+              className="btn btn-green btn-full btn-lg btn-checkout-main" 
+              onClick={handleCheckout} 
+              disabled={!cart.length} 
+              id="btn-checkout"
+              style={{
+                fontSize: 16,
+                fontWeight: 800,
+                padding: '14px 20px',
+                borderRadius: 12,
+                marginTop: 12,
+                boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)',
+                minHeight: 50
+              }}
+            >
+              <i className="fa-solid fa-check-circle" style={{ fontSize: 18, marginRight: 8 }} /> 
+              Proses Pembayaran ({formatRp(total)})
             </button>
           </div>
         </div>

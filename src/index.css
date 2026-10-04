@@ -391,7 +391,27 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
 .badge-gray { background: var(--bg-hover); color: var(--text-muted); border: 1px solid var(--border); }
 
 /* ============================================================ POS LAYOUT ============================================================ */
-.pos-layout { display: grid; grid-template-columns: 1fr 380px; gap: 16px; height: calc(100vh - var(--topbar-h) - 36px); min-height: 520px; align-items: stretch; }
+.pos-layout { 
+  display: grid; 
+  grid-template-columns: 1fr 380px; 
+  gap: 16px; 
+  height: calc(100vh - var(--topbar-h) - 36px); 
+  min-height: 520px; 
+  align-items: stretch; 
+}
+
+/* Desktop specific for POS layout */
+@media (min-width: 1024px) {
+  .pos-layout { 
+    grid-template-columns: 2fr 1fr; 
+    gap: 20px; 
+  }
+  
+  .cart-panel { 
+    max-width: 420px !important; 
+    margin-left: auto !important;
+  }
+}
 .pos-catalog-card { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 12px; padding: 16px; overflow-y: auto; flex: 1; max-height: none; }
 .product-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 12px; cursor: pointer; transition: .18s; display: flex; flex-direction: column; gap: 7px; position: relative; overflow: hidden; box-shadow: var(--shadow-sm); }
@@ -426,15 +446,65 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
 .qty-btn:hover { background: var(--brand-dim); color: var(--brand); }
 .qty-val { font-size: 11px; font-weight: 700; color: var(--text-primary); min-width: 22px; text-align: center; }
 .cart-item-subtotal { font-size: 12px; font-weight: 700; color: var(--brand); min-width: 65px; text-align: right; flex-shrink: 0; }
-.cart-footer { border-top: 1px solid var(--border); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background: var(--bg-card); flex-shrink: 0; }
+.cart-footer { 
+  border-top: 1px solid var(--border); 
+  padding: 10px 12px; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 8px; 
+  background: var(--bg-card); 
+  flex-shrink: 0; 
+  position: sticky; 
+  bottom: 0; 
+  z-index: 10;
+}
 .payment-methods { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
 .pay-btn { padding: 6px 4px; border-radius: var(--radius-sm); background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-secondary); font-size: 11px; font-weight: 600; cursor: pointer; text-align: center; transition: .12s; font-family: inherit; }
 .pay-btn.active { background: var(--brand-dim); border-color: var(--brand); color: var(--brand); }
 .total-box { background: linear-gradient(135deg, var(--brand-dim), rgba(168,85,247,.06)); border: 1px solid rgba(124,58,237,.2); border-radius: var(--radius-md); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
 .total-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
 .total-value { font-size: 20px; font-weight: 900; color: var(--brand); font-variant-numeric: tabular-nums; }
-.kembalian-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.kembalian-display { background: var(--emerald-dim); border: 1px solid rgba(5,150,105,.2); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 12px; font-weight: 700; color: var(--emerald); font-variant-numeric: tabular-nums; display: flex; align-items: center; }
+.kembalian-row { 
+  display: grid; 
+  grid-template-columns: 1fr 1fr; 
+  gap: 12px; 
+  margin-top: 12px;
+}
+.kembalian-display { 
+  background: var(--emerald-dim); 
+  border: 1px solid rgba(5,150,105,.2); 
+  border-radius: var(--radius-sm); 
+  padding: 8px 12px; 
+  font-size: 14px; 
+  font-weight: 700; 
+  color: var(--emerald); 
+  font-variant-numeric: tabular-nums; 
+  display: flex; 
+  align-items: center; 
+  justify-content: flex-end;
+  min-height: 36px;
+}
+
+/* Desktop specific styling for cash input */
+@media (min-width: 768px) {
+  .kembalian-row { 
+    grid-template-columns: 2fr 1fr; 
+    gap: 16px;
+  }
+  
+  .kembalian-row input[type="number"] { 
+    font-size: 16px !important; 
+    font-weight: 700 !important; 
+    padding: 10px 14px !important;
+    height: 40px !important;
+  }
+  
+  .kembalian-row .form-label { 
+    font-size: 13px !important; 
+    font-weight: 600 !important;
+    margin-bottom: 6px !important;
+  }
+}
 
 /* ============================================================ MODAL ============================================================ */
 .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(6px); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 16px; animation: fadeIn .2s ease; }
@@ -575,7 +645,25 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
   .cart-panel { height: auto !important; max-height: none !important; overflow: visible !important; margin-bottom: 40px !important; border-radius: var(--radius-lg); }
   .cart-items { max-height: none; min-height: 80px; overflow: visible; }
   .cart-footer { position: static !important; background: var(--bg-card); border-top: 1px solid var(--border); padding: 16px 14px 90px 14px !important; margin-bottom: 20px; box-shadow: none; }
-  .btn-checkout-main { min-height: 52px !important; font-size: 15px !important; font-weight: 800 !important; width: 100% !important; box-shadow: 0 4px 16px rgba(5,150,105,0.4) !important; margin-top: 8px; }
+  .btn-checkout-main { 
+    min-height: 52px !important; 
+    font-size: 15px !important; 
+    font-weight: 800 !important; 
+    width: 100% !important; 
+    box-shadow: 0 4px 16px rgba(5,150,105,0.4) !important; 
+    margin-top: 12px !important;
+    border-radius: 12px !important;
+    transition: all 0.2s ease !important;
+  }
+  
+  .btn-checkout-main:hover:not(:disabled) { 
+    transform: translateY(-2px) !important; 
+    box-shadow: 0 6px 20px rgba(5,150,105,0.5) !important;
+  }
+  
+  .btn-checkout-main:active:not(:disabled) { 
+    transform: translateY(0) !important;
+  }
 
   /* Floating Quick Bar di Mobile */
   .mobile-cart-float-bar {
