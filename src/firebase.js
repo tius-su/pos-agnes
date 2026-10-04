@@ -2,7 +2,8 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   onAuthStateChanged
 } from 'firebase/auth';
@@ -10,12 +11,12 @@ import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestor
 
 // Baca dari env variables (lokal: .env.local | GitHub Actions: Secrets)
 const firebaseConfig = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY            || "AIzaSyAX079ev4OsIBRhCHm8vk7uOG1aq_HhNJE",
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN        || "agnes-pos.firebaseapp.com",
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID         || "agnes-pos",
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET     || "agnes-pos.firebasestorage.app",
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY             || "AIzaSyAX079ev4OsIBRhCHm8vk7uOG1aq_HhNJE",
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN         || "agnes-pos.firebaseapp.com",
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID          || "agnes-pos",
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET      || "agnes-pos.firebasestorage.app",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1077438870529",
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID             || "1:1077438870529:web:f7a0b550745bbf326c3c00"
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID              || "1:1077438870529:web:f7a0b550745bbf326c3c00"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -25,15 +26,20 @@ export const googleProvider = new GoogleAuthProvider();
 
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
+// Gunakan redirect (bukan popup) agar tidak kena blokir COOP di GitHub Pages
 export const loginWithGoogle = async () => {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return { user: result.user, error: null };
+    await signInWithRedirect(auth, googleProvider);
+    // Halaman akan redirect ke Google lalu kembali — hasil ditangkap lewat getRedirectResult
+    return { user: null, error: null };
   } catch (error) {
     console.error("Google Auth Error:", error);
     return { user: null, error: error.message };
   }
 };
+
+// Export agar AuthContext bisa cek hasil redirect saat app load
+export { getRedirectResult };
 
 export const logoutUser = async () => {
   try {

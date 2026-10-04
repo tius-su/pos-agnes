@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'Agnes Fashion POS & Stok',
-        short_name: 'Agnes POS',
-        description: 'Aplikasi Kasir, Stok, dan Laporan Keuangan Agnes Fashion',
+        name: 'Melan Jaya POS & Stok',
+        short_name: 'Melan Jaya',
+        description: 'Aplikasi Kasir, Stok, dan Laporan Keuangan Melan Jaya',
         theme_color: '#7c3aed',
         background_color: '#0f0e17',
         display: 'standalone',
