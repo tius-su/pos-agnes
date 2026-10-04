@@ -3,6 +3,7 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithRedirect,
+  signInWithPopup,
   getRedirectResult as firebaseGetRedirectResult,
   signOut,
 } from 'firebase/auth';
@@ -39,23 +40,37 @@ export const getRedirectResult = (authInstance = auth) => {
   return firebaseGetRedirectResult(authInstance);
 };
 
-// Gunakan redirect (bukan popup) agar tidak kena blokir COOP di GitHub Pages
+// Prioritaskan redirect, tapi fallback ke popup jika browser/domain memblokir redirect.
 export const loginWithGoogle = async () => {
   if (!firebaseReady || !auth || !googleProvider) {
     return {
       user: null,
       error: {
+        code: 'auth/configuration-not-found',
         message: 'Firebase belum dikonfigurasi. Isi variabel VITE_FIREBASE_* di .env.local lalu restart aplikasi.'
       }
     };
   }
 
   try {
+    const isLocalhost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    if (isLocalhost) {
+      const result = await signInWithPopup(auth, googleProvider);
+      return { user: result.user, error: null };
+    }
+
     await signInWithRedirect(auth, googleProvider);
     return { user: null, error: null };
   } catch (error) {
-    console.error('Google Auth Error:', error);
-    return { user: null, error };
+    console.warn('Redirect login failed, trying popup fallback:', error);
+
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      return { user: result.user, error: null };
+    } catch (popupError) {
+      console.error('Google Auth Error:', popupError);
+      return { user: null, error: popupError };
+    }
   }
 };
 
