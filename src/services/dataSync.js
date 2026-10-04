@@ -51,6 +51,9 @@ export const INITIAL_DATA = {
   penjualan: [],
   pengeluaran: [],
   pendingTransactions: [],
+  suppliers: [],
+  hutang: [],
+  pelanggan: [],
   settings: {
     storeName:     'Melan Jaya',
     storeAddress:  'Pasar Baru Cikarang, Blok C',
@@ -288,6 +291,30 @@ export const normalizeAppData = (data) => {
     rawPending = Object.values(data.pending);
   }
 
+  // Normalisasi suppliers
+  let rawSuppliers = [];
+  if (Array.isArray(data.suppliers)) {
+    rawSuppliers = data.suppliers;
+  } else if (data.suppliers && typeof data.suppliers === 'object') {
+    rawSuppliers = Object.values(data.suppliers);
+  }
+
+  // Normalisasi hutang
+  let rawHutang = [];
+  if (Array.isArray(data.hutang)) {
+    rawHutang = data.hutang;
+  } else if (data.hutang && typeof data.hutang === 'object') {
+    rawHutang = Object.values(data.hutang);
+  }
+
+  // Normalisasi pelanggan
+  let rawPelanggan = [];
+  if (Array.isArray(data.pelanggan)) {
+    rawPelanggan = data.pelanggan;
+  } else if (data.pelanggan && typeof data.pelanggan === 'object') {
+    rawPelanggan = Object.values(data.pelanggan);
+  }
+
   // Cleanup storeName dari data lama yang mungkin masih menggunakan Agnes
   const cleanedSettings = data.settings ? {
     ...data.settings,
@@ -305,6 +332,9 @@ export const normalizeAppData = (data) => {
     penjualan: rawPenjualan,
     pengeluaran: rawPengeluaran,
     pendingTransactions: rawPending,
+    suppliers: rawSuppliers,
+    hutang: rawHutang,
+    pelanggan: rawPelanggan,
     settings: {
       ...INITIAL_DATA.settings,
       ...cleanedSettings

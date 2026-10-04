@@ -18,6 +18,7 @@ const MENU_GROUPS = [
       { key: 'stok',          icon: 'fa-boxes-stacked', label: 'Stok Barang',      badge: 'stokKritis' },
       { key: 'stok-laporan',  icon: 'fa-warehouse',     label: 'Laporan Stok',     badge: null },
       { key: 'retur',         icon: 'fa-rotate-left',   label: 'Retur & Refund',   badge: null },
+      { key: 'supplier',      icon: 'fa-truck-field',   label: 'Data Supplier',    badge: null },
     ],
   },
   {

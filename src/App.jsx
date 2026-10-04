@@ -12,6 +12,7 @@ import PelangganPage from './pages/PelangganPage';
 import ReturPage from './pages/ReturPage';
 import HutangPage from './pages/HutangPage';
 import PengeluaranPage from './pages/PengeluaranPage';
+import SupplierPage from './pages/SupplierPage';
 import SettingsPage from './pages/SettingsPage';
 import EKatalogPage from './components/EKatalogPage';
 import Sidebar from './components/Sidebar';
@@ -27,6 +28,7 @@ const PAGE_META = {
   pelanggan:    { title: 'Database Pelanggan',          sub: 'Kelola data dan riwayat belanja pelanggan',            icon: 'fa-users' },
   retur:        { title: 'Retur & Refund Barang',       sub: 'Proses pengembalian barang dan restore stok',          icon: 'fa-rotate-left' },
   hutang:       { title: 'Hutang & Piutang',            sub: 'Kelola piutang pelanggan dan hutang toko ke supplier',  icon: 'fa-hand-holding-dollar' },
+  supplier:     { title: 'Database Supplier',           sub: 'Kelola data supplier dan kontak pemasok',               icon: 'fa-truck-field' },
   katalog:      { title: 'E-Katalog Digital Online',    sub: 'Katalog belanja publik siap sebar ke WhatsApp',        icon: 'fa-shop' },
   settings:     { title: 'Pengaturan & Sinkronisasi',  sub: 'Konfigurasi GitHub, Firebase, dan profil toko',        icon: 'fa-gear' },
 };
@@ -127,6 +129,7 @@ const AppInner = () => {
       case 'pelanggan':    return <PelangganPage />;
       case 'retur':        return <ReturPage />;
       case 'hutang':       return <HutangPage />;
+      case 'supplier':     return <SupplierPage />;
       case 'katalog':      return <EKatalogPage />;
       case 'settings':     return <SettingsPage />;
       default:             return <DashboardPage />;

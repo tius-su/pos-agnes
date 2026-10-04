@@ -397,7 +397,17 @@ const StokPage = () => {
                   </div>
                   <div className="form-group">
                     <label className="form-label">Nama Supplier</label>
-                    <input type="text" className="form-input" name="r_supplier" value={form.r_supplier} onChange={handleFormChange} placeholder="Grosir Bandung..." />
+                    <select 
+                      className="form-input" 
+                      name="r_supplier" 
+                      value={form.r_supplier} 
+                      onChange={handleFormChange}
+                    >
+                      <option value="">Pilih Supplier</option>
+                      {(appData.suppliers || []).map(sup => (
+                        <option key={sup.id || sup.nama} value={sup.nama}>{sup.nama} - {sup.kontak}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="form-group">
