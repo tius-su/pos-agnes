@@ -181,6 +181,13 @@ const KasirPage = () => {
     setDiskonValue('');
     setDiskonType('persen');
 
+    // Kirim struk otomatis ke WhatsApp (jika diaktifkan di settings)
+    if (autoSendWaEnabled) {
+      setTimeout(() => {
+        sendWhatsAppAuto(trx);
+      }, 1000);
+    }
+
     const resetNow = new Date();
     resetNow.setMinutes(resetNow.getMinutes() - resetNow.getTimezoneOffset());
     setDatetime(resetNow.toISOString().slice(0, 16));
@@ -197,48 +204,66 @@ const KasirPage = () => {
     return clean;
   };
 
+  // Cek pengaturan auto-send WhatsApp dari settings
+  const settings = appData.settings || {};
+  const autoSendWaEnabled = settings.autoSendWa !== false; // default: true
+  const sendWaToStoreEnabled = settings.sendWaToStore !== false; // default: true
+
   const sendWhatsApp = () => {
     if (!lastTrx) { toast('Tidak ada transaksi untuk dikirim', 'warning'); return; }
+    sendWhatsAppAuto(lastTrx);
+  };
+
+  // Fungsi untuk mengirim struk otomatis (dipanggil dari handleCheckout)
+  const sendWhatsAppAuto = (trxData) => {
     const s = appData.settings || {};
     let msg = `*STRUK BELANJA ${s.storeName?.toUpperCase() || 'MELAN JAYA'}*\n`;
     if (s.storeAddress) msg += `${s.storeAddress}\n`;
     msg += `───────────────────\n`;
-    msg += `No TRX : ${lastTrx.kodeTrx}\n`;
-    msg += `Tanggal: ${lastTrx.tanggal} ${lastTrx.waktu || ''}\n`;
-    msg += `Pelanggan: ${lastTrx.pelanggan || 'Umum'}\n`;
+    msg += `No TRX : ${trxData.kodeTrx}\n`;
+    msg += `Tanggal: ${trxData.tanggal} ${trxData.waktu || ''}\n`;
+    msg += `Pelanggan: ${trxData.pelanggan || 'Umum'}\n`;
     msg += `───────────────────\n`;
-    (lastTrx.items || []).forEach(i => { msg += `${i.barang} x${i.jumlah}  ${formatRp(i.subtotal)}\n`; });
+    (trxData.items || []).forEach(i => { msg += `${i.barang} x${i.jumlah}  ${formatRp(i.subtotal)}\n`; });
     msg += `───────────────────\n`;
-    if (lastTrx.diskonAmt > 0) {
-      msg += `Subtotal  : ${formatRp(lastTrx.subtotalSebelumDiskon || lastTrx.totalPenjualan + lastTrx.diskonAmt)}\n`;
-      msg += `Diskon    : -${formatRp(lastTrx.diskonAmt)}${lastTrx.diskonType === 'persen' ? ` (${lastTrx.diskonValue}%)` : ''}\n`;
+    if (trxData.diskonAmt > 0) {
+      msg += `Subtotal  : ${formatRp(trxData.subtotalSebelumDiskon || trxData.totalPenjualan + trxData.diskonAmt)}\n`;
+      msg += `Diskon    : -${formatRp(trxData.diskonAmt)}${trxData.diskonType === 'persen' ? ` (${trxData.diskonValue}%)` : ''}\n`;
     }
-    msg += `*TOTAL: ${formatRp(lastTrx.totalPenjualan)}*\n`;
-    msg += `Metode: ${lastTrx.metodeBayar}\n`;
-    if (lastTrx.metodeBayar === 'Tunai') {
-      msg += `Bayar: ${formatRp(lastTrx.uangDiterima)}\n`;
-      msg += `Kembalian: ${formatRp(lastTrx.kembalian)}\n`;
+    msg += `*TOTAL: ${formatRp(trxData.totalPenjualan)}*\n`;
+    msg += `Metode: ${trxData.metodeBayar}\n`;
+    if (trxData.metodeBayar === 'Tunai') {
+      msg += `Bayar: ${formatRp(trxData.uangDiterima)}\n`;
+      msg += `Kembalian: ${formatRp(trxData.kembalian)}\n`;
     }
     msg += `───────────────────\n`;
     msg += `${s.receiptFooter || 'Terima kasih telah berbelanja!'}`;
 
     const encodedMsg = encodeURIComponent(msg);
-    const rawCustWa = lastTrx.noWa || customerWa;
+    const rawCustWa = trxData.noWa || customerWa;
     const custWa = formatWaNumber(rawCustWa);
     const ownerWa = formatWaNumber(s.storePhone) || STORE_OWNER_WA;
 
     if (custWa) {
       // 1. Kirim ke nomor WhatsApp pelanggan
       window.open(`https://wa.me/${custWa}?text=${encodedMsg}`, '_blank');
-      // 2. Kirim juga salinan ke nomor toko (6285117027358)
-      setTimeout(() => {
-        window.open(`https://wa.me/${ownerWa}?text=${encodedMsg}`, '_blank');
-      }, 500);
-      toast(`📲 Struk terkirim ke Pelanggan (${custWa}) & Toko (${ownerWa})`, 'success');
+      // 2. Kirim juga salinan ke nomor toko (jika diaktifkan)
+      if (sendWaToStoreEnabled) {
+        setTimeout(() => {
+          window.open(`https://wa.me/${ownerWa}?text=${encodedMsg}`, '_blank');
+        }, 500);
+        toast(`📲 Struk terkirim ke Pelanggan (${custWa}) & Toko (${ownerWa})`, 'success');
+      } else {
+        toast(`📲 Struk terkirim ke Pelanggan (${custWa})`, 'success');
+      }
     } else {
-      // Hanya kirim ke nomor toko (6285117027358)
-      window.open(`https://wa.me/${ownerWa}?text=${encodedMsg}`, '_blank');
-      toast(`📲 Struk terkirim ke WhatsApp Toko (${ownerWa})`, 'info');
+      // Hanya kirim ke nomor toko (jika diaktifkan)
+      if (sendWaToStoreEnabled) {
+        window.open(`https://wa.me/${ownerWa}?text=${encodedMsg}`, '_blank');
+        toast(`📲 Struk terkirim ke WhatsApp Toko (${ownerWa})`, 'info');
+      } else {
+        toast('✅ Transaksi selesai (struk tidak terkirim ke WhatsApp)', 'success');
+      }
     }
   };
 

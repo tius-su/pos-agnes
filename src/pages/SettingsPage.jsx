@@ -28,6 +28,8 @@ const SettingsPage = () => {
   const [storePhone, setStorePhone]       = useState(appData.settings?.storePhone    || '');
   const [receiptFooter, setReceiptFooter] = useState(appData.settings?.receiptFooter || '');
   const [logoUrl, setLogoUrl]             = useState(appData.settings?.logoUrl       || `${import.meta.env.BASE_URL}melanjaya.jpg`);
+  const [autoSendWa, setAutoSendWa]       = useState(appData.settings?.autoSendWa !== false);
+  const [sendWaToStore, setSendWaToStore] = useState(appData.settings?.sendWaToStore !== false);
   const [syncing, setSyncing]             = useState(false);
   const [debugData, setDebugData]         = useState(null);
   const [debugLoading, setDebugLoading]   = useState(false);
@@ -139,11 +141,13 @@ const SettingsPage = () => {
         storeAddress,
         storePhone,
         receiptFooter,
-        logoUrl
+        logoUrl,
+        autoSendWa,
+        sendWaToStore
       }
     };
     await saveAndSync(newData);
-    toast('✅ Profil toko & logo tersimpan!', 'success');
+    toast('✅ Profil toko, logo & pengaturan WhatsApp tersimpan!', 'success');
   };
 
   // ── Unduh backup JSON ──────────────────────────────────────────────────────
@@ -303,6 +307,45 @@ const SettingsPage = () => {
               <label className="form-label">Pesan Footer Struk</label>
               <input type="text" className="form-input" value={receiptFooter} onChange={e => setReceiptFooter(e.target.value)} id="store-footer" />
             </div>
+            
+            {/* WhatsApp Auto-Send Settings */}
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+              <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)' }}>
+                <i className="fa-brands fa-whatsapp" style={{ color: 'var(--brand)', marginRight: 6 }} />
+                Pengaturan WhatsApp Otomatis
+              </h4>
+              
+              <div className="form-group">
+                <label className="form-label">
+                  <input 
+                    type="checkbox" 
+                    checked={autoSendWa}
+                    onChange={e => setAutoSendWa(e.target.checked)}
+                    style={{ marginRight: 8 }}
+                  />
+                  Kirim struk otomatis ke WhatsApp setelah pembayaran
+                </label>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Jika diaktifkan, struk akan otomatis terkirim ke WhatsApp toko (dan pelanggan jika no WA diisi)
+                </div>
+              </div>
+              
+              <div className="form-group">
+                <label className="form-label">
+                  <input 
+                    type="checkbox" 
+                    checked={sendWaToStore}
+                    onChange={e => setSendWaToStore(e.target.checked)}
+                    style={{ marginRight: 8 }}
+                  />
+                  Selalu kirim salinan struk ke WhatsApp Toko
+                </label>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Jika diaktifkan, salinan struk selalu dikirim ke no WhatsApp toko meskipun pelanggan tidak punya no WA
+                </div>
+              </div>
+            </div>
+            
             <button className="btn btn-purple" onClick={saveStore} id="btn-save-store">
               <i className="fa-solid fa-floppy-disk" /> Simpan &amp; Sync
             </button>
