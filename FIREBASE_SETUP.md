@@ -5,7 +5,7 @@
 ### 1. Firebase Project Setup
 
 1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Create a new project named `agnes-pos` (or use existing)
+2. Create a new project named `melan-jaya-pos` (or use existing `agnes-pos`)
 3. Enable **Authentication** and **Firestore Database**
 
 ### 2. Authentication Setup
@@ -78,15 +78,18 @@ Create `.env.local` file in your project root:
 ```env
 # Firebase Configuration
 VITE_FIREBASE_API_KEY=YOUR_API_KEY
-VITE_FIREBASE_AUTH_DOMAIN=agnes-pos.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=agnes-pos
-VITE_FIREBASE_STORAGE_BUCKET=agnes-pos.firebasestorage.app
+VITE_FIREBASE_AUTH_DOMAIN=melan-jaya-pos.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=melan-jaya-pos
+VITE_FIREBASE_STORAGE_BUCKET=melan-jaya-pos.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=YOUR_SENDER_ID
 VITE_FIREBASE_APP_ID=YOUR_APP_ID
 
 # App Configuration
 VITE_APP_NAME=Melan Jaya POS
 VITE_APP_VERSION=2.1.0
+
+# Note: Current project is still using `agnes-pos` for backward compatibility
+# Update these values if you create a new Firebase project
 ```
 
 ### 6. Deploy Rules

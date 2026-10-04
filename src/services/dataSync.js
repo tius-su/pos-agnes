@@ -186,8 +186,8 @@ export const loadLocalData = () => {
   try {
     const raw = localStorage.getItem(LOCAL_CACHE_KEY)
              || localStorage.getItem('melan_jaya_pos_cache')
-             || localStorage.getItem('agnes_pos_cache')
-             || localStorage.getItem('agnes_pos_data');
+             || localStorage.getItem('melan_jaya_cache')
+             || localStorage.getItem('melan_jaya_data');
     if (raw) {
       const parsed = JSON.parse(raw);
       return normalizeAppData(parsed);
