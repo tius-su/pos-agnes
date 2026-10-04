@@ -712,7 +712,7 @@ const KasirPage = () => {
             <div className="modal-body" id="print-area">
               <div className="receipt-paper">
                 <img
-                  src={appData.settings.logoUrl || '/melanjaya.jpg'}
+                  src={appData.settings.logoUrl || `${import.meta.env.BASE_URL}melanjaya.jpg`}
                   alt="Logo Toko"
                   onError={(e) => { e.target.style.display = 'none'; }}
                   style={{

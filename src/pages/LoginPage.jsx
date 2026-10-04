@@ -30,7 +30,7 @@ const LoginPage = () => {
       <div className="login-card">
         <div className="login-logo" style={{ textAlign: 'center' }}>
           <img
-            src="/melanjaya.jpg"
+            src={`${import.meta.env.BASE_URL}melanjaya.jpg`}
             alt="Melan Jaya POS Logo"
             onError={(e) => { e.target.style.display = 'none'; if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex'; }}
             style={{

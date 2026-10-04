@@ -52,7 +52,7 @@ export const INITIAL_DATA = {
     storeName:     'Melan Jaya',
     storeAddress:  'Pasar Baru Cikarang, Blok C',
     storePhone:    '0851-1702-1168',
-    logoUrl:       '/melanjaya.jpg',
+    logoUrl:       `${import.meta.env.BASE_URL}melanjaya.jpg`,
     monthlyTarget: 50000000,
     receiptFooter: 'Terima Kasih Telah Berbelanja di Melan Jaya! Barang yang sudah dibeli tidak dapat ditukar.'
   }
