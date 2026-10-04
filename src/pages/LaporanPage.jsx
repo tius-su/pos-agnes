@@ -594,6 +594,8 @@ const LaporanPage = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
       {/* ── LAPORAN PENGELUARAN OPERASIONAL ── */}
       <div className="card mt-16 mb-16">
         <div className="card-header" style={{ flexWrap: 'wrap', gap: 10 }}>
