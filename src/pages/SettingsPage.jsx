@@ -89,18 +89,28 @@ const SettingsPage = () => {
       return;
     }
     
+    if (!user) {
+      toast('⚠️ Anda harus login terlebih dahulu untuk menyimpan data ke Firebase.', 'error');
+      return;
+    }
+    
     if (!isOwnerAuthorized) {
       toast(`⚠️ Akun ${currentUserEmail || 'saat ini'} tidak memiliki izin TULIS di Firebase. Pastikan login dengan email Owner: ${ALLOWED_OWNER_EMAILS.join(', ')}`, 'error');
       return;
     }
     
     setSyncing(true);
-    const { success, error } = await pushToFirebaseCloud(appData);
+    const { success, error, code } = await pushToFirebaseCloud(appData);
     setSyncing(false);
-    if (success) toast('✅ Data berhasil disinkron ke Firebase Cloud!', 'success');
-    else {
-      if (error && error.toLowerCase().includes('permission')) {
+    if (success) {
+      toast('✅ Data berhasil disinkron ke Firebase Cloud!', 'success');
+    } else {
+      if (code && code.includes('permission-denied')) {
         toast(`⚠️ Akun ${currentUserEmail || 'saat ini'} tidak memiliki izin TULIS di Firebase. Pastikan login dengan email Owner.`, 'error');
+      } else if (code && code.includes('unauthenticated')) {
+        toast('⚠️ Anda harus login terlebih dahulu untuk menyimpan data ke Firebase.', 'error');
+      } else if (error && error.toLowerCase().includes('coop')) {
+        toast('⚠️ COOP policy memblokir Firebase. Pastikan meta tag COOP sudah terpasang di index.html.', 'error');
       } else {
         toast(`❌ Firebase error: ${error}`, 'error');
       }

@@ -281,6 +281,36 @@ export const subscribeToFirebaseCloud = (onData, onError) => {
           return () => {
             publicUnsub();
           };
+        } else if (err.code && err.code.includes('unauthenticated')) {
+          console.info('[Firebase] User not authenticated, using local cache...');
+          // Jika user tidak authenticated, pakai local cache
+          try {
+            const localData = loadLocalData();
+            if (localData) {
+              onData(localData);
+            } else {
+              onData(null);
+            }
+          } catch (localErr) {
+            console.warn('[Firebase] Local cache also failed:', localErr.message);
+            onData(null);
+          }
+          return () => {};
+        } else if (err.message && (err.message.includes('COOP') || err.message.includes('Cross-Origin-Opener-Policy'))) {
+          console.warn('[Firebase] COOP policy blocking Firebase. Using local cache...');
+          // COOP policy memblokir Firebase, pakai local cache
+          try {
+            const localData = loadLocalData();
+            if (localData) {
+              onData(localData);
+            } else {
+              onData(null);
+            }
+          } catch (localErr) {
+            console.warn('[Firebase] Local cache failed:', localErr.message);
+            onData(null);
+          }
+          return () => {};
         }
         
         if (onError) onError(err);
@@ -342,7 +372,8 @@ export const pushToFirebaseCloud = async (data) => {
   if (!db) {
     return {
       success: false,
-      error: 'Firebase belum dikonfigurasi. Isi variabel VITE_FIREBASE_* di .env.local.'
+      error: 'Firebase belum dikonfigurasi. Isi variabel VITE_FIREBASE_* di .env.local.',
+      code: 'auth/configuration-not-found'
     };
   }
 
@@ -357,18 +388,23 @@ export const pushToFirebaseCloud = async (data) => {
     
     // Handle specific Firebase errors
     let errorMessage = e.message || 'Gagal menyimpan ke Firebase';
+    let errorCode = e.code || 'unknown';
     
-    if (e.code && e.code.includes('permission-denied')) {
-      errorMessage = 'Permission denied: Akun tidak memiliki izin untuk menulis ke Firebase';
-    } else if (e.code && e.code.includes('unauthenticated')) {
-      errorMessage = 'Anda harus login terlebih dahulu untuk menyimpan data ke Firebase';
-    } else if (e.code && e.code.includes('not-found')) {
+    if (errorCode.includes('permission-denied')) {
+      errorMessage = 'Permission denied: Akun tidak memiliki izin untuk menulis ke Firebase. Pastikan login dengan email owner.';
+    } else if (errorCode.includes('unauthenticated')) {
+      errorMessage = 'Anda harus login terlebih dahulu untuk menyimpan data ke Firebase.';
+    } else if (errorCode.includes('not-found')) {
       errorMessage = 'Dokumen Firebase tidak ditemukan. Pastikan path dokumen benar.';
-    } else if (e.code && e.code.includes('invalid-argument')) {
+    } else if (errorCode.includes('invalid-argument')) {
       errorMessage = 'Data yang dikirim tidak valid. Periksa struktur data.';
+    } else if (errorCode.includes('network-error') || errorMessage.includes('network')) {
+      errorMessage = 'Tidak ada koneksi internet. Periksa koneksi Anda.';
+    } else if (errorMessage.includes('COOP') || errorMessage.includes('Cross-Origin-Opener-Policy')) {
+      errorMessage = 'COOP policy error. Pastikan meta tag COOP sudah terpasang di index.html.';
     }
     
-    return { success: false, error: errorMessage, code: e.code };
+    return { success: false, error: errorMessage, code: errorCode };
   }
 };
 

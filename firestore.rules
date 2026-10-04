@@ -1,86 +1,66 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Main POS data document
+    
+    // Helper function untuk memeriksa apakah user adalah owner
+    function isOwner() {
+      return request.auth != null && 
+        (request.auth.token.email in [
+          'owner.tiuss75@gmail.com', 
+          'tiuss75@gmail.com',
+          'owner2.tiuss168@gmail.com',
+          'owner1.melawatisubrata@gmail.com'
+        ]);
+    }
+    
+    // Main POS data document - public read, owner write
     match /pos_data/store_data {
-      // Semua orang BISA BACA (untuk E-Katalog publik)
-      allow read: if true;
-      // Hanya email terdaftar yang bisa TULIS
-      allow write: if request.auth != null && 
-        (request.auth.token.email in [
-          'owner.tiuss75@gmail.com', 
-          'tiuss75@gmail.com',
-          'owner2.tiuss168@gmail.com',
-          'owner1.melawatisubrata@gmail.com'
-        ]);
+      allow read: if true;  // Public read for E-Katalog
+      allow write: if isOwner();  // Only owners can write
     }
     
-    // Allow read for all collections under pos_data for public catalog
+    // All documents under pos_data - public read, owner write
     match /pos_data/{document=**} {
-      allow read: if true;
-      allow write: if request.auth != null && 
-        (request.auth.token.email in [
-          'owner.tiuss75@gmail.com', 
-          'tiuss75@gmail.com',
-          'owner2.tiuss168@gmail.com',
-          'owner1.melawatisubrata@gmail.com'
-        ]);
+      allow read: if true;  // Public read for E-Katalog
+      allow write: if isOwner();  // Only owners can write
     }
     
-    // Legacy collections fallback (jika data tersimpan di collection lain)
+    // Legacy collections fallback - public read, owner write
     match /stok/{document=**} {
       allow read: if true;
-      allow write: if request.auth != null && 
-        (request.auth.token.email in [
-          'owner.tiuss75@gmail.com', 
-          'tiuss75@gmail.com',
-          'owner2.tiuss168@gmail.com',
-          'owner1.melawatisubrata@gmail.com'
-        ]);
+      allow write: if isOwner();
     }
     
     match /products/{document=**} {
       allow read: if true;
-      allow write: if request.auth != null && 
-        (request.auth.token.email in [
-          'owner.tiuss75@gmail.com', 
-          'tiuss75@gmail.com',
-          'owner2.tiuss168@gmail.com',
-          'owner1.melawatisubrata@gmail.com'
-        ]);
+      allow write: if isOwner();
     }
     
     match /items/{document=**} {
       allow read: if true;
-      allow write: if request.auth != null && 
-        (request.auth.token.email in [
-          'owner.tiuss75@gmail.com', 
-          'tiuss75@gmail.com',
-          'owner2.tiuss168@gmail.com',
-          'owner1.melawatisubrata@gmail.com'
-        ]);
+      allow write: if isOwner();
     }
     
     match /barang/{document=**} {
       allow read: if true;
-      allow write: if request.auth != null && 
-        (request.auth.token.email in [
-          'owner.tiuss75@gmail.com', 
-          'tiuss75@gmail.com',
-          'owner2.tiuss168@gmail.com',
-          'owner1.melawatisubrata@gmail.com'
-        ]);
+      allow write: if isOwner();
     }
     
     match /inventory/{document=**} {
       allow read: if true;
-      allow write: if request.auth != null && 
-        (request.auth.token.email in [
-          'owner.tiuss75@gmail.com', 
-          'tiuss75@gmail.com',
-          'owner2.tiuss168@gmail.com',
-          'owner1.melawatisubrata@gmail.com'
-        ]);
+      allow write: if isOwner();
+    }
+    
+    // Allow any authenticated user to read their own data
+    // This is for future expansion where users might have personal data
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

@@ -22,6 +22,16 @@ export const AuthProvider = ({ children }) => {
       return undefined;
     }
 
+    // Check COOP policy support
+    if (typeof window !== 'undefined') {
+      const coepMeta = document.querySelector('meta[http-equiv="Cross-Origin-Opener-Policy"]');
+      const coopMeta = document.querySelector('meta[http-equiv="Cross-Origin-Embedder-Policy"]');
+      
+      if (!coepMeta || !coopMeta) {
+        console.warn('[AuthContext] COOP/COEP meta tags not found. Firebase auth may have issues.');
+      }
+    }
+
     // 1. Tangkap hasil redirect login Google (jika user baru kembali dari redirect)
     getRedirectResult(auth)
       .then((result) => {
