@@ -254,6 +254,69 @@ const LaporanPage = () => {
     window.open(url, '_blank');
   };
 
+  // Save Sales Report to PDF
+  const saveSalesToPDF = () => {
+    const s = appData.settings || {};
+    
+    // Create header
+    const headerHtml = `
+      <div style="text-align:center;margin-bottom:20px;">
+        <h2 style="color:#4c1d95;margin:0;font-size:18px;">${s.storeName?.toUpperCase() || 'MELAN JAYA POS'}</h2>
+        <p style="color:#666;margin:5px 0 0 0;font-size:12px;">${s.storeAddress || ''}</p>
+        <p style="color:#666;margin:0;font-size:12px;">${s.storePhone || ''}</p>
+        <hr style="border:1px solid #ddd;margin:15px 0;"/>
+        <h3 style="color:#059669;margin:0;font-size:14px;">LAPORAN RIWAYAT PENJUALAN</h3>
+        <p style="color:#666;margin:5px 0 15px 0;font-size:11px;">Periode: ${start || 'Semua'} s/d ${end || 'Semua'}</p>
+      </div>
+    `;
+
+    // Create summary table
+    const summaryHtml = `
+      <table style="width:100%;margin-bottom:15px;">
+        <tr>
+          <td style="padding:6px 10px;font-weight:700;">Total Omset:</td>
+          <td style="padding:6px 10px;text-align:right;color:#059669;font-weight:800;">${formatRp(totalOmset)}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 10px;font-weight:700;">Total Modal:</td>
+          <td style="padding:6px 10px;text-align:right;color:#d97706;font-weight:800;">${formatRp(totalModal)}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 10px;font-weight:700;">Laba Bersih:</td>
+          <td style="padding:6px 10px;text-align:right;color:#7c3aed;font-weight:800;">${formatRp(totalLaba)} (${marginPct}%)</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 10px;font-weight:700;">Jumlah Transaksi:</td>
+          <td style="padding:6px 10px;text-align:right;font-weight:800;">${filteredSales.length} transaksi</td>
+        </tr>
+      </table>
+    `;
+
+    // Create transactions table
+    let tableHtml = '<table style="width:100%;border-collapse:collapse;margin-top:10px;"><thead><tr style="border-bottom:2px solid #333;"><th style="text-align:left;padding:6px;">Kode TRX</th><th style="text-align:left;padding:6px;">Tanggal</th><th style="text-align:left;padding:6px;">Pelanggan</th><th style="text-align:right;padding:6px;">Omset</th><th style="text-align:right;padding:6px;">Laba</th></tr></thead><tbody>';
+    
+    filteredSales.forEach(t => {
+      tableHtml += `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px;">${t.kodeTrx}</td><td style="padding:6px;">${t.tanggal} ${t.waktu || ''}</td><td style="padding:6px;">${t.pelanggan || 'Umum'}</td><td style="text-align:right;padding:6px;">${formatRp(t.totalPenjualan)}</td><td style="text-align:right;padding:6px;color:#059669;">${formatRp(t.laba)}</td></tr>`;
+    });
+    
+    tableHtml += '</tbody></table>';
+
+    const fullHtml = `<html><head><meta charset="UTF-8"><title>Laporan Penjualan - ${s.storeName || 'Melan Jaya'}</title></head><body>${headerHtml}${summaryHtml}${tableHtml}</body></html>`;
+    
+    // Create PDF using browser print
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(fullHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    
+    // Wait for content to load, then print to PDF
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+    
+    toast('📄 Laporan penjualan disimpan sebagai PDF', 'success');
+  };
+
   const exportCSV = () => {
     let csv = 'Kode TRX,Tanggal,Waktu,Pelanggan,Metode,Omset,Modal,Laba\n';
     filteredSales.forEach(t => {
@@ -404,11 +467,14 @@ const LaporanPage = () => {
 
         {/* Action Buttons */}
         <div className="report-actions">
-          <button className="btn btn-purple btn-sm" onClick={shareReportWA}>
-            <i className="fa-brands fa-whatsapp" /> Share via WhatsApp
+          <button className="btn btn-purple btn-sm" onClick={shareReportWA} title="Bagikan via WhatsApp">
+            <i className="fa-brands fa-whatsapp" /> Share WA
           </button>
-          <button className="btn btn-ghost btn-sm" onClick={exportCSV}>
-            <i className="fa-solid fa-file-csv" style={{ color: 'var(--emerald)' }} /> Export CSV
+          <button className="btn btn-ghost btn-sm" onClick={saveSalesToPDF} title="Simpan sebagai PDF">
+            <i className="fa-solid fa-file-pdf" style={{ color: 'var(--rose)' }} /> PDF
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={exportCSV} title="Export ke CSV">
+            <i className="fa-solid fa-file-csv" style={{ color: 'var(--emerald)' }} /> CSV
           </button>
         </div>
 
