@@ -7,6 +7,7 @@ import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 
 const ALLOWED_OWNER_EMAILS = [
   'owner.tiuss75@gmail.com',
+  'tiuss75@gmail.com',
   'owner2.tiuss168@gmail.com',
   'owner1.melawatisubrata@gmail.com'
 ];
