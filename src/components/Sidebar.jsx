@@ -79,7 +79,7 @@ const Sidebar = ({ activeTab, onTabChange, onClose, isOpen, hutangCount = 0, sto
           />
           <div className="logo-icon logo-mj" style={{ display: 'none' }}>MJ</div>
           <div className="logo-text">
-            <h1>{appData?.settings?.storeName || 'Melan Jaya'}</h1>
+            <h1>{(appData?.settings?.storeName || 'Melan Jaya').replace('Agnes', 'Melan Jaya').replace('Fashion', '')}</h1>
             <p>POS &amp; Management</p>
           </div>
         </div>

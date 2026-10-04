@@ -190,6 +190,14 @@ export const loadLocalData = () => {
              || localStorage.getItem('melan_jaya_data');
     if (raw) {
       const parsed = JSON.parse(raw);
+      // Perbaiki data lama yang mungkin masih menggunakan "Agnes Fashion"
+      if (parsed.settings?.storeName) {
+        parsed.settings.storeName = parsed.settings.storeName
+          .replace('Agnes Fashion', 'Melan Jaya')
+          .replace('Agnes', 'Melan Jaya')
+          .replace('Fashion', '')
+          .trim();
+      }
       return normalizeAppData(parsed);
     }
   } catch (e) {
