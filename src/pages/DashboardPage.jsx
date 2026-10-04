@@ -114,7 +114,7 @@ const DashboardPage = () => {
       {/* ── Greeting ── */}
       <div style={{ marginBottom: 20, padding: '16px 20px', background: 'linear-gradient(135deg, #4c1d95, #7c3aed)', borderRadius: 14, color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800 }}>Selamat datang, {settings.storeName || 'Melan Jaya'}! 👋</div>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>Selamat datang, {(settings.storeName || 'Melan Jaya').replace('Agnes', 'Melan Jaya').replace('Fashion', '')}! 👋</div>
           <div style={{ fontSize: 12, opacity: 0.8, marginTop: 3 }}>
             {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </div>

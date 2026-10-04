@@ -167,6 +167,16 @@ export const normalizeAppData = (data) => {
     rawPending = Object.values(data.pending);
   }
 
+  // Cleanup storeName dari data lama yang mungkin masih menggunakan Agnes
+  const cleanedSettings = data.settings ? {
+    ...data.settings,
+    storeName: (data.settings.storeName || 'Melan Jaya')
+      .replace(/Agnes Fashion/gi, 'Melan Jaya')
+      .replace(/Agnes/gi, 'Melan Jaya')
+      .replace(/Fashion/gi, '')
+      .trim()
+  } : INITIAL_DATA.settings;
+
   return {
     ...data,
     stok: rawStok.map(normalizeItem).filter(Boolean),
@@ -176,7 +186,7 @@ export const normalizeAppData = (data) => {
     pendingTransactions: rawPending,
     settings: {
       ...INITIAL_DATA.settings,
-      ...(data.settings || {})
+      ...cleanedSettings
     }
   };
 };
@@ -193,9 +203,17 @@ export const loadLocalData = () => {
       // Perbaiki data lama yang mungkin masih menggunakan "Agnes Fashion"
       if (parsed.settings?.storeName) {
         parsed.settings.storeName = parsed.settings.storeName
-          .replace('Agnes Fashion', 'Melan Jaya')
-          .replace('Agnes', 'Melan Jaya')
-          .replace('Fashion', '')
+          .replace(/Agnes Fashion/gi, 'Melan Jaya')
+          .replace(/Agnes/gi, 'Melan Jaya')
+          .replace(/Fashion/gi, '')
+          .trim();
+      }
+      // Perbaiki juga di appName jika ada
+      if (parsed.appName) {
+        parsed.appName = parsed.appName
+          .replace(/Agnes Fashion/gi, 'Melan Jaya POS')
+          .replace(/Agnes/gi, 'Melan Jaya')
+          .replace(/Fashion/gi, '')
           .trim();
       }
       return normalizeAppData(parsed);
