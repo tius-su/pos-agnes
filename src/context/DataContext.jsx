@@ -179,19 +179,77 @@ export const DataProvider = ({ children, isPublic = false }) => {
       setLastSync(new Date());
       toast('✅ Tersimpan & tersinkron ke Firebase Cloud!', 'success');
     } else {
-      setSyncStatus('ok');
+      setSyncStatus('error');
       if (fbRes.error && fbRes.error.toLowerCase().includes('permission')) {
-        toast('💾 Tersimpan di perangkat (Login akun untuk sinkron Cloud)', 'info');
+        toast('💾 Tersimpan di perangkat (Login akun owner untuk sinkron Cloud)', 'warning');
+      } else if (fbRes.error && fbRes.error.toLowerCase().includes('unauthenticated')) {
+        toast('💾 Tersimpan lokal (Login untuk sinkron ke Firebase)', 'warning');
       } else {
-        toast('💾 Tersimpan lokal (offline mode)', 'info');
+        toast(`💾 Tersimpan lokal (offline mode): ${fbRes.error || 'Tidak ada koneksi'}`, 'warning');
       }
     }
 
     return saved;
   }, [toast]);
 
+  // Force sync ke Firebase (untuk memaksa sinkronisasi data yang belum terkirim)
+  const forceSyncToFirebase = useCallback(async () => {
+    if (!auth.currentUser) {
+      toast('⚠️ Harus login terlebih dahulu untuk sinkron ke Firebase', 'error');
+      return { success: false, error: 'Unauthenticated' };
+    }
+
+    setSyncStatus('syncing');
+    toast('🔄 Memaksa sinkronisasi ke Firebase...', 'info');
+
+    try {
+      const fbRes = await pushToFirebaseCloud(appData);
+      if (fbRes.success) {
+        setSyncStatus('ok');
+        setLastSync(new Date());
+        toast('✅ Data berhasil tersinkron ke Firebase Cloud!', 'success');
+      } else {
+        setSyncStatus('error');
+        toast(`❌ Gagal sinkron: ${fbRes.error || 'Error tidak diketahui'}`, 'error');
+      }
+      return fbRes;
+    } catch (e) {
+      setSyncStatus('error');
+      toast(`❌ Error: ${e.message || 'Tidak dapat terhubung ke Firebase'}`, 'error');
+      return { success: false, error: e.message };
+    }
+  }, [appData, toast, auth.currentUser]);
+
+  // Cek status koneksi Firebase
+  const checkFirebaseConnection = useCallback(async () => {
+    if (!auth.currentUser) {
+      return { connected: false, message: 'Tidak login' };
+    }
+
+    try {
+      const fbRes = await pushToFirebaseCloud(appData);
+      if (fbRes.success) {
+        return { connected: true, message: 'Terkoneksi ke Firebase' };
+      } else {
+        return { connected: false, message: fbRes.error || 'Error koneksi' };
+      }
+    } catch (e) {
+      return { connected: false, message: e.message || 'Tidak dapat terhubung' };
+    }
+  }, [appData, auth.currentUser]);
+
   return (
-    <DataContext.Provider value={{ appData, syncStatus, lastSync, updateData, saveAndSync, toast, toasts }}>
+    <DataContext.Provider value={{ 
+      appData, 
+      syncStatus, 
+      lastSync, 
+      updateData, 
+      saveAndSync, 
+      forceSyncToFirebase,
+      checkFirebaseConnection,
+      toast, 
+      toasts 
+    }}>
       {children}
       {/* Toast Render */}
       {toasts.length > 0 && (

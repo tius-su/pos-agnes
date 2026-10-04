@@ -40,13 +40,19 @@ const MENU_GROUPS = [
 ];
 
 const Sidebar = ({ activeTab, onTabChange, onClose, isOpen, hutangCount = 0, stokKritis = 0 }) => {
-  const { appData, syncStatus, lastSync } = useData();
+  const { appData, syncStatus, lastSync, forceSyncToFirebase } = useData();
   const { user } = useAuth();
   const logoSrc = appData?.settings?.logoUrl || `${import.meta.env.BASE_URL}melanjaya.jpg`;
 
   const handleLogout = async () => {
     if (confirm('Keluar dari Melan Jaya POS?')) {
       await logoutUser();
+    }
+  };
+
+  const handleForceSync = async () => {
+    if (confirm('Paksa sinkronisasi semua data ke Firebase?')) {
+      await forceSyncToFirebase();
     }
   };
 
@@ -149,6 +155,18 @@ const Sidebar = ({ activeTab, onTabChange, onClose, isOpen, hutangCount = 0, sto
           </div>
           <i className="fa-solid fa-cloud" style={{ fontSize: 11, color: 'var(--text-muted)' }} />
         </div>
+
+        {syncStatus === 'error' && (
+          <button 
+            className="btn btn-rose btn-sm" 
+            style={{ marginTop: 8, width: '100%' }}
+            onClick={handleForceSync}
+            title="Paksa sinkronisasi data ke Firebase"
+          >
+            <i className="fa-solid fa-cloud-arrow-up" style={{ marginRight: 6 }} />
+            Sync ke Firebase
+          </button>
+        )}
 
         <button className="btn-logout" style={{ marginTop: 8 }} onClick={handleLogout}>
           <i className="fa-solid fa-arrow-right-from-bracket" />

@@ -5,7 +5,7 @@ import { getTodayIso, normalizeDateStr } from '../services/dataSync';
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 
 const DashboardPage = () => {
-  const { appData, saveAndSync, toast } = useData();
+  const { appData, saveAndSync, toast, syncStatus, lastSync, forceSyncToFirebase } = useData();
   const today = getTodayIso();
   const [targetInput, setTargetInput] = useState('');
   const [editingTarget, setEditingTarget] = useState(false);
@@ -110,6 +110,36 @@ const DashboardPage = () => {
 
   return (
     <div className="tab-page active fade-up">
+
+      {/* ── Sync Status Alert ── */}
+      {syncStatus === 'error' && (
+        <div style={{ 
+          marginBottom: 16, 
+          padding: '12px 16px', 
+          background: 'var(--rose-dim)', 
+          border: '1px solid var(--rose)', 
+          borderRadius: 10, 
+          color: 'var(--rose)', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          fontSize: 13
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <i className="fa-solid fa-triangle-exclamation" />
+            <span>Data belum tersinkron ke Firebase. </span>
+            {lastSync && <span>Terakhir sync: {lastSync.toLocaleTimeString('id-ID')}</span>}
+          </div>
+          <button 
+            className="btn btn-rose btn-sm" 
+            onClick={forceSyncToFirebase}
+            style={{ padding: '6px 12px', fontSize: 12 }}
+          >
+            <i className="fa-solid fa-cloud-arrow-up" style={{ marginRight: 4 }} />
+            Sync Sekarang
+          </button>
+        </div>
+      )}
 
       {/* ── Greeting ── */}
       <div style={{ marginBottom: 20, padding: '16px 20px', background: 'linear-gradient(135deg, #4c1d95, #7c3aed)', borderRadius: 14, color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
