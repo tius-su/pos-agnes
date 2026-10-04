@@ -174,6 +174,81 @@ const PengeluaranPage = () => {
     printReportHTML('LAPORAN PENGELUARAN OPERASIONAL', `Periode: ${start || 'Semua'} s/d ${end || 'Semua'}`, tableHtml);
   };
 
+  // Save to PDF function
+  const saveToPDF = () => {
+    const s = appData.settings || {};
+    let tableHtml = '<table style="width:100%;border-collapse:collapse;margin-top:10px;"><thead><tr style="border-bottom:2px solid #333;"><th style="text-align:left;padding:6px;">Tanggal</th><th style="text-align:left;padding:6px;">Kategori</th><th style="text-align:right;padding:6px;">Nominal</th><th style="text-align:left;padding:6px;">Keterangan</th><th style="text-align:left;padding:6px;">Metode</th></tr></thead><tbody>';
+    
+    filteredExpenses.forEach(e => {
+      tableHtml += `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px;">${e.tanggal}</td><td style="padding:6px;">${e.kategori}</td><td style="text-align:right;padding:6px;">${formatRp(e.nominal)}</td><td style="padding:6px;">${e.keterangan || '-'}</td><td style="padding:6px;">${e.pembayaran}</td></tr>`;
+    });
+    
+    tableHtml += `<tr style="font-weight:bold;background:#f3f4f6;"><td colSpan="2" style="text-align:right;padding:8px;font-size:14px;">TOTAL PENGELUARAN:</td><td style="text-align:right;padding:8px;font-size:14px;color:#e11d48;">${formatRp(totalPengeluaran)}</td><td colSpan="2"></td></tr></tbody></table>`;
+
+    // Header info
+    const headerHtml = `
+      <div style="text-align:center;margin-bottom:20px;">
+        <h2 style="color:#4c1d95;margin:0;font-size:18px;">${s.storeName?.toUpperCase() || 'MELAN JAYA POS'}</h2>
+        <p style="color:#666;margin:5px 0 0 0;font-size:12px;">${s.storeAddress || ''}</p>
+        <p style="color:#666;margin:0;font-size:12px;">${s.storePhone || ''}</p>
+        <hr style="border:1px solid #ddd;margin:15px 0;"/>
+        <h3 style="color:#e11d48;margin:0;font-size:14px;">LAPORAN PENGELUARAN OPERASIONAL</h3>
+        <p style="color:#666;margin:5px 0 15px 0;font-size:11px;">Periode: ${start || 'Semua'} s/d ${end || 'Semua'}</p>
+      </div>
+    `;
+
+    const fullHtml = `<html><head><meta charset="UTF-8"><title>Laporan Pengeluaran - ${s.storeName || 'Melan Jaya'}</title></head><body>${headerHtml}${tableHtml}</body></html>`;
+    
+    // Create PDF using browser print
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(fullHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    
+    // Wait for content to load, then print to PDF
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+    
+    toast('📄 Laporan disimpan sebagai PDF', 'success');
+  };
+
+  // Share via WhatsApp function
+  const shareWhatsApp = () => {
+    const s = appData.settings || {};
+    const storeName = s.storeName?.toUpperCase() || 'MELAN JAYA';
+    
+    let msg = `*LAPORAN PENGELUARAN OPERASIONAL ${storeName}*\n`;
+    if (s.storeAddress) msg += `${s.storeAddress}\n`;
+    if (s.storePhone) msg += `Telp: ${s.storePhone}\n`;
+    msg += `─────────────────────────────\n`;
+    msg += `Periode: ${start || 'Semua'} s/d ${end || 'Semua'}\n`;
+    msg += `─────────────────────────────\n\n`;
+
+    if (filteredExpenses.length === 0) {
+      msg += `*Tidak ada data pengeluaran untuk periode ini*\n`;
+    } else {
+      filteredExpenses.forEach(e => {
+        msg += `${e.tanggal} | ${e.kategori}\n`;
+        msg += `  Nominal: ${formatRp(e.nominal)}\n`;
+        if (e.keterangan) msg += `  Keterangan: ${e.keterangan}\n`;
+        msg += `  Metode: ${e.pembayaran}\n\n`;
+      });
+      
+      msg += `─────────────────────────────\n`;
+      msg += `*TOTAL PENGELUARAN: ${formatRp(totalPengeluaran)}*\n`;
+      msg += `─────────────────────────────\n`;
+    }
+
+    msg += `\n${s.receiptFooter || 'Terima kasih!'}`;
+
+    const encodedMsg = encodeURIComponent(msg);
+    const ownerWa = '6285117027358'; // Default owner WA
+    
+    window.open(`https://wa.me/${ownerWa}?text=${encodedMsg}`, '_blank');
+    toast('📲 Laporan dikirim ke WhatsApp', 'success');
+  };
+
   const PRESET_BTNS = [['today', 'Hari Ini'], ['yesterday', 'Kemarin'], ['week', '7 Hari'], ['month', 'Bulan Ini'], ['all', 'Semua'], ['custom', 'Custom']];
 
   return (
@@ -224,6 +299,12 @@ const PengeluaranPage = () => {
             </button>
             <button className="btn btn-ghost btn-sm" onClick={printPDF}>
               <i className="fa-solid fa-print" style={{ color: 'var(--brand)' }} /> Print
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={saveToPDF} title="Simpan sebagai PDF">
+              <i className="fa-solid fa-file-pdf" style={{ color: 'var(--rose)' }} /> PDF
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={shareWhatsApp} title="Bagikan via WhatsApp">
+              <i className="fa-brands fa-whatsapp" style={{ color: '#25D366' }} /> Share WA
             </button>
             <button 
               className="btn btn-purple btn-sm" 
