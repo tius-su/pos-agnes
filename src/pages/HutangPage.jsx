@@ -205,9 +205,9 @@ const HutangPage = () => {
 
     let msg = `Halo *${h.pelanggan || h.nama || h.supplier}*,\n`;
     if (isPiutang) {
-      msg += `Kami menginformasikan rincian *Piutang / Tagihan* di *${s.storeName || 'AGNES FASHION'}*:\n\n`;
+      msg += `Kami menginformasikan rincian *Piutang / Tagihan* di *${s.storeName || 'MELAN JAYA'}*:\n\n`;
     } else {
-      msg += `Berikut rincian *Hutang Toko* ke Supplier di *${s.storeName || 'AGNES FASHION'}*:\n\n`;
+      msg += `Berikut rincian *Hutang Toko* ke Supplier di *${s.storeName || 'MELAN JAYA'}*:\n\n`;
     }
     msg += `📌 Keterangan: ${h.keterangan || '-'}\n`;
     msg += `💰 Jumlah Awal: ${formatRp(h.jumlahAwal)}\n`;
@@ -230,7 +230,7 @@ const HutangPage = () => {
   // Kirim Rangkuman Laporan Hutang & Piutang ke WA Toko (6285117027358)
   const sendReportToStoreWA = () => {
     const s = appData.settings || {};
-    let msg = `*LAPORAN HUTANG & PIUTANG — ${s.storeName?.toUpperCase() || 'AGNES FASHION'}*\n`;
+    let msg = `*LAPORAN HUTANG & PIUTANG — ${s.storeName?.toUpperCase() || 'MELAN JAYA'}*\n`;
     msg += `Tanggal: ${new Date().toLocaleDateString('id-ID')}\n`;
     msg += `─────────────────────────\n`;
     msg += `💰 *Total Piutang Pelanggan* : ${formatRp(totalPiutang)}\n`;
@@ -240,7 +240,7 @@ const HutangPage = () => {
     msg += `⏳ Belum Lunas   : ${countBelumLunas} data\n`;
     msg += `✅ Lunas         : ${countLunas} data\n`;
     msg += `─────────────────────────\n`;
-    msg += `Dikirim dari Agnes Fashion POS`;
+    msg += `Dikirim dari Melan Jaya POS`;
 
     window.open(`https://wa.me/${STORE_OWNER_WA}?text=${encodeURIComponent(msg)}`, '_blank');
     toast(`📲 Rangkuman laporan dikirim ke WA Toko (${STORE_OWNER_WA})`, 'success');
@@ -326,7 +326,7 @@ const HutangPage = () => {
                   html += `<tr><td>${(h.type || 'piutang') === 'piutang' ? 'Piutang Pelanggan' : 'Hutang Supplier'}</td><td>${h.pelanggan || h.nama || h.supplier}</td><td>${h.noWa || '—'}</td><td>${h.keterangan || '—'}</td><td>${h.tanggal}</td><td>${h.tanggalJatuhTempo || '—'}</td><td>${formatRp(h.jumlahAwal)}</td><td>${formatRp(h.sisaHutang)}</td></tr>`;
                 });
                 html += '</tbody></table>';
-                printReportHTML('LAPORAN HUTANG & PIUTANG LENGKAP', 'Rincian Piutang Pelanggan & Hutang Supplier Toko Agnes POS', html);
+                printReportHTML('LAPORAN HUTANG & PIUTANG LENGKAP', 'Rincian Piutang Pelanggan & Hutang Supplier Toko Melan Jaya POS', html);
               }}
               title="Cetak PDF / Print"
             >

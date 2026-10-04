@@ -39,11 +39,12 @@ const MENU_GROUPS = [
 ];
 
 const Sidebar = ({ activeTab, onTabChange, onClose, isOpen, hutangCount = 0, stokKritis = 0 }) => {
-  const { syncStatus, lastSync } = useData();
+  const { appData, syncStatus, lastSync } = useData();
   const { user } = useAuth();
+  const logoSrc = appData?.settings?.logoUrl || '/melanjaya.jpg';
 
   const handleLogout = async () => {
-    if (confirm('Keluar dari Agnes POS?')) {
+    if (confirm('Keluar dari Melan Jaya POS?')) {
       await logoutUser();
     }
   };
@@ -61,9 +62,24 @@ const Sidebar = ({ activeTab, onTabChange, onClose, isOpen, hutangCount = 0, sto
     <aside className={`sidebar${isOpen ? ' open' : ''}`} id="sidebar">
       <div className="sidebar-logo">
         <div className="logo-mark">
-          <div className="logo-icon"><i className="fa-solid fa-shirt" /></div>
+          <img
+            src={logoSrc}
+            alt="Melan Jaya"
+            className="sidebar-logo-img"
+            onError={(e) => { e.target.style.display = 'none'; if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex'; }}
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 8,
+              objectFit: 'cover',
+              border: '1.5px solid rgba(255, 255, 255, 0.3)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              background: '#fff'
+            }}
+          />
+          <div className="logo-icon logo-mj" style={{ display: 'none' }}>MJ</div>
           <div className="logo-text">
-            <h1>Agnes Fashion</h1>
+            <h1>{appData?.settings?.storeName || 'Melan Jaya'}</h1>
             <p>POS &amp; Management</p>
           </div>
         </div>

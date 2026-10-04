@@ -3,7 +3,7 @@ import BarcodeSVG from './BarcodeSVG';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 
-const LabelPrintModal = ({ items = [], storeName = 'Agnes Fashion', onClose }) => {
+const LabelPrintModal = ({ items = [], storeName = 'Melan Jaya', onClose }) => {
   // Config state
   const [paperType, setPaperType] = useState('50x30'); // '50x30' | '40x30' | 'a4'
   const [showStore, setShowStore] = useState(true);

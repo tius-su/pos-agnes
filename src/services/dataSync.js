@@ -1,11 +1,37 @@
 import { db } from '../firebase';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 
-const LOCAL_CACHE_KEY = 'agnes_pos_cache';
-const GH_TOKEN_KEY   = 'agnes_token';
-const GH_REPO_KEY    = 'agnes_repo';
+const LOCAL_CACHE_KEY = 'melan_jaya_pos_cache';
+const GH_TOKEN_KEY   = 'melan_jaya_token';
+const GH_REPO_KEY    = 'melan_jaya_repo';
 const DEFAULT_REPO   = import.meta.env.VITE_GITHUB_REPO  || 'tius-su/pos-agnes';
 const DEFAULT_TOKEN  = import.meta.env.VITE_GITHUB_TOKEN || '';
+
+// ─── DATE HELPERS (ISO YYYY-MM-DD) ─────────────────────────────────────────────
+export const getTodayIso = (dateInput) => {
+  const d = dateInput ? new Date(dateInput) : new Date();
+  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export const normalizeDateStr = (str) => {
+  if (!str) return getTodayIso();
+  const s = String(str).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (s.includes('T')) return s.split('T')[0];
+  const parts = s.split(/[/.-]/);
+  if (parts.length === 3) {
+    if (parts[0].length === 4) {
+      return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    } else if (parts[2].length === 4) {
+      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+  }
+  return s;
+};
 
 export const SAMPLE_STOK = [
   { nama_barang: 'Gamis Silk Premium', kategori: 'Pakaian Wanita', stokTersedia: 12, hargaModal: 120000, hargaJual: 175000, supplierList: ['Grosir Bandung'] },
@@ -15,7 +41,7 @@ export const SAMPLE_STOK = [
 ];
 
 export const INITIAL_DATA = {
-  appName: 'Agnes Fashion POS',
+  appName: 'Melan Jaya POS',
   lastUpdated: new Date().toISOString(),
   stok: SAMPLE_STOK,
   pembelian: [],
@@ -23,11 +49,12 @@ export const INITIAL_DATA = {
   pengeluaran: [],
   pendingTransactions: [],
   settings: {
-    storeName:     'Agnes Fashion',
-    storeAddress:  'Pasar Baru Cikarang Blok C',
+    storeName:     'Melan Jaya',
+    storeAddress:  'Pasar Baru Cikarang, Blok C',
     storePhone:    '0851-1702-1168',
+    logoUrl:       '/melanjaya.jpg',
     monthlyTarget: 50000000,
-    receiptFooter: 'Terima Kasih Telah Berbelanja di Agnes Fashion! Barang yang sudah dibeli tidak dapat ditukar.'
+    receiptFooter: 'Terima Kasih Telah Berbelanja di Melan Jaya! Barang yang sudah dibeli tidak dapat ditukar.'
   }
 };
 
@@ -158,6 +185,7 @@ export const normalizeAppData = (data) => {
 export const loadLocalData = () => {
   try {
     const raw = localStorage.getItem(LOCAL_CACHE_KEY)
+             || localStorage.getItem('agnes_pos_cache')
              || localStorage.getItem('agnes_pos_data');
     if (raw) {
       const parsed = JSON.parse(raw);

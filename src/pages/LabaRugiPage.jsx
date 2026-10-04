@@ -5,6 +5,7 @@ import {
   ResponsiveContainer, Legend, PieChart, Pie, Cell
 } from 'recharts';
 import { printReportHTML } from '../services/exportUtils';
+import { getTodayIso, normalizeDateStr } from '../services/dataSync';
 
 const formatRp  = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 const formatRpS = v => {
@@ -12,7 +13,6 @@ const formatRpS = v => {
   if (v >= 1000)    return `${(v / 1000).toFixed(0)}rb`;
   return String(v);
 };
-const isoDate = d => d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
 const pct = (laba, omset) => omset > 0 ? ((laba / omset) * 100).toFixed(1) : '0.0';
 
 const PIE_COLORS = ['#7c3aed','#0284c7','#059669','#d97706','#e11d48','#8b5cf6','#06b6d4','#84cc16'];
@@ -33,20 +33,27 @@ const LabaRugiPage = () => {
 
   // ── Date range ──────────────────────────────────────────────────────
   const getRange = () => {
-    const today = new Date();
-    if (preset === 'today')     { const d = isoDate(today); return { start: d, end: d }; }
-    if (preset === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); const d = isoDate(y); return { start: d, end: d }; }
-    if (preset === 'week')      { const w = new Date(today); w.setDate(w.getDate() - 6); return { start: isoDate(w), end: isoDate(today) }; }
-    if (preset === 'month')     { const m = new Date(today.getFullYear(), today.getMonth(), 1); return { start: isoDate(m), end: isoDate(today) }; }
-    if (preset === 'year')      { return { start: `${today.getFullYear()}-01-01`, end: isoDate(today) }; }
+    const todayStr = getTodayIso();
+    if (preset === 'today')     { return { start: todayStr, end: todayStr }; }
+    if (preset === 'yesterday') { const y = new Date(); y.setDate(y.getDate() - 1); const d = getTodayIso(y); return { start: d, end: d }; }
+    if (preset === 'week')      { const w = new Date(); w.setDate(w.getDate() - 6); return { start: getTodayIso(w), end: todayStr }; }
+    if (preset === 'month')     {
+      const m = new Date();
+      const mStr = `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}-01`;
+      return { start: mStr, end: todayStr };
+    }
+    if (preset === 'year')      { return { start: `${new Date().getFullYear()}-01-01`, end: todayStr }; }
     if (preset === 'custom')    { return { start: dateStart, end: dateEnd }; }
     return { start: '', end: '' };
   };
   const { start, end } = getRange();
 
   const filteredSales = useMemo(() => penjualan.filter(t => {
+    const tDate = normalizeDateStr(t.tanggal);
     if (!start && !end) return true;
-    return t.tanggal >= start && t.tanggal <= end;
+    if (start && !end) return tDate >= start;
+    if (!start && end) return tDate <= end;
+    return tDate >= start && tDate <= end;
   }), [penjualan, start, end]);
 
   // ── Helper: get supplier for a product ──────────────────────────────
@@ -99,8 +106,11 @@ const LabaRugiPage = () => {
   // Filtered expenses by date range
   const filteredExpenses = useMemo(() => {
     return pengeluaran.filter(e => {
+      const eDate = normalizeDateStr(e.tanggal);
       if (!start && !end) return true;
-      return e.tanggal >= start && e.tanggal <= end;
+      if (start && !end) return eDate >= start;
+      if (!start && end) return eDate <= end;
+      return eDate >= start && eDate <= end;
     });
   }, [pengeluaran, start, end]);
 

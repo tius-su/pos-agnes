@@ -1,40 +1,62 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
+import { getTodayIso, normalizeDateStr } from '../services/dataSync';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
-const isoDate = d => d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
 
 const DashboardPage = () => {
   const { appData, saveAndSync, toast } = useData();
-  const today = isoDate(new Date());
+  const today = getTodayIso();
   const [targetInput, setTargetInput] = useState('');
   const [editingTarget, setEditingTarget] = useState(false);
   const [editingMonthlyTarget, setEditingMonthlyTarget] = useState(false);
   const [monthlyTargetInput, setMonthlyTargetInput] = useState('');
 
   const penjualan = appData.penjualan || [];
+  const pengeluaran = appData.pengeluaran || [];
   const stok = appData.stok || [];
   const settings = appData.settings || {};
   const targets = appData.targets || {};
   const todayTarget = targets[today] || 0;
 
-  // Today's sales
-  const todaySales = penjualan.filter(t => t.tanggal === today);
-  const omsetHariIni = todaySales.reduce((s, t) => s + t.totalPenjualan, 0);
-  const labaHariIni  = todaySales.reduce((s, t) => s + t.laba, 0);
-  const trxHariIni   = todaySales.length;
+  // Today's sales (normalized date comparison)
+  const todaySales = useMemo(() => {
+    return penjualan.filter(t => normalizeDateStr(t.tanggal) === today);
+  }, [penjualan, today]);
 
-  // Monthly sales
+  const omsetHariIni = todaySales.reduce((s, t) => s + (t.totalPenjualan || 0), 0);
+  const labaKotorHariIni = todaySales.reduce((s, t) => s + (t.laba || 0), 0);
+  const trxHariIni = todaySales.length;
+
+  // Today's expenses (normalized date comparison)
+  const todayExpensesList = useMemo(() => {
+    return pengeluaran.filter(e => normalizeDateStr(e.tanggal) === today);
+  }, [pengeluaran, today]);
+
+  const pengeluaranHariIni = todayExpensesList.reduce((s, e) => s + (e.nominal || 0), 0);
+  const labaBersihHariIni = labaKotorHariIni - pengeluaranHariIni;
+
+  // Monthly sales & expenses
   const currentMonthPrefix = today.slice(0, 7);
-  const monthlySales = penjualan.filter(t => t.tanggal && t.tanggal.startsWith(currentMonthPrefix));
-  const omsetBulanIni = monthlySales.reduce((s, t) => s + t.totalPenjualan, 0);
+  const monthlySales = useMemo(() => {
+    return penjualan.filter(t => normalizeDateStr(t.tanggal).startsWith(currentMonthPrefix));
+  }, [penjualan, currentMonthPrefix]);
+
+  const monthlyExpensesList = useMemo(() => {
+    return pengeluaran.filter(e => normalizeDateStr(e.tanggal).startsWith(currentMonthPrefix));
+  }, [pengeluaran, currentMonthPrefix]);
+
+  const omsetBulanIni = monthlySales.reduce((s, t) => s + (t.totalPenjualan || 0), 0);
+  const pengeluaranBulanIni = monthlyExpensesList.reduce((s, e) => s + (e.nominal || 0), 0);
   const monthlyTarget = settings.monthlyTarget || 50000000;
   const monthlyPct = monthlyTarget > 0 ? Math.round((omsetBulanIni / monthlyTarget) * 100) : 0;
   const monthlyProgressColor = monthlyPct >= 100 ? 'linear-gradient(90deg, #10b981, #059669)' : monthlyPct >= 60 ? 'linear-gradient(90deg, #7c3aed, #6366f1)' : 'linear-gradient(90deg, #f59e0b, #ec4899)';
 
-  // Yesterday
-  const yesterday = isoDate(new Date(Date.now() - 86400000));
-  const omsetKemarin = penjualan.filter(t => t.tanggal === yesterday).reduce((s, t) => s + t.totalPenjualan, 0);
+  // Yesterday comparison
+  const yesterdayObj = new Date();
+  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+  const yesterday = getTodayIso(yesterdayObj);
+  const omsetKemarin = penjualan.filter(t => normalizeDateStr(t.tanggal) === yesterday).reduce((s, t) => s + (t.totalPenjualan || 0), 0);
   const growthPct = omsetKemarin > 0 ? (((omsetHariIni - omsetKemarin) / omsetKemarin) * 100).toFixed(0) : null;
 
   // Target progress
@@ -59,7 +81,12 @@ const DashboardPage = () => {
 
   // Recent transactions (last 5)
   const recentTrx = [...penjualan]
-    .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || (b.waktu || '').localeCompare(a.waktu || ''))
+    .sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.waktu || '').localeCompare(a.waktu || ''))
+    .slice(0, 5);
+
+  // Recent expenses (last 5)
+  const recentExpenses = [...pengeluaran]
+    .sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.created_at || '').localeCompare(a.created_at || ''))
     .slice(0, 5);
 
   const saveTarget = async () => {
@@ -87,7 +114,7 @@ const DashboardPage = () => {
       {/* ── Greeting ── */}
       <div style={{ marginBottom: 20, padding: '16px 20px', background: 'linear-gradient(135deg, #4c1d95, #7c3aed)', borderRadius: 14, color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800 }}>Selamat datang, {settings.storeName || 'Agnes Fashion'}! 👋</div>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>Selamat datang, {settings.storeName || 'Melan Jaya'}! 👋</div>
           <div style={{ fontSize: 12, opacity: 0.8, marginTop: 3 }}>
             {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
@@ -113,18 +140,23 @@ const DashboardPage = () => {
               : 'Belum ada data kemarin'}
           </div>
         </div>
+
         <div className="stat-card violet">
           <i className="stat-icon fa-solid fa-chart-line" />
-          <div className="stat-label">Laba Hari Ini</div>
-          <div className="stat-value" style={{ fontSize: 16 }}>{formatRp(labaHariIni)}</div>
-          <div className="stat-meta">{trxHariIni} transaksi selesai</div>
+          <div className="stat-label">Laba Bersih Hari Ini</div>
+          <div className="stat-value" style={{ fontSize: 16, color: labaBersihHariIni >= 0 ? 'var(--emerald)' : 'var(--rose)' }}>
+            {formatRp(labaBersihHariIni)}
+          </div>
+          <div className="stat-meta">Kotor: {formatRp(labaKotorHariIni)}</div>
         </div>
-        <div className="stat-card amber">
-          <i className="stat-icon fa-solid fa-triangle-exclamation" />
-          <div className="stat-label">Stok Menipis</div>
-          <div className="stat-value">{stokMenipis.length + stokHabis.length}</div>
-          <div className="stat-meta">{stokHabis.length} habis · {stokMenipis.length} kritis</div>
+
+        <div className="stat-card rose">
+          <i className="stat-icon fa-solid fa-receipt" />
+          <div className="stat-label">Pengeluaran Hari Ini</div>
+          <div className="stat-value" style={{ fontSize: 16, color: 'var(--rose)' }}>{formatRp(pengeluaranHariIni)}</div>
+          <div className="stat-meta">{todayExpensesList.length} pengeluaran ({formatRp(pengeluaranBulanIni)} /bln)</div>
         </div>
+
         <div className="stat-card sky">
           <i className="stat-icon fa-solid fa-boxes-stacked" />
           <div className="stat-label">Total SKU</div>
@@ -337,26 +369,54 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* ── Recent Transactions ── */}
-      <div className="card">
-        <div className="card-header">
-          <div className="card-title"><i className="fa-solid fa-clock-rotate-left" /> Transaksi Terbaru</div>
-        </div>
-        {recentTrx.length === 0 ? (
-          <div className="empty-state"><i className="fa-solid fa-receipt" /><p>Belum ada transaksi.</p></div>
-        ) : recentTrx.map(t => (
-          <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
-            <div>
-              <div style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: 'var(--brand)' }}>{t.kodeTrx}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.tanggal} · {t.waktu} · {t.pelanggan || 'Umum'}</div>
-              <div style={{ fontSize: 11 }}>{(t.items || []).map(i => `${i.barang}×${i.jumlah}`).join(', ')}</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--emerald)' }}>{formatRp(t.totalPenjualan)}</div>
-              <span className="badge badge-violet" style={{ fontSize: 9 }}>{t.metodeBayar}</span>
+      {/* ── Recent Activity Grid (Transactions & Expenses) ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {/* ── Recent Transactions ── */}
+        <div className="card">
+          <div className="card-header">
+            <div className="card-title" style={{ fontSize: 13 }}>
+              <i className="fa-solid fa-clock-rotate-left" style={{ color: 'var(--brand)' }} /> Transaksi Terbaru
             </div>
           </div>
-        ))}
+          {recentTrx.length === 0 ? (
+            <div className="empty-state" style={{ padding: '24px 16px' }}><i className="fa-solid fa-receipt" /><p>Belum ada transaksi.</p></div>
+          ) : recentTrx.map(t => (
+            <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+              <div>
+                <div style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: 'var(--brand)' }}>{t.kodeTrx}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.tanggal} · {t.waktu} · {t.pelanggan || 'Umum'}</div>
+                <div style={{ fontSize: 11 }}>{(t.items || []).map(i => `${i.barang}×${i.jumlah}`).join(', ')}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--emerald)' }}>{formatRp(t.totalPenjualan)}</div>
+                <span className="badge badge-violet" style={{ fontSize: 9 }}>{t.metodeBayar}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Recent Expenses ── */}
+        <div className="card">
+          <div className="card-header">
+            <div className="card-title" style={{ fontSize: 13 }}>
+              <i className="fa-solid fa-file-invoice-dollar" style={{ color: 'var(--rose)' }} /> Pengeluaran Terbaru
+            </div>
+          </div>
+          {recentExpenses.length === 0 ? (
+            <div className="empty-state" style={{ padding: '24px 16px' }}><i className="fa-solid fa-folder-open" /><p>Belum ada pengeluaran.</p></div>
+          ) : recentExpenses.map(e => (
+            <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{e.kategori}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{e.tanggal} · {e.keterangan || e.pembayaran}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--rose)' }}>-{formatRp(e.nominal)}</div>
+                <span className="badge badge-sky" style={{ fontSize: 9 }}>{e.pembayaran || 'Tunai'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -668,7 +668,7 @@ const StokPage = () => {
       {printModalItems && (
         <LabelPrintModal
           items={printModalItems}
-          storeName={appData.settings?.storeName || 'Agnes Fashion'}
+          storeName={appData.settings?.storeName || 'Melan Jaya'}
           onClose={() => setPrintModalItems(null)}
         />
       )}

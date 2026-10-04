@@ -27,7 +27,7 @@ const EKatalogPage = ({ isStandalone = false }) => {
 
   const stok = appData.stok || [];
   const settings = appData.settings || {};
-  const storeName = settings.storeName || 'Agnes Fashion';
+  const storeName = settings.storeName || 'Melan Jaya';
   const storeAddress = settings.storeAddress || 'Pasar Baru Cikarang Blok C';
   const storePhone = settings.storePhone || '0851-1702-1168';
   const waTargetNumber = formatWaNumber(storePhone);

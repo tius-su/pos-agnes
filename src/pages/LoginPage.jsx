@@ -28,11 +28,30 @@ const LoginPage = () => {
       <div className="login-orb" style={{ width: 200, height: 200, background: '#0284c7', top: '40%', right: '10%', animationDelay: '1s' }} />
 
       <div className="login-card">
-        <div className="login-logo">
-          <div className="login-logo-icon">
-            <i className="fa-solid fa-shirt" />
+        <div className="login-logo" style={{ textAlign: 'center' }}>
+          <img
+            src="/melanjaya.jpg"
+            alt="Melan Jaya POS Logo"
+            onError={(e) => { e.target.style.display = 'none'; if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex'; }}
+            style={{
+              maxHeight: 95,
+              maxWidth: '90%',
+              borderRadius: 12,
+              objectFit: 'contain',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+              marginBottom: 16,
+              border: '2px solid rgba(255,255,255,0.2)',
+              background: '#fff',
+              padding: 4,
+              display: 'block',
+              marginLeft: 'auto',
+              marginRight: 'auto'
+            }}
+          />
+          <div className="login-logo-icon logo-mj" style={{ display: 'none', margin: '0 auto 16px auto' }}>
+            MJ
           </div>
-          <h1>Agnes Fashion</h1>
+          <h1>Melan Jaya</h1>
           <p>Point of Sale & Management System</p>
         </div>
 

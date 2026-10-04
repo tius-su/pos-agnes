@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { printReportHTML } from '../services/exportUtils';
+import { getTodayIso, normalizeDateStr } from '../services/dataSync';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 const CAT_EMOJI = { 'Pakaian Wanita': '👗', 'Pakaian Pria': '👕', 'Hijab': '🧕', 'Aksesoris': '💍', 'Lainnya': '📦' };
@@ -84,7 +85,7 @@ const KasirPage = () => {
       const updated = prev.map(c => {
         if (c.nama_barang !== name) return c;
         const originalName = c.originalName || c.nama_barang;
-        const maxStock = appData.stok.find(s => s.nama_barang === originalName)?.stokTersedia || 999;
+        const maxStock = appData.stok.find(s => s.nama_barang === originalName || s.nama_barang === c.nama_barang)?.stokTersedia || 999;
         const newQty = c.qty + d;
         if (newQty <= 0) return null;
         if (newQty > maxStock) { toast('Melebihi stok tersedia!', 'warning'); return c; }
@@ -115,19 +116,22 @@ const KasirPage = () => {
     if (!cart.length) { toast('Keranjang masih kosong!', 'error'); return; }
     if (payMethod === 'Tunai' && cashNum < total) { toast('Uang tidak cukup!', 'error'); return; }
 
-    const trxDate = datetime ? new Date(datetime) : new Date();
+    const nowTime = new Date();
+    const formattedTime = nowTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const formattedDate = datetime ? datetime.slice(0, 10) : getTodayIso();
     const kodeTrx = 'TRX-' + Math.floor(100000 + Math.random() * 900000);
 
     const trx = {
       id: Date.now(),
       kodeTrx,
-      tanggal: trxDate.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-'),
-      waktu: trxDate.toLocaleTimeString('id-ID'),
+      tanggal: formattedDate,
+      waktu: formattedTime,
       pelanggan: customerName || 'Umum',
       noWa: customerWa,
       metodeBayar: payMethod,
       items: cart.map(c => ({
         barang: c.nama_barang,
+        originalName: c.originalName || c.nama_barang,
         jumlah: c.qty,
         hargaModal: c.hargaModal || 0,
         hargaJual: c.hargaJual,
@@ -146,9 +150,9 @@ const KasirPage = () => {
 
     // Reduce stock
     const newStok = appData.stok.map(s => {
-      const cartItem = cart.find(c => c.nama_barang === s.nama_barang);
+      const cartItem = cart.find(c => c.nama_barang === s.nama_barang || c.originalName === s.nama_barang);
       if (!cartItem) return s;
-      return { ...s, stokTersedia: s.stokTersedia - cartItem.qty };
+      return { ...s, stokTersedia: Math.max(0, s.stokTersedia - cartItem.qty) };
     });
 
     const newData = {
@@ -167,9 +171,9 @@ const KasirPage = () => {
     setDiskonValue('');
     setDiskonType('persen');
 
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    setDatetime(now.toISOString().slice(0, 16));
+    const resetNow = new Date();
+    resetNow.setMinutes(resetNow.getMinutes() - resetNow.getTimezoneOffset());
+    setDatetime(resetNow.toISOString().slice(0, 16));
   };
 
   const STORE_OWNER_WA = '6285117027358';
@@ -186,7 +190,7 @@ const KasirPage = () => {
   const sendWhatsApp = () => {
     if (!lastTrx) { toast('Tidak ada transaksi untuk dikirim', 'warning'); return; }
     const s = appData.settings || {};
-    let msg = `*STRUK BELANJA ${s.storeName?.toUpperCase() || 'AGNES FASHION'}*\n`;
+    let msg = `*STRUK BELANJA ${s.storeName?.toUpperCase() || 'MELAN JAYA'}*\n`;
     if (s.storeAddress) msg += `${s.storeAddress}\n`;
     msg += `───────────────────\n`;
     msg += `No TRX : ${lastTrx.kodeTrx}\n`;
@@ -297,7 +301,7 @@ const KasirPage = () => {
 
   const handleSharePendingWA = (item) => {
     const s = appData.settings || {};
-    let msg = `*TAGIHAN / NOTA PENDING ${s.storeName?.toUpperCase() || 'AGNES FASHION'}*\n`;
+    let msg = `*TAGIHAN / NOTA PENDING ${s.storeName?.toUpperCase() || 'MELAN JAYA'}*\n`;
     if (s.storeAddress) msg += `${s.storeAddress}\n`;
     msg += `───────────────────\n`;
     msg += `No Pending : ${item.kodePending || item.id}\n`;
@@ -406,7 +410,7 @@ const KasirPage = () => {
                   className="btn btn-purple"
                   onClick={() => {
                     const sample = {
-                      appName: 'Agnes Fashion POS',
+                      appName: 'Melan Jaya POS',
                       lastUpdated: new Date().toISOString(),
                       stok: [
                         { nama_barang: 'Gamis Silk Premium', kategori: 'Pakaian Wanita', stokTersedia: 12, hargaModal: 120000, hargaJual: 175000, supplierList: ['Grosir Bandung'] },
@@ -707,7 +711,19 @@ const KasirPage = () => {
             </div>
             <div className="modal-body" id="print-area">
               <div className="receipt-paper">
-                <div className="receipt-title">{appData.settings.storeName?.toUpperCase() || 'AGNES FASHION'}</div>
+                <img
+                  src={appData.settings.logoUrl || '/melanjaya.jpg'}
+                  alt="Logo Toko"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                  style={{
+                    maxHeight: 50,
+                    maxWidth: 180,
+                    display: 'block',
+                    margin: '0 auto 8px auto',
+                    objectFit: 'contain'
+                  }}
+                />
+                <div className="receipt-title">{appData.settings.storeName?.toUpperCase() || 'MELAN JAYA'}</div>
                 <div className="receipt-subtitle">{appData.settings.storeAddress}</div>
                 <div className="receipt-subtitle">{appData.settings.storePhone}</div>
                 <hr className="receipt-divider" />

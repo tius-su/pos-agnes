@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { printReportHTML } from '../services/exportUtils';
+import { getTodayIso, normalizeDateStr } from '../services/dataSync';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
-const isoDate = d => d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
 
 export const EXPENSE_CATEGORIES = [
   'Sewa Tempat',
@@ -20,7 +20,7 @@ export const EXPENSE_CATEGORIES = [
 ];
 
 const emptyForm = {
-  tanggal: isoDate(new Date()),
+  tanggal: getTodayIso(),
   kategori: 'Plastik & Struk',
   nominal: '',
   keterangan: '',
@@ -43,11 +43,15 @@ const PengeluaranPage = () => {
   const pengeluaran = appData.pengeluaran || [];
 
   const getRange = () => {
-    const today = new Date();
-    if (preset === 'today') { const d = isoDate(today); return { start: d, end: d }; }
-    if (preset === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); return { start: isoDate(y), end: isoDate(y) }; }
-    if (preset === 'week') { const w = new Date(today); w.setDate(w.getDate() - 6); return { start: isoDate(w), end: isoDate(today) }; }
-    if (preset === 'month') { const m = new Date(today.getFullYear(), today.getMonth(), 1); return { start: isoDate(m), end: isoDate(today) }; }
+    const todayStr = getTodayIso();
+    if (preset === 'today') { return { start: todayStr, end: todayStr }; }
+    if (preset === 'yesterday') { const y = new Date(); y.setDate(y.getDate() - 1); const d = getTodayIso(y); return { start: d, end: d }; }
+    if (preset === 'week') { const w = new Date(); w.setDate(w.getDate() - 6); return { start: getTodayIso(w), end: todayStr }; }
+    if (preset === 'month') {
+      const m = new Date();
+      const mStr = `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}-01`;
+      return { start: mStr, end: todayStr };
+    }
     if (preset === 'custom') return { start: dateStart, end: dateEnd };
     return { start: '', end: '' };
   };
@@ -56,14 +60,15 @@ const PengeluaranPage = () => {
 
   const filteredExpenses = useMemo(() => {
     return pengeluaran.filter(e => {
-      const matchDate = (!start && !end) || (e.tanggal >= start && e.tanggal <= end);
+      const eDate = normalizeDateStr(e.tanggal);
+      const matchDate = (!start && !end) || (eDate >= start && eDate <= end);
       const sTerm = search.toLowerCase().trim();
       const matchSearch = !sTerm ||
         (e.kategori && e.kategori.toLowerCase().includes(sTerm)) ||
         (e.keterangan && e.keterangan.toLowerCase().includes(sTerm)) ||
         (e.pembayaran && e.pembayaran.toLowerCase().includes(sTerm));
       return matchDate && matchSearch;
-    }).sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.created_at?.localeCompare(a.created_at || ''));
+    }).sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.created_at || '').localeCompare(a.created_at || ''));
   }, [pengeluaran, start, end, search]);
 
   const totalPengeluaran = filteredExpenses.reduce((sum, e) => sum + (e.nominal || 0), 0);

@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
+import { getTodayIso, normalizeDateStr } from '../services/dataSync';
+
+import { printReportHTML } from '../services/exportUtils';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 const formatRpShort = v => {
@@ -8,8 +11,6 @@ const formatRpShort = v => {
   if (v >= 1000) return `${(v / 1000).toFixed(0)}rb`;
   return String(v);
 };
-
-const isoDate = d => d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
 
 const LaporanPage = () => {
   const { appData, saveAndSync, toast } = useData();
@@ -24,23 +25,23 @@ const LaporanPage = () => {
   const [saving, setSaving] = useState(false);
 
   const getRange = () => {
-    const today = new Date();
+    const todayStr = getTodayIso();
     if (preset === 'today') {
-      const d = isoDate(today);
-      return { start: d, end: d };
+      return { start: todayStr, end: todayStr };
     }
     if (preset === 'yesterday') {
-      const y = new Date(today); y.setDate(y.getDate() - 1);
-      const d = isoDate(y);
+      const y = new Date(); y.setDate(y.getDate() - 1);
+      const d = getTodayIso(y);
       return { start: d, end: d };
     }
     if (preset === 'week') {
-      const w = new Date(today); w.setDate(w.getDate() - 6);
-      return { start: isoDate(w), end: isoDate(today) };
+      const w = new Date(); w.setDate(w.getDate() - 6);
+      return { start: getTodayIso(w), end: todayStr };
     }
     if (preset === 'month') {
-      const m = new Date(today.getFullYear(), today.getMonth(), 1);
-      return { start: isoDate(m), end: isoDate(today) };
+      const m = new Date();
+      const mStr = `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}-01`;
+      return { start: mStr, end: todayStr };
     }
     if (preset === 'custom') return { start: dateStart, end: dateEnd };
     return { start: '', end: '' };
@@ -50,31 +51,58 @@ const LaporanPage = () => {
 
   const filteredSales = useMemo(() => {
     return (appData.penjualan || []).filter(t => {
+      const tDate = normalizeDateStr(t.tanggal);
       if (!start && !end) return true;
-      return t.tanggal >= start && t.tanggal <= end;
-    }).sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.waktu?.localeCompare(a.waktu || ''));
+      if (start && !end) return tDate >= start;
+      if (!start && end) return tDate <= end;
+      return tDate >= start && tDate <= end;
+    }).sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.waktu || '').localeCompare(a.waktu || ''));
   }, [appData.penjualan, start, end]);
 
   const filteredBuys = useMemo(() => {
     return (appData.pembelian || []).filter(t => {
+      const tDate = normalizeDateStr(t.tanggal);
       if (!start && !end) return true;
-      return t.tanggal >= start && t.tanggal <= end;
-    }).sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+      if (start && !end) return tDate >= start;
+      if (!start && end) return tDate <= end;
+      return tDate >= start && tDate <= end;
+    }).sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
   }, [appData.pembelian, start, end]);
 
-  const totalOmset = filteredSales.reduce((s, t) => s + t.totalPenjualan, 0);
-  const totalModal = filteredSales.reduce((s, t) => s + t.totalModal, 0);
-  const totalLaba = filteredSales.reduce((s, t) => s + t.laba, 0);
-  const totalBeli = filteredBuys.reduce((s, t) => s + t.totalModal, 0);
+  const filteredExpenses = useMemo(() => {
+    return (appData.pengeluaran || []).filter(e => {
+      const eDate = normalizeDateStr(e.tanggal);
+      if (!start && !end) return true;
+      if (start && !end) return eDate >= start;
+      if (!start && end) return eDate <= end;
+      return eDate >= start && eDate <= end;
+    }).sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
+  }, [appData.pengeluaran, start, end]);
+
+  const totalOmset = filteredSales.reduce((s, t) => s + (t.totalPenjualan || 0), 0);
+  const totalModal = filteredSales.reduce((s, t) => s + (t.totalModal || 0), 0);
+  const totalLaba = filteredSales.reduce((s, t) => s + (t.laba || 0), 0);
+  const totalBeli = filteredBuys.reduce((s, t) => s + (t.totalModal || 0), 0);
+  const totalPengeluaran = filteredExpenses.reduce((s, e) => s + (e.nominal || 0), 0);
+  const labaBersihOperasional = totalLaba - totalPengeluaran;
   const marginPct = totalOmset > 0 ? ((totalLaba / totalOmset) * 100).toFixed(1) : 0;
+
+  const expenseBreakdown = useMemo(() => {
+    const map = {};
+    filteredExpenses.forEach(e => {
+      map[e.kategori] = (map[e.kategori] || 0) + (e.nominal || 0);
+    });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  }, [filteredExpenses]);
 
   const chartData = useMemo(() => {
     const byDate = {};
     filteredSales.forEach(t => {
-      if (!byDate[t.tanggal]) byDate[t.tanggal] = { tanggal: t.tanggal, omset: 0, laba: 0, trx: 0 };
-      byDate[t.tanggal].omset += t.totalPenjualan;
-      byDate[t.tanggal].laba += t.laba;
-      byDate[t.tanggal].trx += 1;
+      const normDate = normalizeDateStr(t.tanggal);
+      if (!byDate[normDate]) byDate[normDate] = { tanggal: normDate, omset: 0, laba: 0, trx: 0 };
+      byDate[normDate].omset += (t.totalPenjualan || 0);
+      byDate[normDate].laba += (t.laba || 0);
+      byDate[normDate].trx += 1;
     });
     return Object.values(byDate).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
   }, [filteredSales]);
@@ -85,7 +113,7 @@ const LaporanPage = () => {
     setEditForm({
       pelanggan: trx.pelanggan || '',
       noWa: trx.noWa || '',
-      tanggal: trx.tanggal || '',
+      tanggal: normalizeDateStr(trx.tanggal),
       waktu: trx.waktu || '',
       metodeBayar: trx.metodeBayar || 'Tunai',
       items: (trx.items || []).map(i => ({ ...i })),
@@ -109,32 +137,36 @@ const LaporanPage = () => {
     try {
       const updatedItems = editForm.items.map(it => ({
         ...it,
-        subtotal: it.hargaJual * it.jumlah,
+        subtotal: (it.hargaJual || 0) * (it.jumlah || 1),
       }));
       const totalPenjualan = updatedItems.reduce((s, i) => s + i.subtotal, 0);
-      const totalModalTrx = updatedItems.reduce((s, i) => s + (i.hargaModal || 0) * i.jumlah, 0);
+      const totalModalTrx = updatedItems.reduce((s, i) => s + (i.hargaModal || 0) * (i.jumlah || 1), 0);
       const laba = totalPenjualan - totalModalTrx;
 
-      const newPenjualan = (appData.penjualan || []).map(t =>
-        t.id === editTrx.id
-          ? {
-              ...t,
-              pelanggan: editForm.pelanggan || 'Umum',
-              noWa: editForm.noWa,
-              tanggal: editForm.tanggal,
-              waktu: editForm.waktu,
-              metodeBayar: editForm.metodeBayar,
-              items: updatedItems,
-              totalPenjualan,
-              totalModal: totalModalTrx,
-              laba,
-            }
-          : t
-      );
+      const targetId = String(editTrx.id);
+      const targetKode = editTrx.kodeTrx;
+
+      const newPenjualan = (appData.penjualan || []).map(t => {
+        const isMatch = (t.id && editTrx.id && String(t.id) === targetId) || (t.kodeTrx && t.kodeTrx === targetKode);
+        if (!isMatch) return t;
+        return {
+          ...t,
+          pelanggan: editForm.pelanggan || 'Umum',
+          noWa: editForm.noWa,
+          tanggal: editForm.tanggal,
+          waktu: editForm.waktu,
+          metodeBayar: editForm.metodeBayar,
+          items: updatedItems,
+          totalPenjualan,
+          totalModal: totalModalTrx,
+          laba,
+        };
+      });
       await saveAndSync({ ...appData, penjualan: newPenjualan });
       toast('✅ Transaksi berhasil diperbarui!', 'success');
       setEditTrx(null);
     } catch (e) {
+      console.error('Save edit error:', e);
       toast('Gagal menyimpan perubahan', 'error');
     }
     setSaving(false);
@@ -145,17 +177,30 @@ const LaporanPage = () => {
     if (!deleteTrx) return;
     setSaving(true);
     try {
+      const targetId = String(deleteTrx.id);
+      const targetKode = deleteTrx.kodeTrx;
+
       // Restore stok dari item yang dihapus
       const newStok = (appData.stok || []).map(s => {
-        const sold = (deleteTrx.items || []).find(i => i.barang === s.nama_barang);
+        const sold = (deleteTrx.items || []).find(i =>
+          s.nama_barang === i.barang ||
+          s.nama_barang === i.originalName ||
+          (i.barang && i.barang.startsWith(s.nama_barang))
+        );
         if (!sold) return s;
-        return { ...s, stokTersedia: s.stokTersedia + sold.jumlah };
+        return { ...s, stokTersedia: s.stokTersedia + (sold.jumlah || 1) };
       });
-      const newPenjualan = (appData.penjualan || []).filter(t => t.id !== deleteTrx.id);
+
+      const newPenjualan = (appData.penjualan || []).filter(t => {
+        const isMatch = (t.id && deleteTrx.id && String(t.id) === targetId) || (t.kodeTrx && t.kodeTrx === targetKode);
+        return !isMatch;
+      });
+
       await saveAndSync({ ...appData, stok: newStok, penjualan: newPenjualan });
-      toast(`🗑️ Transaksi ${deleteTrx.kodeTrx} berhasil dihapus & stok dikembalikan`, 'success');
+      toast(`🗑️ Transaksi ${deleteTrx.kodeTrx || ''} berhasil dihapus & stok dikembalikan`, 'success');
       setDeleteTrx(null);
     } catch (e) {
+      console.error('Delete trx error:', e);
       toast('Gagal menghapus transaksi', 'error');
     }
     setSaving(false);
@@ -168,12 +213,12 @@ const LaporanPage = () => {
       toast('No WhatsApp pelanggan tidak tersedia untuk transaksi ini', 'warning');
       return;
     }
-    const s = appData.settings;
-    let msg = `*STRUK BELANJA ${(s.storeName || 'AGNES FASHION').toUpperCase()}*\n`;
+    const s = appData.settings || {};
+    let msg = `*STRUK BELANJA ${(s.storeName || 'MELAN JAYA').toUpperCase()}*\n`;
     msg += `${s.storeAddress || ''}\n`;
     msg += `───────────────────\n`;
     msg += `No TRX : ${trx.kodeTrx}\n`;
-    msg += `Tanggal: ${trx.tanggal} ${trx.waktu}\n`;
+    msg += `Tanggal: ${trx.tanggal} ${trx.waktu || ''}\n`;
     msg += `Pelanggan: ${trx.pelanggan || 'Umum'}\n`;
     msg += `───────────────────\n`;
     (trx.items || []).forEach(i => {
@@ -194,8 +239,8 @@ const LaporanPage = () => {
 
   // ── SHARE / EXPORT ───────────────────────────────────────────────────
   const shareReportWA = () => {
-    const s = appData.settings;
-    let msg = `*LAPORAN PENJUALAN — ${s.storeName || 'Agnes Fashion'}*\n`;
+    const s = appData.settings || {};
+    let msg = `*LAPORAN PENJUALAN — ${s.storeName || 'Melan Jaya'}*\n`;
     msg += `Periode: ${start || 'Semua'} s/d ${end || 'Semua'}\n`;
     msg += `────────────────────\n`;
     msg += `💰 Omset     : ${formatRp(totalOmset)}\n`;
@@ -203,7 +248,7 @@ const LaporanPage = () => {
     msg += `✅ Laba Bersih: ${formatRp(totalLaba)} (${marginPct}%)\n`;
     msg += `🧾 Transaksi : ${filteredSales.length} trx\n`;
     msg += `────────────────────\n`;
-    msg += `Dikirim dari Agnes Fashion POS`;
+    msg += `Dikirim dari Melan Jaya POS`;
     const no = (s.storePhone || '').replace(/\D/g, '');
     const url = no ? `https://wa.me/${no}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
@@ -216,8 +261,29 @@ const LaporanPage = () => {
     });
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `laporan-agnes-${start || 'semua'}.csv`; a.click();
+    a.download = `laporan-melan-jaya-${start || 'semua'}.csv`; a.click();
     toast('File CSV berhasil diunduh', 'success');
+  };
+
+  const exportExpensesCSV = () => {
+    let csv = 'Tanggal,Kategori,Nominal,Keterangan,Pembayaran\n';
+    filteredExpenses.forEach(e => {
+      csv += `${e.tanggal},${e.kategori},${e.nominal},"${e.keterangan || ''}",${e.pembayaran}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `laporan-pengeluaran-${start || 'semua'}.csv`; a.click();
+    toast('File CSV Laporan Pengeluaran berhasil diunduh', 'success');
+  };
+
+  const printExpenseReport = () => {
+    let tableHtml = '<table border="1" style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f3f4f6"><th>Tanggal</th><th>Kategori</th><th>Nominal</th><th>Keterangan</th><th>Pembayaran</th></tr></thead><tbody>';
+    filteredExpenses.forEach(e => {
+      tableHtml += `<tr><td>${e.tanggal}</td><td>${e.kategori}</td><td style="color:#e11d48;font-weight:bold">${formatRp(e.nominal)}</td><td>${e.keterangan || '-'}</td><td>${e.pembayaran}</td></tr>`;
+    });
+    tableHtml += `<tr style="font-weight:bold;background:#fee2e2"><td colspan="2">TOTAL PENGELUARAN OPERASIONAL</td><td style="color:#e11d48;font-size:14px">${formatRp(totalPengeluaran)}</td><td colspan="2"></td></tr></tbody></table>`;
+
+    printReportHTML('LAPORAN PENGELUARAN OPERASIONAL', `Periode: ${start || 'Semua'} s/d ${end || 'Semua'}`, tableHtml);
   };
 
   const setPresetBtn = (p) => { setPreset(p); };
@@ -244,30 +310,38 @@ const LaporanPage = () => {
   return (
     <div className="tab-page active fade-up">
       {/* Stat cards */}
-      <div className="stats-grid">
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
         <div className="stat-card emerald">
           <i className="stat-icon fa-solid fa-coins" />
           <div className="stat-label">Total Omset</div>
-          <div className="stat-value" style={{ fontSize: 18 }}>{formatRp(totalOmset)}</div>
+          <div className="stat-value" style={{ fontSize: 17 }}>{formatRp(totalOmset)}</div>
           <div className="stat-meta">{filteredSales.length} transaksi</div>
         </div>
         <div className="stat-card sky">
           <i className="stat-icon fa-solid fa-box" />
-          <div className="stat-label">Total Modal</div>
-          <div className="stat-value" style={{ fontSize: 18 }}>{formatRp(totalModal)}</div>
-          <div className="stat-meta">HPP penjualan</div>
+          <div className="stat-label">Total Modal (HPP)</div>
+          <div className="stat-value" style={{ fontSize: 17 }}>{formatRp(totalModal)}</div>
+          <div className="stat-meta">HPP produk terjual</div>
         </div>
         <div className="stat-card violet">
           <i className="stat-icon fa-solid fa-chart-line" />
-          <div className="stat-label">Laba Bersih</div>
-          <div className="stat-value" style={{ fontSize: 18 }}>{formatRp(totalLaba)}</div>
+          <div className="stat-label">Laba Kotor</div>
+          <div className="stat-value" style={{ fontSize: 17 }}>{formatRp(totalLaba)}</div>
           <div className="stat-meta">Margin {marginPct}%</div>
         </div>
-        <div className="stat-card amber">
-          <i className="stat-icon fa-solid fa-truck" />
-          <div className="stat-label">Total Pembelian</div>
-          <div className="stat-value" style={{ fontSize: 18 }}>{formatRp(totalBeli)}</div>
-          <div className="stat-meta">{filteredBuys.length} restock</div>
+        <div className="stat-card rose">
+          <i className="stat-icon fa-solid fa-receipt" />
+          <div className="stat-label">Pengeluaran</div>
+          <div className="stat-value" style={{ fontSize: 17 }}>{formatRp(totalPengeluaran)}</div>
+          <div className="stat-meta">{filteredExpenses.length} operasional</div>
+        </div>
+        <div className="stat-card" style={{ borderLeft: '3px solid var(--brand)' }}>
+          <i className="stat-icon fa-solid fa-scale-balanced" style={{ color: 'var(--brand)' }} />
+          <div className="stat-label" style={{ color: 'var(--brand)' }}>Laba Bersih</div>
+          <div className="stat-value" style={{ fontSize: 17, color: labaBersihOperasional >= 0 ? 'var(--emerald)' : 'var(--rose)' }}>
+            {formatRp(labaBersihOperasional)}
+          </div>
+          <div className="stat-meta">Laba Kotor - Pengeluaran</div>
         </div>
       </div>
 
@@ -517,6 +591,87 @@ const LaporanPage = () => {
                   <td className="cell-amount cell-amber">{formatRp(t.totalModal)}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      {/* ── LAPORAN PENGELUARAN OPERASIONAL ── */}
+      <div className="card mt-16 mb-16">
+        <div className="card-header" style={{ flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <div className="card-title">
+              <i className="fa-solid fa-receipt" style={{ color: 'var(--rose)' }} /> Laporan Pengeluaran Operasional
+            </div>
+            <div className="card-subtitle">{filteredExpenses.length} catatan pengeluaran &middot; Total {formatRp(totalPengeluaran)}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn btn-ghost btn-sm" onClick={exportExpensesCSV}>
+              <i className="fa-solid fa-file-csv" style={{ color: 'var(--emerald)' }} /> CSV Pengeluaran
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={printExpenseReport}>
+              <i className="fa-solid fa-print" style={{ color: 'var(--brand)' }} /> Cetak Laporan
+            </button>
+          </div>
+        </div>
+
+        {/* Category breakdown bar if expenses exist */}
+        {expenseBreakdown.length > 0 && (
+          <div style={{ padding: '12px 16px', background: 'var(--bg-hover)', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <i className="fa-solid fa-chart-pie" style={{ color: 'var(--amber)', marginRight: 4 }} /> Breakdown Kategori Pengeluaran
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+              {expenseBreakdown.map(([cat, amt]) => {
+                const pct = totalPengeluaran > 0 ? Math.round((amt / totalPengeluaran) * 100) : 0;
+                return (
+                  <div key={cat} style={{ background: 'var(--bg-surface)', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+                      <span>{cat}</span>
+                      <span style={{ color: 'var(--rose)' }}>{formatRp(amt)} ({pct}%)</span>
+                    </div>
+                    <div style={{ height: 5, background: 'var(--bg-hover)', borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: 'var(--rose)', borderRadius: 99 }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Tanggal</th>
+                <th>Kategori</th>
+                <th>Keterangan</th>
+                <th>Pembayaran</th>
+                <th style={{ textAlign: 'right' }}>Nominal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredExpenses.length === 0 ? (
+                <tr><td colSpan={5} style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
+                  <div className="empty-state">
+                    <i className="fa-solid fa-folder-open" />
+                    <p>Belum ada pengeluaran di periode ini.</p>
+                  </div>
+                </td></tr>
+              ) : filteredExpenses.map(item => (
+                <tr key={item.id}>
+                  <td style={{ fontSize: 12, fontWeight: 700 }}>{item.tanggal}</td>
+                  <td><span className="badge badge-amber">{item.kategori}</span></td>
+                  <td style={{ fontSize: 12 }}>{item.keterangan || '—'}</td>
+                  <td><span className="badge badge-sky">{item.pembayaran}</span></td>
+                  <td className="cell-amount" style={{ color: 'var(--rose)', fontWeight: 800 }}>{formatRp(item.nominal)}</td>
+                </tr>
+              ))}
+              {filteredExpenses.length > 0 && (
+                <tr style={{ background: 'var(--bg-hover)', fontWeight: 800 }}>
+                  <td colSpan={4}>TOTAL PENGELUARAN OPERASIONAL</td>
+                  <td className="cell-amount" style={{ color: 'var(--rose)', fontSize: 14, fontWeight: 900 }}>{formatRp(totalPengeluaran)}</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

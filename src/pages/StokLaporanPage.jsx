@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 
 import { exportToCSV, printReportHTML } from '../services/exportUtils';
+import { getTodayIso, normalizeDateStr } from '../services/dataSync';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 const formatRpShort = v => {
@@ -16,8 +17,6 @@ const formatRpShort = v => {
 
 const CAT_EMOJI = { 'Pakaian Wanita': '👗', 'Pakaian Pria': '👕', 'Hijab': '🧕', 'Aksesoris': '💍', 'Lainnya': '📦' };
 const PIE_COLORS = ['#7c3aed', '#0284c7', '#059669', '#d97706', '#e11d48', '#8b5cf6'];
-
-const isoDate = d => d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
 
 const StokLaporanPage = () => {
   const { appData } = useData();
@@ -111,12 +110,16 @@ const StokLaporanPage = () => {
 
   // Date range for penjualan filter
   const getRange = () => {
-    const today = new Date();
-    if (datePreset === 'today')     { const d = isoDate(today); return { start: d, end: d }; }
-    if (datePreset === 'yesterday') { const y = new Date(today); y.setDate(y.getDate()-1); const d = isoDate(y); return { start: d, end: d }; }
-    if (datePreset === 'week')      { const w = new Date(today); w.setDate(w.getDate()-6); return { start: isoDate(w), end: isoDate(today) }; }
-    if (datePreset === 'month')     { const m = new Date(today.getFullYear(), today.getMonth(), 1); return { start: isoDate(m), end: isoDate(today) }; }
-    if (datePreset === 'year')      { return { start: `${today.getFullYear()}-01-01`, end: isoDate(today) }; }
+    const todayStr = getTodayIso();
+    if (datePreset === 'today')     { return { start: todayStr, end: todayStr }; }
+    if (datePreset === 'yesterday') { const y = new Date(); y.setDate(y.getDate()-1); const d = getTodayIso(y); return { start: d, end: d }; }
+    if (datePreset === 'week')      { const w = new Date(); w.setDate(w.getDate()-6); return { start: getTodayIso(w), end: todayStr }; }
+    if (datePreset === 'month')     {
+      const m = new Date();
+      const mStr = `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}-01`;
+      return { start: mStr, end: todayStr };
+    }
+    if (datePreset === 'year')      { return { start: `${new Date().getFullYear()}-01-01`, end: todayStr }; }
     if (datePreset === 'custom')    { return { start: dateStart, end: dateEnd }; }
     return { start: '', end: '' };
   };
@@ -124,8 +127,11 @@ const StokLaporanPage = () => {
 
   // Filter penjualan by date
   const penjualan = useMemo(() => allPenjualan.filter(t => {
+    const tDate = normalizeDateStr(t.tanggal);
     if (!dStart && !dEnd) return true;
-    return t.tanggal >= dStart && t.tanggal <= dEnd;
+    if (dStart && !dEnd) return tDate >= dStart;
+    if (!dStart && dEnd) return tDate <= dEnd;
+    return tDate >= dStart && tDate <= dEnd;
   }), [allPenjualan, dStart, dEnd]);
 
   // Produk terlaris — difilter by nama produk yang ada di stok terfilter
@@ -266,7 +272,7 @@ const StokLaporanPage = () => {
                   html += `<tr><td>${i.nama_barang}</td><td>${i.kategori}</td><td>${i.stokTersedia} pcs</td><td>${formatRp(i.hargaModal)}</td><td>${formatRp(i.hargaJual)}</td><td>${formatRp(i.hargaModal * i.stokTersedia)}</td></tr>`;
                 });
                 html += '</tbody></table>';
-                printReportHTML('LAPORAN ANALITIK STOK BARANG', 'Rincian seluruh stok produk Agnes Fashion POS', html);
+                printReportHTML('LAPORAN ANALITIK STOK BARANG', 'Rincian seluruh stok produk Melan Jaya POS', html);
               }}
               title="Cetak PDF / Print"
             >

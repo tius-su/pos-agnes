@@ -1,20 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import { pushToFirebaseCloud, saveLocalData, loadLocalData, INITIAL_DATA, normalizeAppData } from '../services/dataSync';
 import { db } from '../firebase';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 
+const ALLOWED_OWNER_EMAILS = [
+  'owner.tiuss75@gmail.com',
+  'owner2.tiuss168@gmail.com',
+  'owner1.melawatisubrata@gmail.com'
+];
+
 const SettingsPage = () => {
   const { appData, saveAndSync, toast } = useData();
+  const { user } = useAuth();
 
-  const [storeName, setStoreName]         = useState(appData.settings?.storeName     || '');
+  const [storeName, setStoreName]         = useState(appData.settings?.storeName     || 'Melan Jaya');
   const [storeAddress, setStoreAddress]   = useState(appData.settings?.storeAddress  || '');
   const [storePhone, setStorePhone]       = useState(appData.settings?.storePhone    || '');
   const [receiptFooter, setReceiptFooter] = useState(appData.settings?.receiptFooter || '');
+  const [logoUrl, setLogoUrl]             = useState(appData.settings?.logoUrl       || '/melanjaya.jpg');
   const [syncing, setSyncing]             = useState(false);
   const [debugData, setDebugData]         = useState(null);
   const [debugLoading, setDebugLoading]   = useState(false);
   const [showDebug, setShowDebug]         = useState(false);
+
+  const currentUserEmail = (user?.email || '').toLowerCase().trim();
+  const isOwnerAuthorized = ALLOWED_OWNER_EMAILS.includes(currentUserEmail);
 
   // ── Baca raw data dari Firestore untuk debug ───────────────────────────────
   const fetchDebugData = async () => {
@@ -66,8 +78,14 @@ const SettingsPage = () => {
     setSyncing(true);
     const { success, error } = await pushToFirebaseCloud(appData);
     setSyncing(false);
-    if (success) toast('✅ Data berhasil disinkron ke Firebase!', 'success');
-    else toast(`❌ Firebase error: ${error}`, 'error');
+    if (success) toast('✅ Data berhasil disinkron ke Firebase Cloud!', 'success');
+    else {
+      if (error && error.toLowerCase().includes('permission')) {
+        toast(`⚠️ Akun ${currentUserEmail || 'saat ini'} tidak memiliki izin TULIS di Firebase. Pastikan login dengan email Owner.`, 'error');
+      } else {
+        toast(`❌ Firebase error: ${error}`, 'error');
+      }
+    }
   };
 
   // ── Reset ke stok sampel + push ke Firebase ────────────────────────────────
@@ -86,10 +104,17 @@ const SettingsPage = () => {
   const saveStore = async () => {
     const newData = {
       ...appData,
-      settings: { storeName, storeAddress, storePhone, receiptFooter }
+      settings: {
+        ...(appData.settings || {}),
+        storeName,
+        storeAddress,
+        storePhone,
+        receiptFooter,
+        logoUrl
+      }
     };
     await saveAndSync(newData);
-    toast('✅ Profil toko tersimpan!', 'success');
+    toast('✅ Profil toko & logo tersimpan!', 'success');
   };
 
   // ── Unduh backup JSON ──────────────────────────────────────────────────────
@@ -97,7 +122,7 @@ const SettingsPage = () => {
     const blob = new Blob([JSON.stringify(appData, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `agnes-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `melan-jaya-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     toast('📥 File backup berhasil diunduh', 'success');
   };
@@ -140,7 +165,18 @@ const SettingsPage = () => {
             </p>
             <div style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', marginBottom: 16, fontSize: 12 }}>
               <div style={{ marginBottom: 4 }}><b>Project ID:</b> <code style={{ color: 'var(--brand)', fontWeight: 700 }}>agnes-pos</code></div>
-              <div><b>Auth Domain:</b> <code style={{ color: 'var(--brand)', fontWeight: 700 }}>agnes-pos.firebaseapp.com</code></div>
+              <div style={{ marginBottom: 8 }}><b>Auth Domain:</b> <code style={{ color: 'var(--brand)', fontWeight: 700 }}>agnes-pos.firebaseapp.com</code></div>
+              <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                <b>Akun Login Saat Ini:</b>{' '}
+                <code style={{ color: isOwnerAuthorized ? '#059669' : '#e11d48', fontWeight: 700 }}>
+                  {currentUserEmail || 'Belum Login'}
+                </code>
+                <div style={{ fontSize: 11, marginTop: 4, color: isOwnerAuthorized ? '#059669' : '#d97706', fontWeight: 600 }}>
+                  {isOwnerAuthorized
+                    ? '✅ Akun terdaftar sebagai Owner. Memiliki akses BACA & TULIS ke Firestore Cloud.'
+                    : '⚠️ Akun tidak terdaftar di daftar Owner Whitelist. Data tetap tersimpan aman di perangkat (Lokal).'}
+                </div>
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button className="btn btn-purple" onClick={pushFirebase} disabled={syncing} id="btn-push-firebase">
@@ -194,9 +230,23 @@ const SettingsPage = () => {
         {/* Profil Toko */}
         <div className="card">
           <div className="card-header">
-            <div className="card-title"><i className="fa-solid fa-store" /> Profil Toko</div>
+            <div className="card-title"><i className="fa-solid fa-store" /> Profil Toko &amp; Logo</div>
           </div>
           <div className="card-body">
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16, background: 'var(--bg-hover)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
+              <img
+                src={logoUrl || '/melanjaya.jpg'}
+                alt="Preview Logo"
+                onError={(e) => { e.target.src = '/melanjaya.jpg'; }}
+                style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover', border: '2px solid var(--brand)', background: '#fff' }}
+              />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>Logo Toko Terpasang</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Path: <code style={{ color: 'var(--brand)' }}>{logoUrl}</code></div>
+                <div style={{ fontSize: 10, color: 'var(--emerald)', marginTop: 2 }}>✅ Gambar logo Toko Melan Jaya aktif di sidebar, login, &amp; struk</div>
+              </div>
+            </div>
+
             <div className="form-grid form-grid-2">
               <div className="form-group">
                 <label className="form-label">Nama Toko</label>
@@ -212,11 +262,15 @@ const SettingsPage = () => {
               <input type="text" className="form-input" value={storeAddress} onChange={e => setStoreAddress(e.target.value)} id="store-address" />
             </div>
             <div className="form-group">
+              <label className="form-label">URL / Path Logo Toko</label>
+              <input type="text" className="form-input" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="/melanjaya.jpg" id="store-logo-url" />
+            </div>
+            <div className="form-group">
               <label className="form-label">Pesan Footer Struk</label>
               <input type="text" className="form-input" value={receiptFooter} onChange={e => setReceiptFooter(e.target.value)} id="store-footer" />
             </div>
             <button className="btn btn-purple" onClick={saveStore} id="btn-save-store">
-              <i className="fa-solid fa-floppy-disk" /> Simpan & Sync
+              <i className="fa-solid fa-floppy-disk" /> Simpan &amp; Sync
             </button>
           </div>
         </div>

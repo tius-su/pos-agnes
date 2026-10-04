@@ -18,7 +18,7 @@ import Sidebar from './components/Sidebar';
 
 const PAGE_META = {
   dashboard:    { title: 'Dashboard',                  sub: 'Ringkasan omset, target, dan stok hari ini',            icon: 'fa-house' },
-  kasir:        { title: 'Kasir & Point of Sale',       sub: 'Proses transaksi penjualan Agnes Fashion',             icon: 'fa-cash-register' },
+  kasir:        { title: 'Kasir & Point of Sale',       sub: 'Proses transaksi penjualan Melan Jaya',             icon: 'fa-cash-register' },
   stok:         { title: 'Manajemen Stok Barang',       sub: 'Kelola stok, restock, dan harga produk',               icon: 'fa-boxes-stacked' },
   laporan:      { title: 'Laporan Keuangan',            sub: 'Omset, laba bersih, dan riwayat transaksi',            icon: 'fa-chart-line' },
   pengeluaran:  { title: 'Pengeluaran Operasional',     sub: 'Pencatatan beban usaha & operasional toko',            icon: 'fa-receipt' },
@@ -70,10 +70,10 @@ const DataProviderWrapper = () => {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#1e0a3c,#3b0764)' }}>
         <div style={{ textAlign: 'center', color: '#fff' }}>
-          <i className="fa-solid fa-shirt" style={{ fontSize: 40, marginBottom: 16, display: 'block', opacity: .8 }} />
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(255,255,255,0.2)', border: '1.5px solid rgba(255,255,255,0.4)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 20, marginBottom: 16 }}>MJ</div>
           <div style={{ fontSize: 13, opacity: .6 }}>
             <i className="fa-solid fa-circle-notch" style={{ animation: 'spin 1s linear infinite', marginRight: 8 }} />
-            Memuat Agnes POS...
+            Memuat Melan Jaya POS...
           </div>
         </div>
       </div>

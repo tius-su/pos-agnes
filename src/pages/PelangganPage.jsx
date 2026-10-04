@@ -117,7 +117,7 @@ const PelangganPage = () => {
   const sendWA = (noWa, nama) => {
     if (!noWa) { toast('No WA tidak tersedia', 'warning'); return; }
     const no = noWa.replace(/\D/g, '');
-    const msg = `Halo ${nama}, terima kasih sudah berbelanja di ${appData.settings?.storeName || 'Agnes Fashion'}! 😊`;
+    const msg = `Halo ${nama}, terima kasih sudah berbelanja di ${appData.settings?.storeName || 'Melan Jaya'}! 😊`;
     window.open(`https://wa.me/${no}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 

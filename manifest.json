@@ -1,7 +1,7 @@
 {
-  "name": "Agnes Fashion POS & Stok",
-  "short_name": "Agnes POS",
-  "description": "Aplikasi Kasir, Stok, dan Laporan Keuangan Agnes Fashion",
+  "name": "Melan Jaya POS & Stok",
+  "short_name": "Melan Jaya POS",
+  "description": "Aplikasi Kasir, Stok, dan Laporan Keuangan Melan Jaya",
   "start_url": "./",
   "scope": "./",
   "id": "./",

@@ -34,7 +34,7 @@ export const encodeCode128B = (text) => {
   return codes.map(c => CODE128_PATTERNS[c] || '').join('');
 };
 
-const BarcodeSVG = ({ text = 'AGNES-101', height = 45, widthModule = 2, showText = true }) => {
+const BarcodeSVG = ({ text = 'MJ-101', height = 45, widthModule = 2, showText = true }) => {
   const patternStr = encodeCode128B(text);
   if (!patternStr) return null;
 
