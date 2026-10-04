@@ -5,6 +5,9 @@ import { getTodayIso, normalizeDateStr } from '../services/dataSync';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 
+// Helper function untuk format tanggal ke ISO (YYYY-MM-DD)
+const isoDate = d => d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
+
 export const EXPENSE_CATEGORIES = [
   'Sewa Tempat',
   'Listrik & Air',
@@ -84,14 +87,14 @@ const PengeluaranPage = () => {
 
   const openAddModal = () => {
     setEditItem(null);
-    setForm({ ...emptyForm, tanggal: isoDate(new Date()) });
+    setForm({ ...emptyForm, tanggal: getTodayIso() });
     setShowModal(true);
   };
 
   const openEditModal = (item) => {
     setEditItem(item);
     setForm({
-      tanggal: item.tanggal || isoDate(new Date()),
+      tanggal: item.tanggal || getTodayIso(),
       kategori: item.kategori || 'Lain-lain',
       nominal: String(item.nominal || ''),
       keterangan: item.keterangan || '',
@@ -222,8 +225,20 @@ const PengeluaranPage = () => {
             <button className="btn btn-ghost btn-sm" onClick={printPDF}>
               <i className="fa-solid fa-print" style={{ color: 'var(--brand)' }} /> Print
             </button>
-            <button className="btn btn-purple btn-sm" onClick={openAddModal} id="btn-tambah-pengeluaran">
-              <i className="fa-solid fa-plus" /> Tambah Pengeluaran
+            <button 
+              className="btn btn-purple btn-sm" 
+              onClick={openAddModal} 
+              id="btn-tambah-pengeluaran"
+              style={{
+                fontWeight: 700,
+                padding: '8px 14px',
+                borderRadius: 10,
+                boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)',
+                transition: 'all 0.2s ease'
+              }}
+              title="Tambah pengeluaran baru"
+            >
+              <i className="fa-solid fa-plus" style={{ marginRight: 6 }} /> Tambah Pengeluaran
             </button>
           </div>
         </div>
