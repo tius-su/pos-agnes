@@ -82,6 +82,110 @@ export const normalizeItem = (item) => {
   };
 };
 
+// ─── PERHITUNGAN HARGA MODAL RATA-RATA ────────────────────────────────────
+
+/**
+ * Hitung harga modal rata-rata berdasarkan purchase history
+ * Formula: (totalModalValue / totalQtyPurchased)
+ * @param {Object} item - Item stok dengan purchaseHistory
+ * @returns {number} - Harga modal rata-rata
+ */
+export const calculateAverageModalPrice = (item) => {
+  // Jika item memiliki purchaseHistory
+  if (item.purchaseHistory && Array.isArray(item.purchaseHistory) && item.purchaseHistory.length > 0) {
+    const totalValue = item.purchaseHistory.reduce((sum, purchase) => {
+      const qty = Number(purchase.qty) || 0;
+      const price = Number(purchase.harga) || 0;
+      return sum + (qty * price);
+    }, 0);
+    
+    const totalQty = item.purchaseHistory.reduce((sum, purchase) => {
+      return sum + (Number(purchase.qty) || 0);
+    }, 0);
+    
+    if (totalQty > 0) {
+      return totalValue / totalQty;
+    }
+  }
+  
+  // Jika tidak ada purchaseHistory, gunakan hargaModal yang ada
+  return Number(item.hargaModal || item.harga_modal || item.modal || item.cost || item.hargaBeli || 0);
+};
+
+/**
+ * Update purchase history dan hitung ulang harga modal rata-rata
+ * @param {Object} existingItem - Item yang sudah ada
+ * @param {number} newPurchasePrice - Harga beli baru
+ * @param {number} newQty - Jumlah yang dibeli
+ * @param {string} supplier - Supplier
+ * @param {string} date - Tanggal pembelian
+ * @returns {Object} - Item dengan purchaseHistory dan hargaModal yang diperbarui
+ */
+export const updatePurchaseHistory = (existingItem, newPurchasePrice, newQty, supplier = '', date = '') => {
+  const currentQty = Number(existingItem.stokTersedia) || 0;
+  const currentModal = Number(existingItem.hargaModal) || 0;
+  
+  // Buat purchase history baru jika belum ada
+  const purchaseHistory = existingItem.purchaseHistory || [];
+  
+  // Tambahkan pembelian baru
+  const newPurchase = {
+    tanggal: date || getTodayIso(),
+    harga: Number(newPurchasePrice),
+    qty: Number(newQty),
+    supplier: supplier || (existingItem.supplierList ? existingItem.supplierList[0] : 'Unknown')
+  };
+  
+  const updatedHistory = [...purchaseHistory, newPurchase];
+  
+  // Hitung total value dan total qty
+  const totalModalValue = updatedHistory.reduce((sum, purchase) => {
+    return sum + (Number(purchase.qty) * Number(purchase.harga));
+  }, 0);
+  
+  const totalQtyPurchased = updatedHistory.reduce((sum, purchase) => {
+    return sum + Number(purchase.qty);
+  }, 0);
+  
+  // Hitung harga modal rata-rata
+  const averageModalPrice = totalQtyPurchased > 0 ? totalModalValue / totalQtyPurchased : currentModal;
+  
+  return {
+    ...existingItem,
+    purchaseHistory: updatedHistory,
+    totalModalValue,
+    totalQtyPurchased,
+    hargaModal: Math.round(averageModalPrice),
+    stokTersedia: currentQty + newQty
+  };
+};
+
+/**
+ * Inisialisasi purchase history untuk item yang belum punya
+ * @param {Object} item - Item stok
+ * @returns {Object} - Item dengan purchaseHistory awal
+ */
+export const initializePurchaseHistory = (item) => {
+  const hargaModal = Number(item.hargaModal || item.harga_modal || item.modal || item.cost || item.hargaBeli || 0);
+  const stokTersedia = Number(item.stokTersedia || item.stok || 0);
+  
+  if (stokTersedia > 0 && hargaModal > 0) {
+    return {
+      ...item,
+      purchaseHistory: [{
+        tanggal: getTodayIso(),
+        harga: hargaModal,
+        qty: stokTersedia,
+        supplier: (item.supplierList && item.supplierList[0]) || 'Initial'
+      }],
+      totalModalValue: hargaModal * stokTersedia,
+      totalQtyPurchased: stokTersedia
+    };
+  }
+  
+  return item;
+};
+
 export const normalizeAppData = (data) => {
   // Kembalikan INITIAL_DATA jika input tidak valid (null, undefined, bukan object)
   if (!data || typeof data !== 'object') {
@@ -118,6 +222,20 @@ export const normalizeAppData = (data) => {
   if (rawStok.length === 0) {
     rawStok = SAMPLE_STOK;
   }
+  
+  // Inisialisasi purchase history dan hitung harga modal rata-rata untuk item yang belum punya
+  rawStok = rawStok.map(item => {
+    // Jika item sudah memiliki purchaseHistory, hitung ulang harga modal rata-rata
+    if (item.purchaseHistory && Array.isArray(item.purchaseHistory) && item.purchaseHistory.length > 0) {
+      const avgPrice = calculateAverageModalPrice(item);
+      return {
+        ...item,
+        hargaModal: Math.round(avgPrice)
+      };
+    }
+    // Jika belum punya purchaseHistory, inisialisasi
+    return initializePurchaseHistory(item);
+  });
 
   let rawPenjualan = [];
   if (Array.isArray(data.penjualan)) {
