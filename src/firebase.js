@@ -54,7 +54,10 @@ export const loginWithGoogle = async () => {
 
   try {
     const isLocalhost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
-    if (isLocalhost) {
+    const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
+    
+    // Untuk GitHub Pages, gunakan popup karena redirect tidak bekerja dengan baik
+    if (isLocalhost || isGitHubPages) {
       const result = await signInWithPopup(auth, googleProvider);
       return { user: result.user, error: null };
     }
@@ -69,7 +72,22 @@ export const loginWithGoogle = async () => {
       return { user: result.user, error: null };
     } catch (popupError) {
       console.error('Google Auth Error:', popupError);
-      return { user: null, error: popupError };
+      
+      // Handle common Firebase auth errors
+      let errorMessage = popupError.message || 'Login gagal';
+      let errorCode = popupError.code || 'auth/unknown';
+      
+      if (errorCode.includes('popup-closed-by-user')) {
+        errorMessage = 'Login dibatalkan oleh pengguna';
+      } else if (errorCode.includes('network-request-failed')) {
+        errorMessage = 'Tidak ada koneksi internet. Periksa koneksi Anda.';
+      } else if (errorCode.includes('auth/domain-not-whitelisted')) {
+        errorMessage = 'Domain tidak diizinkan. Tambahkan domain ke Firebase Auth whitelist.';
+      } else if (errorCode.includes('auth/invalid-api-key')) {
+        errorMessage = 'API Key Firebase tidak valid. Periksa konfigurasi Firebase.';
+      }
+      
+      return { user: null, error: { code: errorCode, message: errorMessage } };
     }
   }
 };

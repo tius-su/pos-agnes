@@ -260,6 +260,29 @@ export const subscribeToFirebaseCloud = (onData, onError) => {
       },
       (err) => {
         console.warn('[Firebase] Snapshot error:', err.message);
+        
+        // Jika error permission denied, coba pakai public catalog
+        if (err.code && err.code.includes('permission-denied')) {
+          console.info('[Firebase] Permission denied, trying public catalog...');
+          // Coba subscribe ke public catalog
+          const publicUnsub = subscribePublicCatalog(
+            (publicData) => {
+              if (publicData) {
+                onData(publicData);
+              } else {
+                onData(null);
+              }
+            },
+            (publicErr) => {
+              console.warn('[Firebase] Public catalog also failed:', publicErr.message);
+              if (onError) onError(publicErr);
+            }
+          );
+          return () => {
+            publicUnsub();
+          };
+        }
+        
         if (onError) onError(err);
       }
     );
@@ -331,7 +354,21 @@ export const pushToFirebaseCloud = async (data) => {
     return { success: true };
   } catch (e) {
     console.error('[Firebase] Push error:', e);
-    return { success: false, error: e.message };
+    
+    // Handle specific Firebase errors
+    let errorMessage = e.message || 'Gagal menyimpan ke Firebase';
+    
+    if (e.code && e.code.includes('permission-denied')) {
+      errorMessage = 'Permission denied: Akun tidak memiliki izin untuk menulis ke Firebase';
+    } else if (e.code && e.code.includes('unauthenticated')) {
+      errorMessage = 'Anda harus login terlebih dahulu untuk menyimpan data ke Firebase';
+    } else if (e.code && e.code.includes('not-found')) {
+      errorMessage = 'Dokumen Firebase tidak ditemukan. Pastikan path dokumen benar.';
+    } else if (e.code && e.code.includes('invalid-argument')) {
+      errorMessage = 'Data yang dikirim tidak valid. Periksa struktur data.';
+    }
+    
+    return { success: false, error: errorMessage, code: e.code };
   }
 };
 

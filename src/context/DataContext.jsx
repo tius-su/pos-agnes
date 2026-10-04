@@ -138,6 +138,15 @@ export const DataProvider = ({ children, isPublic = false }) => {
         (err) => {
           console.warn('[DataContext] Firebase error:', err.message);
           setSyncStatus('error');
+          
+          // Jika error permission denied, coba pakai data lokal
+          if (err.message && err.message.toLowerCase().includes('permission')) {
+            const localData = loadLocalData();
+            const bestData = mergeWithFallback(null, localData);
+            setAppData(bestData);
+            setSyncStatus('ok');
+            toast('💾 Menggunakan data lokal (tidak ada akses Firebase)', 'info');
+          }
         }
       );
 

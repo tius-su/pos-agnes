@@ -1,0 +1,86 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Main POS data document
+    match /pos_data/store_data {
+      // Semua orang BISA BACA (untuk E-Katalog publik)
+      allow read: if true;
+      // Hanya email terdaftar yang bisa TULIS
+      allow write: if request.auth != null && 
+        (request.auth.token.email in [
+          'owner.tiuss75@gmail.com', 
+          'tiuss75@gmail.com',
+          'owner2.tiuss168@gmail.com',
+          'owner1.melawatisubrata@gmail.com'
+        ]);
+    }
+    
+    // Allow read for all collections under pos_data for public catalog
+    match /pos_data/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+        (request.auth.token.email in [
+          'owner.tiuss75@gmail.com', 
+          'tiuss75@gmail.com',
+          'owner2.tiuss168@gmail.com',
+          'owner1.melawatisubrata@gmail.com'
+        ]);
+    }
+    
+    // Legacy collections fallback (jika data tersimpan di collection lain)
+    match /stok/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+        (request.auth.token.email in [
+          'owner.tiuss75@gmail.com', 
+          'tiuss75@gmail.com',
+          'owner2.tiuss168@gmail.com',
+          'owner1.melawatisubrata@gmail.com'
+        ]);
+    }
+    
+    match /products/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+        (request.auth.token.email in [
+          'owner.tiuss75@gmail.com', 
+          'tiuss75@gmail.com',
+          'owner2.tiuss168@gmail.com',
+          'owner1.melawatisubrata@gmail.com'
+        ]);
+    }
+    
+    match /items/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+        (request.auth.token.email in [
+          'owner.tiuss75@gmail.com', 
+          'tiuss75@gmail.com',
+          'owner2.tiuss168@gmail.com',
+          'owner1.melawatisubrata@gmail.com'
+        ]);
+    }
+    
+    match /barang/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+        (request.auth.token.email in [
+          'owner.tiuss75@gmail.com', 
+          'tiuss75@gmail.com',
+          'owner2.tiuss168@gmail.com',
+          'owner1.melawatisubrata@gmail.com'
+        ]);
+    }
+    
+    match /inventory/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+        (request.auth.token.email in [
+          'owner.tiuss75@gmail.com', 
+          'tiuss75@gmail.com',
+          'owner2.tiuss168@gmail.com',
+          'owner1.melawatisubrata@gmail.com'
+        ]);
+    }
+  }
+}

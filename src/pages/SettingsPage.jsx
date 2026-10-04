@@ -12,6 +12,13 @@ const ALLOWED_OWNER_EMAILS = [
   'owner1.melawatisubrata@gmail.com'
 ];
 
+// Helper function untuk memeriksa apakah user memiliki izin write
+const hasWritePermission = (user) => {
+  if (!user || !user.email) return false;
+  const userEmail = user.email.toLowerCase().trim();
+  return ALLOWED_OWNER_EMAILS.includes(userEmail);
+};
+
 const SettingsPage = () => {
   const { appData, saveAndSync, toast } = useData();
   const { user } = useAuth();
@@ -27,7 +34,8 @@ const SettingsPage = () => {
   const [showDebug, setShowDebug]         = useState(false);
 
   const currentUserEmail = (user?.email || '').toLowerCase().trim();
-  const isOwnerAuthorized = ALLOWED_OWNER_EMAILS.includes(currentUserEmail);
+  const isOwnerAuthorized = hasWritePermission(user);
+  const { firebaseReady } = useAuth();
 
   // ── Baca raw data dari Firestore untuk debug ───────────────────────────────
   const fetchDebugData = async () => {
@@ -76,6 +84,16 @@ const SettingsPage = () => {
 
   // ── Push manual ke Firebase ────────────────────────────────────────────────
   const pushFirebase = async () => {
+    if (!firebaseReady) {
+      toast('⚠️ Firebase belum dikonfigurasi. Isi variabel VITE_FIREBASE_* di .env.local lalu restart aplikasi.', 'error');
+      return;
+    }
+    
+    if (!isOwnerAuthorized) {
+      toast(`⚠️ Akun ${currentUserEmail || 'saat ini'} tidak memiliki izin TULIS di Firebase. Pastikan login dengan email Owner: ${ALLOWED_OWNER_EMAILS.join(', ')}`, 'error');
+      return;
+    }
+    
     setSyncing(true);
     const { success, error } = await pushToFirebaseCloud(appData);
     setSyncing(false);
@@ -177,10 +195,15 @@ const SettingsPage = () => {
                     ? '✅ Akun terdaftar sebagai Owner. Memiliki akses BACA & TULIS ke Firestore Cloud.'
                     : '⚠️ Akun tidak terdaftar di daftar Owner Whitelist. Data tetap tersimpan aman di perangkat (Lokal).'}
                 </div>
+                {!firebaseReady && (
+                  <div style={{ fontSize: 11, marginTop: 8, color: '#e11d48', fontWeight: 600 }}>
+                    ❌ Firebase belum dikonfigurasi. Isi variabel VITE_FIREBASE_* di .env.local
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button className="btn btn-purple" onClick={pushFirebase} disabled={syncing} id="btn-push-firebase">
+              <button className="btn btn-purple" onClick={pushFirebase} disabled={syncing || !firebaseReady || !isOwnerAuthorized} id="btn-push-firebase" title={!firebaseReady ? 'Firebase belum dikonfigurasi' : !isOwnerAuthorized ? 'Hanya Owner yang bisa sync ke Firebase' : ''}>
                 {syncing
                   ? <><i className="fa-solid fa-circle-notch animate-spin" /> Menyimpan...</>
                   : <><i className="fa-solid fa-fire" /> Sync Data ke Firebase</>}
