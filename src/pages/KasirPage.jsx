@@ -501,9 +501,9 @@ const KasirPage = () => {
                     </div>
                   )}
                   <div className="product-price">{formatRp(item.hargaJual)}</div>
-                  <button className="product-add-btn" onClick={(e) => { e.stopPropagation(); handleProductCardClick(item); }} disabled={oos}>
-                    <i className="fa-solid fa-cart-plus" /> Tambah
-                  </button>
+                  <div className="product-click-hint">
+                    Klik untuk tambah ke keranjang
+                  </div>
                 </div>
               );
             })}
