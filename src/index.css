@@ -684,6 +684,12 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
   /* Kasir Tabs pada Mobile */
   .kasir-mobile-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
   .mobile-hidden { display: none !important; }
+  .desktop-and-mobile-hidden { display: none !important; }
+  
+  /* Fix untuk desktop: tampilkan cart panel dan catalog card */
+  @media (min-width: 1024px) {
+    .desktop-and-mobile-hidden { display: block !important; }
+  }
 
   /* ✅ FIX MOBILE CTA PAYMENT BUTTON */
   .cart-panel { height: auto !important; max-height: none !important; overflow: visible !important; margin-bottom: 40px !important; border-radius: var(--radius-lg); }

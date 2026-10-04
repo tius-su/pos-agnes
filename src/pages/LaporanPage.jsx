@@ -349,6 +349,159 @@ const LaporanPage = () => {
     printReportHTML('LAPORAN PENGELUARAN OPERASIONAL', `Periode: ${start || 'Semua'} s/d ${end || 'Semua'}`, tableHtml);
   };
 
+  // Save Expenses Report to PDF
+  const saveExpensesToPDF = () => {
+    const s = appData.settings || {};
+    
+    // Create header
+    const headerHtml = `
+      <div style="text-align:center;margin-bottom:20px;">
+        <h2 style="color:#4c1d95;margin:0;font-size:18px;">${s.storeName?.toUpperCase() || 'MELAN JAYA POS'}</h2>
+        <p style="color:#666;margin:5px 0 0 0;font-size:12px;">${s.storeAddress || ''}</p>
+        <p style="color:#666;margin:0;font-size:12px;">${s.storePhone || ''}</p>
+        <hr style="border:1px solid #ddd;margin:15px 0;"/>
+        <h3 style="color:#e11d48;margin:0;font-size:14px;">LAPORAN PENGELUARAN OPERASIONAL</h3>
+        <p style="color:#666;margin:5px 0 15px 0;font-size:11px;">Periode: ${start || 'Semua'} s/d ${end || 'Semua'}</p>
+      </div>
+    `;
+
+    // Create summary table
+    const summaryHtml = `
+      <table style="width:100%;margin-bottom:15px;">
+        <tr>
+          <td style="padding:6px 10px;font-weight:700;">Total Pengeluaran:</td>
+          <td style="padding:6px 10px;text-align:right;color:#e11d48;font-weight:800;">${formatRp(totalPengeluaran)}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 10px;font-weight:700;">Jumlah Catatan:</td>
+          <td style="padding:6px 10px;text-align:right;font-weight:800;">${filteredExpenses.length} catatan</td>
+        </tr>
+      </table>
+    `;
+
+    // Create expenses table
+    let tableHtml = '<table style="width:100%;border-collapse:collapse;margin-top:10px;"><thead><tr style="border-bottom:2px solid #333;"><th style="text-align:left;padding:6px;">Tanggal</th><th style="text-align:left;padding:6px;">Kategori</th><th style="text-align:left;padding:6px;">Keterangan</th><th style="text-align:left;padding:6px;">Pembayaran</th><th style="text-align:right;padding:6px;">Nominal</th></tr></thead><tbody>';
+    
+    filteredExpenses.forEach(e => {
+      tableHtml += `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px;">${e.tanggal}</td><td style="padding:6px;">${e.kategori}</td><td style="padding:6px;">${e.keterangan || '-'}</td><td style="padding:6px;">${e.pembayaran}</td><td style="text-align:right;padding:6px;color:#e11d48;font-weight:bold;">${formatRp(e.nominal)}</td></tr>`;
+    });
+    
+    tableHtml += `<tr style="border-bottom:2px solid #333;font-weight:bold;"><td style="padding:6px;" colspan="4">TOTAL PENGELUARAN OPERASIONAL</td><td style="text-align:right;padding:6px;color:#e11d48;font-size:14px;">${formatRp(totalPengeluaran)}</td></tr></tbody></table>`;
+
+    const fullHtml = `<html><head><meta charset="UTF-8"><title>Laporan Pengeluaran - ${s.storeName || 'Melan Jaya'}</title></head><body>${headerHtml}${summaryHtml}${tableHtml}</body></html>`;
+    
+    // Create PDF using browser print
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(fullHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    
+    // Wait for content to load, then print to PDF
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+    
+    toast('📄 Laporan pengeluaran disimpan sebagai PDF', 'success');
+  };
+
+  // Share Expenses Report via WhatsApp
+  const shareExpensesWA = () => {
+    const s = appData.settings || {};
+    let msg = `*LAPORAN PENGELUARAN OPERASIONAL — ${s.storeName || 'Melan Jaya'}*\n`;
+    msg += `Periode: ${start || 'Semua'} s/d ${end || 'Semua'}\n`;
+    msg += `────────────────────\n`;
+    msg += `💰 Total Pengeluaran: ${formatRp(totalPengeluaran)}\n`;
+    msg += `🧾 Jumlah Catatan: ${filteredExpenses.length} catatan\n`;
+    
+    // Add breakdown by category
+    if (expenseBreakdown.length > 0) {
+      msg += `────────────────────\n`;
+      msg += `*Breakdown Kategori:*\n`;
+      expenseBreakdown.forEach(([cat, amt]) => {
+        const pct = totalPengeluaran > 0 ? Math.round((amt / totalPengeluaran) * 100) : 0;
+        msg += `• ${cat}: ${formatRp(amt)} (${pct}%)\n`;
+      });
+    }
+    
+    msg += `────────────────────\n`;
+    msg += `Dikirim dari Melan Jaya POS`;
+    const no = (s.storePhone || '').replace(/\D/g, '');
+    const url = no ? `https://wa.me/${no}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+    toast('📤 Laporan pengeluaran dibagikan ke WhatsApp!', 'success');
+  };
+
+  // Save Buys Report to PDF
+  const saveBuysToPDF = () => {
+    const s = appData.settings || {};
+    
+    // Create header
+    const headerHtml = `
+      <div style="text-align:center;margin-bottom:20px;">
+        <h2 style="color:#4c1d95;margin:0;font-size:18px;">${s.storeName?.toUpperCase() || 'MELAN JAYA POS'}</h2>
+        <p style="color:#666;margin:5px 0 0 0;font-size:12px;">${s.storeAddress || ''}</p>
+        <p style="color:#666;margin:0;font-size:12px;">${s.storePhone || ''}</p>
+        <hr style="border:1px solid #ddd;margin:15px 0;"/>
+        <h3 style="color:#d97706;margin:0;font-size:14px;">LAPORAN RIWAYAT PEMBELIAN & RESTOCK</h3>
+        <p style="color:#666;margin:5px 0 15px 0;font-size:11px;">Periode: ${start || 'Semua'} s/d ${end || 'Semua'}</p>
+      </div>
+    `;
+
+    // Create summary table
+    const summaryHtml = `
+      <table style="width:100%;margin-bottom:15px;">
+        <tr>
+          <td style="padding:6px 10px;font-weight:700;">Total Pembelian:</td>
+          <td style="padding:6px 10px;text-align:right;color:#d97706;font-weight:800;">${formatRp(totalBeli)}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 10px;font-weight:700;">Jumlah Restock:</td>
+          <td style="padding:6px 10px;text-align:right;font-weight:800;">${filteredBuys.length} transaksi</td>
+        </tr>
+      </table>
+    `;
+
+    // Create buys table
+    let tableHtml = '<table style="width:100%;border-collapse:collapse;margin-top:10px;"><thead><tr style="border-bottom:2px solid #333;"><th style="text-align:left;padding:6px;">Tanggal</th><th style="text-align:left;padding:6px;">Supplier</th><th style="text-align:left;padding:6px;">Barang</th><th style="text-align:left;padding:6px;">Kategori</th><th style="text-align:right;padding:6px;">Qty</th><th style="text-align:right;padding:6px;">Harga Modal</th><th style="text-align:right;padding:6px;">Total Modal</th></tr></thead><tbody>';
+    
+    filteredBuys.forEach(t => {
+      tableHtml += `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px;">${t.tanggal}</td><td style="padding:6px;">${t.supplier || '—'}</td><td style="padding:6px;">${t.barang}</td><td style="padding:6px;">${t.kategori || '—'}</td><td style="text-align:right;padding:6px;">${t.jumlah} pcs</td><td style="text-align:right;padding:6px;">${formatRp(t.hargaModal)}</td><td style="text-align:right;padding:6px;color:#d97706;">${formatRp(t.totalModal)}</td></tr>`;
+    });
+    
+    tableHtml += '</tbody></table>';
+
+    const fullHtml = `<html><head><meta charset="UTF-8"><title>Laporan Pembelian - ${s.storeName || 'Melan Jaya'}</title></head><body>${headerHtml}${summaryHtml}${tableHtml}</body></html>`;
+    
+    // Create PDF using browser print
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(fullHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    
+    // Wait for content to load, then print to PDF
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+    
+    toast('📄 Laporan pembelian disimpan sebagai PDF', 'success');
+  };
+
+  // Share Buys Report via WhatsApp
+  const shareBuysWA = () => {
+    const s = appData.settings || {};
+    let msg = `*LAPORAN PEMBELIAN & RESTOCK — ${s.storeName || 'Melan Jaya'}*\n`;
+    msg += `Periode: ${start || 'Semua'} s/d ${end || 'Semua'}\n`;
+    msg += `────────────────────\n`;
+    msg += `📦 Total Pembelian: ${formatRp(totalBeli)}\n`;
+    msg += `🧾 Jumlah Restock: ${filteredBuys.length} transaksi\n`;
+    msg += `────────────────────\n`;
+    msg += `Dikirim dari Melan Jaya POS`;
+    const no = (s.storePhone || '').replace(/\D/g, '');
+    const url = no ? `https://wa.me/${no}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+    toast('📤 Laporan pembelian dibagikan ke WhatsApp!', 'success');
+  };
+
   const setPresetBtn = (p) => { setPreset(p); };
 
   const CustomTooltip = ({ active, payload, label }) => {
@@ -619,10 +772,18 @@ const LaporanPage = () => {
 
       {/* Pembelian Table */}
       <div className="card">
-        <div className="card-header">
+        <div className="card-header" style={{ flexWrap: 'wrap', gap: 10 }}>
           <div>
             <div className="card-title"><i className="fa-solid fa-truck-ramp-box" /> Riwayat Pembelian &amp; Restock</div>
             <div className="card-subtitle">{filteredBuys.length} restock ditemukan</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn btn-purple btn-sm" onClick={shareBuysWA} title="Bagikan via WhatsApp">
+              <i className="fa-brands fa-whatsapp" /> Share WA
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={saveBuysToPDF} title="Simpan sebagai PDF">
+              <i className="fa-solid fa-file-pdf" style={{ color: 'var(--rose)' }} /> PDF
+            </button>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -672,13 +833,35 @@ const LaporanPage = () => {
             <div className="card-subtitle">{filteredExpenses.length} catatan pengeluaran &middot; Total {formatRp(totalPengeluaran)}</div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn btn-purple btn-sm" onClick={shareExpensesWA} title="Bagikan via WhatsApp">
+              <i className="fa-brands fa-whatsapp" /> Share WA
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={saveExpensesToPDF} title="Simpan sebagai PDF">
+              <i className="fa-solid fa-file-pdf" style={{ color: 'var(--rose)' }} /> PDF
+            </button>
             <button className="btn btn-ghost btn-sm" onClick={exportExpensesCSV}>
-              <i className="fa-solid fa-file-csv" style={{ color: 'var(--emerald)' }} /> CSV Pengeluaran
+              <i className="fa-solid fa-file-csv" style={{ color: 'var(--emerald)' }} /> CSV
             </button>
             <button className="btn btn-ghost btn-sm" onClick={printExpenseReport}>
-              <i className="fa-solid fa-print" style={{ color: 'var(--brand)' }} /> Cetak Laporan
+              <i className="fa-solid fa-print" style={{ color: 'var(--brand)' }} /> Cetak
             </button>
           </div>
+        </div>
+        
+        {/* Date Filter Bar for Expenses */}
+        <div className="date-filter-bar">
+          {[['today','Hari Ini'],['yesterday','Kemarin'],['week','7 Hari'],['month','Bulan Ini'],['all','Semua']].map(([p,l]) => (
+            <button key={p} className={`date-preset-btn${preset === p ? ' active' : ''}`} onClick={() => setPresetBtn(p)}>{l}</button>
+          ))}
+          <button className={`date-preset-btn${preset === 'custom' ? ' active' : ''}`} onClick={() => setPresetBtn('custom')}>Custom</button>
+          {preset === 'custom' && (
+            <div className="date-range-inputs">
+              <span>Dari</span>
+              <input type="date" className="date-input" value={dateStart} onChange={e => setDateStart(e.target.value)} />
+              <span>–</span>
+              <input type="date" className="date-input" value={dateEnd} onChange={e => setDateEnd(e.target.value)} />
+            </div>
+          )}
         </div>
 
         {/* Category breakdown bar if expenses exist */}

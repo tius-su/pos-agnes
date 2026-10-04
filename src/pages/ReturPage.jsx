@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
+import { isoDate } from '../services/dataSync';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
-const isoDate = d => d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
 
 const ReturPage = () => {
   const { appData, saveAndSync, toast } = useData();

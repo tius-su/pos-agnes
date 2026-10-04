@@ -114,15 +114,24 @@ const StokPage = () => {
     const existIdx = newStok.findIndex(s => s.nama_barang.toLowerCase() === form.r_name.toLowerCase());
 
     if (existIdx >= 0) {
-      // Update existing stock
+      // Update existing stock with average cost calculation
+      const existingItem = newStok[existIdx];
+      const existingQty = existingItem.stokTersedia || 0;
+      const existingCost = existingItem.hargaModal || 0;
+      
+      // Calculate weighted average cost: ((existingQty * existingCost) + (newQty * newCost)) / (existingQty + newQty)
+      const totalCostValue = (existingQty * existingCost) + (qty * cost);
+      const totalQty = existingQty + qty;
+      const averageCost = totalQty > 0 ? totalCostValue / totalQty : (cost || existingCost);
+      
       newStok[existIdx] = {
         ...newStok[existIdx],
-        hargaModal: cost || newStok[existIdx].hargaModal,
+        hargaModal: averageCost,
         hargaJual: price || newStok[existIdx].hargaJual,
         minQtyGrosir: minGrosir,
         hargaGrosir: priceGrosir,
         variasiText: variants,
-        stokTersedia: newStok[existIdx].stokTersedia + qty,
+        stokTersedia: totalQty,
         kategori: form.r_category,
         imageUrl: form.r_image_url || newStok[existIdx].imageUrl || '',
         supplierList: [...new Set([...(newStok[existIdx].supplierList || []), form.r_supplier].filter(Boolean))]

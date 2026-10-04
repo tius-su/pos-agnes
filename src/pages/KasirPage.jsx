@@ -388,7 +388,7 @@ const KasirPage = () => {
 
       <div className="pos-layout">
         {/* Product Grid Card */}
-        <div className={`card pos-catalog-card${mobileTab !== 'catalog' ? ' mobile-hidden' : ''}`} style={{ overflow: 'hidden' }}>
+        <div className={`card pos-catalog-card${mobileTab !== 'catalog' ? ' desktop-and-mobile-hidden' : ''}`} style={{ overflow: 'hidden' }}>
           <div className="card-header">
             <div className="card-title"><i className="fa-solid fa-store" /> Katalog Produk</div>
             <div style={{ display: 'flex', gap: 8, width: '100%', maxWidth: 360 }}>
@@ -486,7 +486,7 @@ const KasirPage = () => {
         </div>
 
         {/* Cart Panel */}
-        <div className={`cart-panel${mobileTab !== 'cart' ? ' mobile-hidden' : ''}`}>
+        <div className={`cart-panel${mobileTab !== 'cart' ? ' desktop-and-mobile-hidden' : ''}`}>
           <div className="cart-header">
             <div className="cart-header-title">
               <i className="fa-solid fa-shopping-cart" /> Keranjang

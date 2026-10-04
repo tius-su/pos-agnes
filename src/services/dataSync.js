@@ -17,6 +17,9 @@ export const getTodayIso = (dateInput) => {
   return `${year}-${month}-${day}`;
 };
 
+// Helper function untuk format tanggal ke ISO (YYYY-MM-DD) - legacy support
+export const isoDate = d => d.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
+
 export const normalizeDateStr = (str) => {
   if (!str) return getTodayIso();
   const s = String(str).trim();
