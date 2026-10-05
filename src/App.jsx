@@ -95,7 +95,7 @@ const AppInner = () => {
   const [activeTab, setActiveTab] = useState(() => window.location.hash === '#katalog' ? 'katalog' : 'dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [clock, setClock] = useState('');
-  const { toasts, appData } = useData();
+  const { appData } = useData();
 
   useEffect(() => {
     const tick = () => {
@@ -186,21 +186,6 @@ const AppInner = () => {
         ))}
       </nav>
 
-      {/* Toast notifications */}
-      {toasts?.length > 0 && (
-        <div className="toast-container">
-          {toasts.map(t => (
-            <div key={t.id} className={`toast toast-${t.type}`}>
-              <i className={`fa-solid ${
-                t.type === 'success' ? 'fa-check-circle' :
-                t.type === 'error'   ? 'fa-triangle-exclamation' :
-                t.type === 'warning' ? 'fa-exclamation-circle' : 'fa-info-circle'
-              }`} />
-              {t.message}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 };

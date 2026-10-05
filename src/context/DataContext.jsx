@@ -8,9 +8,9 @@ import { auth } from '../firebase';
 
 const DataContext = createContext(null);
 
-// Helper: apakah data punya stok yang valid dan tidak kosong
+// Helper: apakah data punya struktur stok yang valid, termasuk saat stok sengaja dikosongkan.
 const hasValidStock = (data) =>
-  data && typeof data === 'object' && Array.isArray(data.stok) && data.stok.length > 0;
+  data && typeof data === 'object' && Array.isArray(data.stok);
 
 // Merge data Firebase dengan fallback lokal, pastikan stok tidak pernah kosong
 const mergeWithFallback = (cloudData, fallback) => {
@@ -20,7 +20,7 @@ const mergeWithFallback = (cloudData, fallback) => {
 };
 
 export const DataProvider = ({ children, isPublic = false }) => {
-  // State awal: coba dari cache lokal, jika kosong pakai INITIAL_DATA (ada sample stok)
+  // State awal: coba dari cache lokal, jika tidak ada pakai INITIAL_DATA (ada sample stok)
   const [appData, setAppData] = useState(() => {
     try {
       const local = loadLocalData();
@@ -68,7 +68,7 @@ export const DataProvider = ({ children, isPublic = false }) => {
 
       const unsub = subscribePublicCatalog(
         (cloudData) => {
-          if (cloudData && cloudData.stok && cloudData.stok.length > 0) {
+          if (cloudData && Array.isArray(cloudData.stok)) {
             setAppData(cloudData);
             setSyncStatus('ok');
           } else {
@@ -116,7 +116,7 @@ export const DataProvider = ({ children, isPublic = false }) => {
       setSyncStatus('syncing');
       const unsub = subscribeToFirebaseCloud(
         (cloudData) => {
-          if (cloudData && cloudData.stok && cloudData.stok.length > 0) {
+          if (cloudData && Array.isArray(cloudData.stok)) {
             saveLocalData(cloudData);
             setAppData(cloudData);
             setLastSync(new Date());
@@ -161,7 +161,7 @@ export const DataProvider = ({ children, isPublic = false }) => {
 
   // Save dan sync ke Firebase
   const saveAndSync = useCallback(async (newData) => {
-    // Pastikan stok tidak hilang saat save
+    // Pastikan struktur stok tidak hilang saat save, tetapi izinkan stok kosong jika memang dihapus semua.
     const normalized = normalizeAppData(newData);
     const dataToSave = hasValidStock(normalized)
       ? normalized

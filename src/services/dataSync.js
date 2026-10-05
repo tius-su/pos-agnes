@@ -202,30 +202,41 @@ export const normalizeAppData = (data) => {
   }
 
   let rawStok = [];
+  let hasStokSource = false;
   if (Array.isArray(data.stok)) {
+    hasStokSource = true;
     rawStok = data.stok;
   } else if (data.stok && typeof data.stok === 'object') {
+    hasStokSource = true;
     rawStok = Object.values(data.stok);
   } else if (Array.isArray(data.products)) {
+    hasStokSource = true;
     rawStok = data.products;
   } else if (data.products && typeof data.products === 'object') {
+    hasStokSource = true;
     rawStok = Object.values(data.products);
   } else if (Array.isArray(data.items)) {
+    hasStokSource = true;
     rawStok = data.items;
   } else if (data.items && typeof data.items === 'object') {
+    hasStokSource = true;
     rawStok = Object.values(data.items);
   } else if (Array.isArray(data.barang)) {
+    hasStokSource = true;
     rawStok = data.barang;
   } else if (data.barang && typeof data.barang === 'object') {
+    hasStokSource = true;
     rawStok = Object.values(data.barang);
   } else if (Array.isArray(data.inventory)) {
+    hasStokSource = true;
     rawStok = data.inventory;
   } else if (data.inventory && typeof data.inventory === 'object') {
+    hasStokSource = true;
     rawStok = Object.values(data.inventory);
   }
 
-  // Jika stok kosong, gunakan SAMPLE_STOK agar katalog kasir & stok selalu terisi
-  if (rawStok.length === 0) {
+  // Jika data lama tidak punya field stok sama sekali, gunakan sample. Jika stok: [] ada, hormati sebagai stok kosong.
+  if (!hasStokSource && rawStok.length === 0) {
     rawStok = SAMPLE_STOK;
   }
   
@@ -424,7 +435,7 @@ export const subscribeToFirebaseCloud = (onData, onError) => {
             console.warn('[Firebase] Local pending merge error:', e);
           }
 
-          if (firebaseData.stok && firebaseData.stok.length > 0) {
+          if (Array.isArray(firebaseData.stok)) {
             onData(firebaseData);
           } else {
             // Dokumen ada tapi stok kosong → kirim null agar DataContext pakai local cache
@@ -520,7 +531,7 @@ export const subscribePublicCatalog = (onData, onError) => {
       (snap) => {
         if (snap.exists() && snap.data()) {
           const firebaseData = normalizeAppData(snap.data());
-          if (firebaseData.stok && firebaseData.stok.length > 0) {
+          if (Array.isArray(firebaseData.stok)) {
             onData(firebaseData);
           } else {
             onData(null);

@@ -143,7 +143,7 @@ const ReturPage = () => {
     setSaving(false);
   };
 
-  const totalReturSemua = returHistory.reduce((s, r) => s + r.totalRetur, 0);
+  const totalReturSemua = returHistory.reduce((s, r) => s + (r.totalRetur || 0), 0);
 
   const PRESET_BTNS = [['today','Hari Ini'],['yesterday','Kemarin'],['week','7 Hari'],['month','Bulan Ini'],['year','Tahun Ini'],['all','Semua'],['custom','Custom']];
 
@@ -167,7 +167,7 @@ const ReturPage = () => {
         <div className="stat-card sky">
           <i className="stat-icon fa-solid fa-boxes-stacked" />
           <div className="stat-label">Item Diretur</div>
-          <div className="stat-value">{returHistory.reduce((s, r) => s + r.items.reduce((ss, i) => ss + i.jumlah, 0), 0)}</div>
+          <div className="stat-value">{returHistory.reduce((s, r) => s + (r.items || []).reduce((ss, i) => ss + (i.jumlah || 0), 0), 0)}</div>
           <div className="stat-meta">pcs dikembalikan</div>
         </div>
       </div>
@@ -262,7 +262,7 @@ const ReturPage = () => {
                     <td className="cell-main" style={{ fontFamily: 'monospace', fontSize: 11 }}>{r.kodeTrxAsli}</td>
                     <td>{r.pelanggan}</td>
                     <td style={{ fontSize: 12 }}>{r.alasan}</td>
-                    <td style={{ fontSize: 11 }}>{r.items.map(i => `${i.barang}×${i.jumlah}`).join(', ')}</td>
+                    <td style={{ fontSize: 11 }}>{(r.items || []).map(i => `${i.barang}×${i.jumlah}`).join(', ')}</td>
                     <td className="cell-amount" style={{ color: 'var(--rose)', fontWeight: 800 }}>-{formatRp(r.totalRetur)}</td>
                   </tr>
                 ))}

@@ -68,7 +68,7 @@ const PelangganPage = () => {
     if (!search.trim()) return allPelanggan;
     const s = search.toLowerCase();
     return allPelanggan.filter(p =>
-      p.nama.toLowerCase().includes(s) ||
+      (p.nama || '').toLowerCase().includes(s) ||
       (p.noWa && p.noWa.includes(s)) ||
       (p.alamat && p.alamat.toLowerCase().includes(s))
     );
@@ -207,7 +207,7 @@ const PelangganPage = () => {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         color: '#fff', fontSize: 13, fontWeight: 800, flexShrink: 0
                       }}>
-                        {p.nama.charAt(0).toUpperCase()}
+                        {(p.nama || '?').charAt(0).toUpperCase()}
                       </div>
                       <span>{p.nama}</span>
                     </div>
@@ -258,7 +258,7 @@ const PelangganPage = () => {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: '#fff', fontSize: 24, fontWeight: 800
                 }}>
-                  {selected.nama.charAt(0).toUpperCase()}
+                  {(selected.nama || '?').charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 800 }}>{selected.nama}</div>
@@ -286,7 +286,7 @@ const PelangganPage = () => {
                 <div>
                   <div className="form-label" style={{ marginBottom: 8 }}>Riwayat Belanja Terakhir</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                    {[...selected.riwayat].sort((a, b) => b.tanggal.localeCompare(a.tanggal)).slice(0, 8).map(t => (
+                    {[...selected.riwayat].sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || '')).slice(0, 8).map(t => (
                       <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
                         <div>
                           <div style={{ fontSize: 11, fontWeight: 700, fontFamily: 'monospace' }}>{t.kodeTrx}</div>

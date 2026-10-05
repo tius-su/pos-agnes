@@ -57,14 +57,19 @@ const KasirPage = () => {
     const cartName = selectedVariant ? `${item.nama_barang} (${selectedVariant})` : item.nama_barang;
 
     setCart(prev => {
+      const currentProductQty = prev.reduce((sum, c) => {
+        const originalName = c.originalName || c.nama_barang;
+        return originalName === item.nama_barang ? sum + (c.qty || 0) : sum;
+      }, 0);
       const ex = prev.find(c => c.cartKey === cartName || c.nama_barang === cartName);
       if (ex) {
-        if (ex.qty >= item.stokTersedia) { toast('Stok tidak mencukupi!', 'error'); return prev; }
+        if (currentProductQty + 1 > item.stokTersedia) { toast('Stok tidak mencukupi!', 'error'); return prev; }
         const newQty = ex.qty + 1;
         const isGrosir = item.minQtyGrosir > 0 && item.hargaGrosir > 0 && newQty >= item.minQtyGrosir;
         const effectivePrice = isGrosir ? item.hargaGrosir : item.hargaJual;
         return prev.map(c => (c.cartKey === cartName || c.nama_barang === cartName) ? { ...c, qty: newQty, hargaJual: effectivePrice, isGrosirActive: isGrosir } : c);
       }
+      if (currentProductQty + 1 > item.stokTersedia) { toast('Stok tidak mencukupi!', 'error'); return prev; }
       const isGrosir = item.minQtyGrosir > 0 && item.hargaGrosir > 0 && 1 >= item.minQtyGrosir;
       const initialPrice = isGrosir ? item.hargaGrosir : item.hargaJual;
       return [...prev, { ...item, cartKey: cartName, nama_barang: cartName, originalName: item.nama_barang, qty: 1, hargaJual: initialPrice, isGrosirActive: isGrosir }];
@@ -86,9 +91,14 @@ const KasirPage = () => {
         if (c.nama_barang !== name) return c;
         const originalName = c.originalName || c.nama_barang;
         const maxStock = appData.stok.find(s => s.nama_barang === originalName || s.nama_barang === c.nama_barang)?.stokTersedia || 999;
+        const otherVariantQty = prev.reduce((sum, item) => {
+          if (item.nama_barang === c.nama_barang) return sum;
+          const itemOriginalName = item.originalName || item.nama_barang;
+          return itemOriginalName === originalName ? sum + (item.qty || 0) : sum;
+        }, 0);
         const newQty = c.qty + d;
         if (newQty <= 0) return null;
-        if (newQty > maxStock) { toast('Melebihi stok tersedia!', 'warning'); return c; }
+        if (otherVariantQty + newQty > maxStock) { toast('Melebihi stok tersedia!', 'warning'); return c; }
         const isGrosir = c.minQtyGrosir > 0 && c.hargaGrosir > 0 && newQty >= c.minQtyGrosir;
         const effectivePrice = (c.isCustomPrice) ? c.hargaJual : (isGrosir ? c.hargaGrosir : (c.hargaJualNormal || c.hargaJual));
         return { ...c, qty: newQty, hargaJual: effectivePrice, isGrosirActive: isGrosir };
@@ -160,9 +170,12 @@ const KasirPage = () => {
 
     // Reduce stock
     const newStok = appData.stok.map(s => {
-      const cartItem = cart.find(c => c.nama_barang === s.nama_barang || c.originalName === s.nama_barang);
-      if (!cartItem) return s;
-      return { ...s, stokTersedia: Math.max(0, s.stokTersedia - cartItem.qty) };
+      const qtySold = cart.reduce((sum, c) => {
+        const originalName = c.originalName || c.nama_barang;
+        return originalName === s.nama_barang ? sum + (c.qty || 0) : sum;
+      }, 0);
+      if (!qtySold) return s;
+      return { ...s, stokTersedia: Math.max(0, s.stokTersedia - qtySold) };
     });
 
     const newData = {
