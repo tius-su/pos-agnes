@@ -17,6 +17,7 @@ const LaporanPage = () => {
   const [preset, setPreset] = useState('today');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
+  const [buySupplierFilter, setBuySupplierFilter] = useState('');
 
   // Edit & Delete state
   const [editTrx, setEditTrx] = useState(null);     // transaksi yang sedang diedit
@@ -62,12 +63,14 @@ const LaporanPage = () => {
   const filteredBuys = useMemo(() => {
     return (appData.pembelian || []).filter(t => {
       const tDate = normalizeDateStr(t.tanggal);
+      const matchSupplier = !buySupplierFilter || (t.supplier || '') === buySupplierFilter;
+      if (!matchSupplier) return false;
       if (!start && !end) return true;
       if (start && !end) return tDate >= start;
       if (!start && end) return tDate <= end;
       return tDate >= start && tDate <= end;
     }).sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
-  }, [appData.pembelian, start, end]);
+  }, [appData.pembelian, start, end, buySupplierFilter]);
 
   const filteredExpenses = useMemo(() => {
     return (appData.pengeluaran || []).filter(e => {
@@ -84,6 +87,11 @@ const LaporanPage = () => {
   const totalLaba = filteredSales.reduce((s, t) => s + (t.laba || 0), 0);
   const totalBeli = filteredBuys.reduce((s, t) => s + (t.totalModal || 0), 0);
   const totalPengeluaran = filteredExpenses.reduce((s, e) => s + (e.nominal || 0), 0);
+  const totalItemTerjual = filteredSales.reduce((s, t) => s + (t.items || []).reduce((ss, i) => ss + (i.jumlah || 0), 0), 0);
+  const totalQtyBeli = filteredBuys.reduce((s, t) => s + (t.jumlah || 0), 0);
+  const supplierOptions = useMemo(() => {
+    return [...new Set((appData.pembelian || []).map(t => t.supplier).filter(Boolean))].sort();
+  }, [appData.pembelian]);
   const labaBersihOperasional = totalLaba - totalPengeluaran;
   const marginPct = totalOmset > 0 ? ((totalLaba / totalOmset) * 100).toFixed(1) : 0;
 
@@ -289,6 +297,10 @@ const LaporanPage = () => {
           <td style="padding:6px 10px;font-weight:700;">Jumlah Transaksi:</td>
           <td style="padding:6px 10px;text-align:right;font-weight:800;">${filteredSales.length} transaksi</td>
         </tr>
+        <tr>
+          <td style="padding:6px 10px;font-weight:700;">Total Item Terjual:</td>
+          <td style="padding:6px 10px;text-align:right;font-weight:800;">${totalItemTerjual} pcs</td>
+        </tr>
       </table>
     `;
 
@@ -458,6 +470,10 @@ const LaporanPage = () => {
           <td style="padding:6px 10px;font-weight:700;">Jumlah Restock:</td>
           <td style="padding:6px 10px;text-align:right;font-weight:800;">${filteredBuys.length} transaksi</td>
         </tr>
+        <tr>
+          <td style="padding:6px 10px;font-weight:700;">Total Jumlah:</td>
+          <td style="padding:6px 10px;text-align:right;font-weight:800;">${totalQtyBeli} pcs</td>
+        </tr>
       </table>
     `;
 
@@ -468,7 +484,7 @@ const LaporanPage = () => {
       tableHtml += `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px;">${t.tanggal}</td><td style="padding:6px;">${t.supplier || '—'}</td><td style="padding:6px;">${t.barang}</td><td style="padding:6px;">${t.kategori || '—'}</td><td style="text-align:right;padding:6px;">${t.jumlah} pcs</td><td style="text-align:right;padding:6px;">${formatRp(t.hargaModal)}</td><td style="text-align:right;padding:6px;color:#d97706;">${formatRp(t.totalModal)}</td></tr>`;
     });
     
-    tableHtml += '</tbody></table>';
+    tableHtml += `<tr style="border-bottom:2px solid #333;font-weight:bold;"><td style="padding:6px;" colspan="4">TOTAL PEMBELIAN & RESTOCK</td><td style="text-align:right;padding:6px;">${totalQtyBeli} pcs</td><td></td><td style="text-align:right;padding:6px;color:#d97706;font-size:14px;">${formatRp(totalBeli)}</td></tr></tbody></table>`;
 
     const fullHtml = `<html><head><meta charset="UTF-8"><title>Laporan Pembelian - ${s.storeName || 'Melan Jaya'}</title></head><body>${headerHtml}${summaryHtml}${tableHtml}</body></html>`;
     
@@ -493,6 +509,7 @@ const LaporanPage = () => {
     msg += `Periode: ${start || 'Semua'} s/d ${end || 'Semua'}\n`;
     msg += `────────────────────\n`;
     msg += `📦 Total Pembelian: ${formatRp(totalBeli)}\n`;
+    msg += `📊 Total Jumlah: ${totalQtyBeli} pcs\n`;
     msg += `🧾 Jumlah Restock: ${filteredBuys.length} transaksi\n`;
     msg += `────────────────────\n`;
     msg += `Dikirim dari Melan Jaya POS`;
@@ -598,7 +615,7 @@ const LaporanPage = () => {
         <div className="card-header">
           <div>
             <div className="card-title"><i className="fa-solid fa-receipt" /> Riwayat Penjualan</div>
-            <div className="card-subtitle">{filteredSales.length} transaksi ditemukan</div>
+            <div className="card-subtitle">{filteredSales.length} transaksi ditemukan &middot; Total {totalItemTerjual} item</div>
           </div>
         </div>
 
@@ -629,6 +646,12 @@ const LaporanPage = () => {
           <button className="btn btn-ghost btn-sm" onClick={exportCSV} title="Export ke CSV">
             <i className="fa-solid fa-file-csv" style={{ color: 'var(--emerald)' }} /> CSV
           </button>
+        </div>
+
+        <div style={{ padding: '0 16px 12px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span className="badge badge-green">Omset {formatRp(totalOmset)}</span>
+          <span className="badge badge-violet">Total Item {totalItemTerjual} pcs</span>
+          <span className="badge badge-sky">Transaksi {filteredSales.length}</span>
         </div>
 
         {/* ── DESKTOP TABLE ── */}
@@ -775,7 +798,7 @@ const LaporanPage = () => {
         <div className="card-header" style={{ flexWrap: 'wrap', gap: 10 }}>
           <div>
             <div className="card-title"><i className="fa-solid fa-truck-ramp-box" /> Riwayat Pembelian &amp; Restock</div>
-            <div className="card-subtitle">{filteredBuys.length} restock ditemukan</div>
+            <div className="card-subtitle">{filteredBuys.length} restock ditemukan &middot; Total {totalQtyBeli} pcs &middot; {formatRp(totalBeli)}</div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button className="btn btn-purple btn-sm" onClick={shareBuysWA} title="Bagikan via WhatsApp">
@@ -785,6 +808,30 @@ const LaporanPage = () => {
               <i className="fa-solid fa-file-pdf" style={{ color: 'var(--rose)' }} /> PDF
             </button>
           </div>
+        </div>
+        <div className="date-filter-bar">
+          {[['today','Hari Ini'],['yesterday','Kemarin'],['week','7 Hari'],['month','Bulan Ini'],['all','Semua']].map(([p,l]) => (
+            <button key={p} className={`date-preset-btn${preset === p ? ' active' : ''}`} onClick={() => setPresetBtn(p)}>{l}</button>
+          ))}
+          <button className={`date-preset-btn${preset === 'custom' ? ' active' : ''}`} onClick={() => setPresetBtn('custom')}>Custom</button>
+          {preset === 'custom' && (
+            <div className="date-range-inputs">
+              <span>Dari</span>
+              <input type="date" className="date-input" value={dateStart} onChange={e => setDateStart(e.target.value)} />
+              <span>–</span>
+              <input type="date" className="date-input" value={dateEnd} onChange={e => setDateEnd(e.target.value)} />
+            </div>
+          )}
+          <select className="date-input" value={buySupplierFilter} onChange={e => setBuySupplierFilter(e.target.value)} style={{ minWidth: 180 }}>
+            <option value="">Semua Supplier</option>
+            {supplierOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div style={{ padding: '0 16px 12px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span className="badge badge-amber">Total Modal {formatRp(totalBeli)}</span>
+          <span className="badge badge-violet">Total Jumlah {totalQtyBeli} pcs</span>
+          <span className="badge badge-sky">{filteredBuys.length} transaksi</span>
+          {buySupplierFilter && <span className="badge badge-green">Supplier: {buySupplierFilter}</span>}
         </div>
         <div className="overflow-x-auto">
           <table className="data-table">
@@ -818,6 +865,14 @@ const LaporanPage = () => {
                   <td className="cell-amount cell-amber">{formatRp(t.totalModal)}</td>
                 </tr>
               ))}
+              {filteredBuys.length > 0 && (
+                <tr style={{ background: 'var(--bg-hover)', fontWeight: 800 }}>
+                  <td colSpan={4}>TOTAL PEMBELIAN & RESTOCK</td>
+                  <td>{totalQtyBeli} pcs</td>
+                  <td></td>
+                  <td className="cell-amount cell-amber">{formatRp(totalBeli)}</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -830,7 +885,7 @@ const LaporanPage = () => {
             <div className="card-title">
               <i className="fa-solid fa-receipt" style={{ color: 'var(--rose)' }} /> Laporan Pengeluaran Operasional
             </div>
-            <div className="card-subtitle">{filteredExpenses.length} catatan pengeluaran &middot; Total {formatRp(totalPengeluaran)}</div>
+            <div className="card-subtitle">{filteredExpenses.length} catatan pengeluaran &middot; Total jumlah {filteredExpenses.length} &middot; Total {formatRp(totalPengeluaran)}</div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button className="btn btn-purple btn-sm" onClick={shareExpensesWA} title="Bagikan via WhatsApp">

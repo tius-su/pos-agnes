@@ -12,7 +12,7 @@ const ReturPage = () => {
   const [alasan, setAlasan] = useState('');
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState('proses');
-  const [datePreset, setDatePreset] = useState('month');
+  const [datePreset, setDatePreset] = useState('all');
   const [dateStart, setDateStart]   = useState('');
   const [dateEnd, setDateEnd]       = useState('');
 
@@ -35,21 +35,28 @@ const ReturPage = () => {
   const filteredTrx = useMemo(() => {
     return penjualan.filter(t => {
       const sTerm = search.toLowerCase().trim();
+      const trxDate = t.tanggal || '';
       const matchSearch = !sTerm ||
         (t.kodeTrx && t.kodeTrx.toLowerCase().includes(sTerm)) ||
         (t.pelanggan && t.pelanggan.toLowerCase().includes(sTerm)) ||
-        t.tanggal.includes(sTerm);
-      const matchDate = (!start && !end) || (t.tanggal >= start && t.tanggal <= end);
+        trxDate.includes(sTerm);
+      const matchDate = (!start && !end) ||
+        (start && !end && trxDate >= start) ||
+        (!start && end && trxDate <= end) ||
+        (trxDate >= start && trxDate <= end);
       return matchSearch && matchDate;
-    }).sort((a, b) => b.tanggal.localeCompare(a.tanggal) || (b.waktu || '').localeCompare(a.waktu || ''));
+    }).sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || '') || (b.waktu || '').localeCompare(a.waktu || ''));
   }, [penjualan, search, start, end]);
 
   // Filter riwayat retur by date
   const filteredRetur = useMemo(() => {
     return returHistory.filter(r => {
       if (!start && !end) return true;
-      return r.tanggal >= start && r.tanggal <= end;
-    }).sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+      const returDate = r.tanggal || '';
+      if (start && !end) return returDate >= start;
+      if (!start && end) return returDate <= end;
+      return returDate >= start && returDate <= end;
+    }).sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
   }, [returHistory, start, end]);
 
   const openRetur = (trx) => {
@@ -74,6 +81,7 @@ const ReturPage = () => {
   const hasRetur = returItems.some(i => i.returQty > 0);
 
   const handleProses = async () => {
+    if (!selectedTrx) { toast('Pilih transaksi yang akan diretur', 'error'); return; }
     if (!hasRetur) { toast('Pilih minimal 1 item untuk diretur', 'error'); return; }
     if (!alasan.trim()) { toast('Alasan retur wajib diisi', 'error'); return; }
     setSaving(true);
@@ -97,7 +105,10 @@ const ReturPage = () => {
 
       // Restore stok
       const newStok = (appData.stok || []).map(s => {
-        const ret = returItems.find(i => i.barang === s.nama_barang && i.returQty > 0);
+        const ret = returItems.find(i =>
+          i.returQty > 0 &&
+          (i.barang === s.nama_barang || i.originalName === s.nama_barang || (i.barang && i.barang.startsWith(s.nama_barang)))
+        );
         if (!ret) return s;
         return { ...s, stokTersedia: s.stokTersedia + ret.returQty };
       });
@@ -176,7 +187,7 @@ const ReturPage = () => {
       {/* Tab */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         {[['proses', 'fa-plus-circle', 'Proses Retur'], ['riwayat', 'fa-clock-rotate-left', 'Riwayat Retur']].map(([key, icon, label]) => (
-          <button key={key} className={`btn ${tab === key ? 'btn-purple' : 'btn-ghost'} btn-sm`} onClick={() => setTab(key)}>
+          <button key={key} type="button" className={`btn ${tab === key ? 'btn-purple' : 'btn-ghost'} btn-sm`} onClick={() => setTab(key)}>
             <i className={`fa-solid ${icon}`} /> {label}
           </button>
         ))}
@@ -212,7 +223,7 @@ const ReturPage = () => {
                     <td style={{ fontSize: 11 }}>{(t.items || []).map(i => `${i.barang}×${i.jumlah}`).join(', ')}</td>
                     <td className="cell-amount cell-green">{formatRp(t.totalPenjualan)}</td>
                     <td style={{ textAlign: 'center' }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => openRetur(t)} style={{ padding: '4px 10px' }}>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => openRetur(t)} style={{ padding: '4px 10px' }}>
                         <i className="fa-solid fa-rotate-left" /> Retur
                       </button>
                     </td>
@@ -304,8 +315,8 @@ const ReturPage = () => {
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => setSelectedTrx(null)} disabled={saving}>Batal</button>
-              <button className="btn btn-amber" onClick={handleProses} disabled={saving || !hasRetur} style={{ flex: 1 }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setSelectedTrx(null)} disabled={saving}>Batal</button>
+              <button type="button" className="btn btn-amber" onClick={handleProses} disabled={saving || !hasRetur} style={{ flex: 1 }}>
                 {saving ? <><i className="fa-solid fa-circle-notch animate-spin" /> Memproses...</> : <><i className="fa-solid fa-rotate-left" /> Proses Retur</>}
               </button>
             </div>

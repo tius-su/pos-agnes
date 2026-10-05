@@ -20,6 +20,18 @@ const emptyForm = {
   r_image_url: ''
 };
 
+const emptyBatchRow = {
+  name: '',
+  category: 'Pakaian Wanita',
+  qty: '',
+  cost: '',
+  price: '',
+  minGrosir: '',
+  priceGrosir: '',
+  variants: '',
+  imageUrl: ''
+};
+
 const QUICK_SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'LLL', '3XL', 'All Size'];
 const QUICK_COLORS = ['Hitam', 'Putih', 'Navy', 'Maroon', 'Sage Green', 'Rose', 'Mocca', 'Kuning', 'Cokelat'];
 
@@ -33,6 +45,8 @@ const StokPage = () => {
   const [deleting, setDeleting] = useState(null);
   const [customVariantInput, setCustomVariantInput] = useState('');
   const [printModalItems, setPrintModalItems] = useState(null);
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchRows, setBatchRows] = useState([{ ...emptyBatchRow }]);
   const fileInputRef = useRef(null);
 
   const activeVariants = (form.r_variants || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -75,11 +89,14 @@ const StokPage = () => {
   const openRestock = () => {
     setEditItem(null);
     setForm(emptyForm);
+    setBatchMode(false);
+    setBatchRows([{ ...emptyBatchRow }]);
     setShowModal(true);
   };
 
   const openEdit = (item) => {
     setEditItem(item.nama_barang);
+    setBatchMode(false);
     setForm({
       r_date: new Date().toISOString().slice(0, 10),
       r_supplier: item.supplierList?.[0] || '',
@@ -93,78 +110,116 @@ const StokPage = () => {
       r_variants: item.variasiText || '',
       r_image_url: item.imageUrl || ''
     });
-    setUploadProgress(0);
     setShowModal(true);
   };
 
-  const handleSubmit = async e => {
-    e.preventDefault();
-    const qty = parseInt(form.r_qty) || 0;
-    const cost = parseFloat(form.r_cost) || 0;
-    const price = parseFloat(form.r_price) || 0;
-    const minGrosir = parseInt(form.r_min_grosir) || 0;
-    const priceGrosir = parseFloat(form.r_price_grosir) || 0;
-    const variants = form.r_variants ? form.r_variants.trim() : '';
+  const updateBatchRow = (idx, field, value) => {
+    setBatchRows(rows => rows.map((row, i) => i === idx ? { ...row, [field]: value } : row));
+  };
 
-    if (!form.r_name.trim()) { toast('Nama barang harus diisi', 'error'); return; }
+  const addBatchRow = () => setBatchRows(rows => [...rows, { ...emptyBatchRow }]);
+  const removeBatchRow = (idx) => setBatchRows(rows => rows.length > 1 ? rows.filter((_, i) => i !== idx) : rows);
 
-    let newStok = [...(appData.stok || [])];
-    let newPembelian = [...(appData.pembelian || [])];
+  const applyStockInput = (stokList, pembelianList, input, idx = 0) => {
+    const qty = parseInt(input.qty) || 0;
+    const cost = parseFloat(input.cost) || 0;
+    const price = parseFloat(input.price) || 0;
+    const minGrosir = parseInt(input.minGrosir) || 0;
+    const priceGrosir = parseFloat(input.priceGrosir) || 0;
+    const name = (input.name || '').trim();
+    const supplier = (input.supplier || '').trim();
+    const category = input.category || 'Pakaian Wanita';
+    const variants = input.variants ? input.variants.trim() : '';
+    const imageUrl = input.imageUrl || '';
 
-    const existIdx = newStok.findIndex(s => s.nama_barang.toLowerCase() === form.r_name.toLowerCase());
+    if (!name) return { stokList, pembelianList };
+
+    const existIdx = stokList.findIndex(s => s.nama_barang.toLowerCase() === name.toLowerCase());
 
     if (existIdx >= 0) {
-      // Update existing stock with average cost calculation
-      const existingItem = newStok[existIdx];
+      const existingItem = stokList[existIdx];
       const existingQty = existingItem.stokTersedia || 0;
       const existingCost = existingItem.hargaModal || 0;
-      
-      // Calculate weighted average cost: ((existingQty * existingCost) + (newQty * newCost)) / (existingQty + newQty)
-      const totalCostValue = (existingQty * existingCost) + (qty * cost);
       const totalQty = existingQty + qty;
-      const averageCost = totalQty > 0 ? totalCostValue / totalQty : (cost || existingCost);
-      
-      newStok[existIdx] = {
-        ...newStok[existIdx],
+      const averageCost = qty > 0 && totalQty > 0
+        ? ((existingQty * existingCost) + (qty * cost)) / totalQty
+        : (cost || existingCost);
+
+      stokList[existIdx] = {
+        ...existingItem,
         hargaModal: averageCost,
-        hargaJual: price || newStok[existIdx].hargaJual,
+        hargaJual: price || existingItem.hargaJual,
         minQtyGrosir: minGrosir,
         hargaGrosir: priceGrosir,
         variasiText: variants,
         stokTersedia: totalQty,
-        kategori: form.r_category,
-        imageUrl: form.r_image_url || newStok[existIdx].imageUrl || '',
-        supplierList: [...new Set([...(newStok[existIdx].supplierList || []), form.r_supplier].filter(Boolean))]
+        kategori: category,
+        imageUrl: imageUrl || existingItem.imageUrl || '',
+        supplierList: [...new Set([...(existingItem.supplierList || []), supplier].filter(Boolean))]
       };
     } else {
-      // Add new product
-      newStok.push({
-        nama_barang: form.r_name.trim(),
-        kategori: form.r_category,
+      stokList.push({
+        nama_barang: name,
+        kategori: category,
         hargaModal: cost,
         hargaJual: price,
         minQtyGrosir: minGrosir,
         hargaGrosir: priceGrosir,
         variasiText: variants,
-        imageUrl: form.r_image_url || '',
+        imageUrl,
         stokTersedia: qty,
-        supplierList: form.r_supplier ? [form.r_supplier] : []
+        supplierList: supplier ? [supplier] : []
       });
     }
 
-    // Log purchase if qty > 0
-    if (qty > 0 && form.r_supplier) {
-      newPembelian.push({
-        id: Date.now(),
-        tanggal: form.r_date,
+    if (qty > 0 && supplier) {
+      pembelianList.push({
+        id: Date.now() + idx,
+        tanggal: input.date,
         waktu: new Date().toLocaleTimeString('id-ID'),
-        supplier: form.r_supplier,
-        barang: form.r_name.trim(),
-        kategori: form.r_category,
+        supplier,
+        barang: name,
+        kategori: category,
         jumlah: qty,
         hargaModal: cost,
         totalModal: cost * qty
       });
+    }
+
+    return { stokList, pembelianList };
+  };
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+
+    let newStok = [...(appData.stok || [])];
+    let newPembelian = [...(appData.pembelian || [])];
+
+    if (batchMode && !editItem) {
+      const validRows = batchRows.filter(row => row.name.trim());
+      if (validRows.length === 0) { toast('Isi minimal 1 nama barang', 'error'); return; }
+      validRows.forEach((row, idx) => {
+        ({ stokList: newStok, pembelianList: newPembelian } = applyStockInput(newStok, newPembelian, {
+          ...row,
+          supplier: form.r_supplier,
+          date: form.r_date
+        }, idx));
+      });
+    } else {
+      if (!form.r_name.trim()) { toast('Nama barang harus diisi', 'error'); return; }
+      ({ stokList: newStok, pembelianList: newPembelian } = applyStockInput(newStok, newPembelian, {
+        name: form.r_name,
+        category: form.r_category,
+        qty: form.r_qty,
+        cost: form.r_cost,
+        price: form.r_price,
+        minGrosir: form.r_min_grosir,
+        priceGrosir: form.r_price_grosir,
+        variants: form.r_variants,
+        imageUrl: form.r_image_url,
+        supplier: form.r_supplier,
+        date: form.r_date
+      }));
     }
 
     await saveAndSync({ ...appData, stok: newStok, pembelian: newPembelian });
@@ -410,6 +465,85 @@ const StokPage = () => {
                     </select>
                   </div>
                 </div>
+                {!editItem && (
+                  <div style={{ background: 'var(--sky-dim)', border: '1px solid rgba(2,132,199,.2)', borderRadius: 8, padding: '10px 12px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--sky)' }}>
+                        <i className="fa-solid fa-layer-group" /> Input banyak item satu supplier
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Tanggal dan supplier di atas dipakai untuk semua barang.</div>
+                    </div>
+                    <button
+                      type="button"
+                      className={`btn ${batchMode ? 'btn-purple' : 'btn-ghost'} btn-sm`}
+                      onClick={() => setBatchMode(v => !v)}
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      {batchMode ? 'Mode Banyak' : 'Aktifkan'}
+                    </button>
+                  </div>
+                )}
+                {batchMode && !editItem ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {batchRows.map((row, idx) => (
+                      <div key={idx} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12, background: 'var(--bg-hover)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)' }}>Item #{idx + 1}</div>
+                          <button type="button" className="btn btn-danger btn-sm" onClick={() => removeBatchRow(idx)} disabled={batchRows.length === 1}>
+                            <i className="fa-solid fa-trash" />
+                          </button>
+                        </div>
+                        <div className="form-grid form-grid-2" style={{ marginBottom: 10 }}>
+                          <div className="form-group">
+                            <label className="form-label">Nama Barang</label>
+                            <input className="form-input" value={row.name} onChange={e => updateBatchRow(idx, 'name', e.target.value)} placeholder="Nama produk..." />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Kategori</label>
+                            <select className="form-input" value={row.category} onChange={e => updateBatchRow(idx, 'category', e.target.value)}>
+                              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="form-grid form-grid-3" style={{ marginBottom: 10 }}>
+                          <div className="form-group">
+                            <label className="form-label">Qty</label>
+                            <input type="number" className="form-input" min="0" value={row.qty} onChange={e => updateBatchRow(idx, 'qty', e.target.value)} />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Modal / Unit</label>
+                            <input type="number" className="form-input" min="0" value={row.cost} onChange={e => updateBatchRow(idx, 'cost', e.target.value)} />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Jual / Unit</label>
+                            <input type="number" className="form-input" min="0" value={row.price} onChange={e => updateBatchRow(idx, 'price', e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="form-grid form-grid-2" style={{ marginBottom: 10 }}>
+                          <div className="form-group">
+                            <label className="form-label">Min Grosir</label>
+                            <input type="number" className="form-input" min="2" value={row.minGrosir} onChange={e => updateBatchRow(idx, 'minGrosir', e.target.value)} />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Harga Grosir</label>
+                            <input type="number" className="form-input" min="0" value={row.priceGrosir} onChange={e => updateBatchRow(idx, 'priceGrosir', e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label">Variasi / Foto URL</label>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <input className="form-input" value={row.variants} onChange={e => updateBatchRow(idx, 'variants', e.target.value)} placeholder="S, M, Hitam..." />
+                            <input className="form-input" value={row.imageUrl} onChange={e => updateBatchRow(idx, 'imageUrl', e.target.value)} placeholder="https://foto..." />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={addBatchRow}>
+                      <i className="fa-solid fa-plus" /> Tambah Baris Item
+                    </button>
+                  </div>
+                ) : (
+                  <>
                 <div className="form-group">
                   <label className="form-label">Nama Barang / Produk</label>
                   <input type="text" className="form-input" name="r_name" value={form.r_name} onChange={handleFormChange} required placeholder="Gamis Silk Premium..." readOnly={!!editItem} />
@@ -639,6 +773,8 @@ const StokPage = () => {
                   </div>
                 </div>
 
+                  </>
+                )}
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Batal</button>
