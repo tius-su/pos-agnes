@@ -77,6 +77,14 @@ const ReturPage = () => {
     }));
   };
 
+  const adjustReturQty = (idx, delta) => {
+    setReturItems(prev => prev.map((it, i) => {
+      if (i !== idx) return it;
+      const qty = Math.min(Math.max(0, (parseInt(it.returQty) || 0) + delta), it.maxQty);
+      return { ...it, returQty: qty };
+    }));
+  };
+
   const totalRetur = returItems.reduce((s, i) => s + i.hargaJual * i.returQty, 0);
   const hasRetur = returItems.some(i => i.returQty > 0);
 
@@ -288,7 +296,13 @@ const ReturPage = () => {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <label style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Retur:</label>
+                    <button type="button" className="qty-btn" onClick={() => adjustReturQty(idx, -1)} aria-label={`Kurangi retur ${it.barang}`}>
+                      -
+                    </button>
                     <input type="number" className="form-input" style={{ width: 60, textAlign: 'center', fontSize: 13, fontWeight: 700, padding: '4px 6px' }} min="0" max={it.maxQty} value={it.returQty} onChange={e => updateReturQty(idx, e.target.value)} />
+                    <button type="button" className="qty-btn" onClick={() => adjustReturQty(idx, 1)} aria-label={`Tambah retur ${it.barang}`}>
+                      +
+                    </button>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ {it.maxQty}</span>
                   </div>
                   {it.returQty > 0 && (
@@ -316,7 +330,7 @@ const ReturPage = () => {
             </div>
             <div className="modal-footer">
               <button type="button" className="btn btn-ghost" onClick={() => setSelectedTrx(null)} disabled={saving}>Batal</button>
-              <button type="button" className="btn btn-amber" onClick={handleProses} disabled={saving || !hasRetur} style={{ flex: 1 }}>
+              <button type="button" className="btn btn-purple" onClick={handleProses} disabled={saving} style={{ flex: 1 }}>
                 {saving ? <><i className="fa-solid fa-circle-notch animate-spin" /> Memproses...</> : <><i className="fa-solid fa-rotate-left" /> Proses Retur</>}
               </button>
             </div>
