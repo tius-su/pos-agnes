@@ -71,6 +71,7 @@ const StokPage = () => {
   const [printModalItems, setPrintModalItems] = useState(null);
   const [batchMode, setBatchMode] = useState(false);
   const [batchRows, setBatchRows] = useState([{ ...emptyBatchRow }]);
+  const [manualProductMode, setManualProductMode] = useState(false);
   const fileInputRef = useRef(null);
 
   const activeVariants = (form.r_variants || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -108,11 +109,6 @@ const StokPage = () => {
     return matchSearch && (!catFilter || i.kategori === catFilter);
   });
 
-  const supplierProductOptions = useMemo(
-    () => getSupplierProductOptions(appData.stok, form.r_supplier, form.r_name),
-    [appData.stok, form.r_supplier, form.r_name]
-  );
-
   const findExistingProduct = (supplier, productName) => {
     const selectedSupplier = (supplier || '').trim().toLowerCase();
     const normalizedName = (productName || '').trim().toLowerCase();
@@ -136,6 +132,16 @@ const StokPage = () => {
     }) || ((appData.stok || []).find(item => String(item?.nama_barang || '').trim().toLowerCase() === normalizedName) || null);
   };
 
+  const supplierProductOptions = useMemo(
+    () => getSupplierProductOptions(appData.stok, form.r_supplier, form.r_name),
+    [appData.stok, form.r_supplier, form.r_name]
+  );
+
+  const matchingProduct = useMemo(() => {
+    if (!form.r_supplier || !form.r_name) return null;
+    return findExistingProduct(form.r_supplier, form.r_name);
+  }, [form.r_supplier, form.r_name, appData.stok]);
+
   const applyProductSuggestion = (nextName, updater) => {
     const selectedItem = findExistingProduct(form.r_supplier, nextName);
     if (!selectedItem) return updater;
@@ -157,6 +163,7 @@ const StokPage = () => {
     const { name, value } = e.target;
     setForm(f => {
       if (name === 'r_supplier') {
+        setManualProductMode(false);
         return { ...f, r_supplier: value, r_name: '' };
       }
 
@@ -667,27 +674,51 @@ const StokPage = () => {
                   <>
                 <div className="form-group">
                   <label className="form-label">Nama Barang / Produk</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    name="r_name"
-                    value={form.r_name}
-                    onChange={handleFormChange}
-                    list={form.r_supplier && supplierProductOptions.length ? 'supplier-product-options' : undefined}
-                    required
-                    placeholder={form.r_supplier ? 'Pilih atau ketik nama barang...' : 'Gamis Silk Premium...'}
-                    readOnly={!!editItem}
-                  />
-                  {form.r_supplier && supplierProductOptions.length > 0 && (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      name="r_name"
+                      value={form.r_name}
+                      onChange={handleFormChange}
+                      list={form.r_supplier && !manualProductMode && supplierProductOptions.length ? 'supplier-product-options' : undefined}
+                      required
+                      placeholder={form.r_supplier ? (manualProductMode ? 'Ketik nama barang baru...' : 'Pilih atau ketik nama barang...') : 'Gamis Silk Premium...'}
+                      readOnly={!!editItem}
+                      style={{ flex: 1 }}
+                    />
+                    {form.r_supplier && supplierProductOptions.length > 0 && (
+                      <button
+                        type="button"
+                        className={`btn ${manualProductMode ? 'btn-purple' : 'btn-ghost'} btn-sm`}
+                        onClick={() => setManualProductMode(v => !v)}
+                        title={manualProductMode ? 'Kembali ke daftar barang supplier' : '+ Barang Baru'}
+                        style={{ whiteSpace: 'nowrap' }}
+                      >
+                        <i className="fa-solid fa-plus" /> {manualProductMode ? 'Pilih Lama' : 'Barang Baru'}
+                      </button>
+                    )}
+                  </div>
+                  {form.r_supplier && supplierProductOptions.length > 0 && !manualProductMode && (
                     <datalist id="supplier-product-options">
                       {supplierProductOptions.map(option => (
                         <option key={option} value={option} />
                       ))}
                     </datalist>
                   )}
-                  {form.r_supplier && form.r_name && findExistingProduct(form.r_supplier, form.r_name) && (
+                  {form.r_supplier && form.r_name && matchingProduct && (
                     <div style={{ marginTop: 6, fontSize: 11, color: 'var(--emerald)', fontWeight: 700 }}>
-                      <i className="fa-solid fa-circle-check" /> Barang sudah ada di stok supplier ini, data akan diperbarui saat disimpan.
+                      <i className="fa-solid fa-circle-check" /> Barang sudah ada di stok supplier ini. Sistem akan menambahkan qty dan menghitung harga modal rata-rata.
+                    </div>
+                  )}
+                  {form.r_supplier && form.r_name && !matchingProduct && manualProductMode && (
+                    <div style={{ marginTop: 6, fontSize: 11, color: 'var(--amber)', fontWeight: 700 }}>
+                      <i className="fa-solid fa-circle-plus" /> Mode barang baru aktif. Stok akan dibuat sebagai item baru untuk supplier ini.
+                    </div>
+                  )}
+                  {matchingProduct && (
+                    <div style={{ marginTop: 8, background: 'var(--amber-dim)', border: '1px solid rgba(217,119,6,.2)', borderRadius: 8, padding: '8px 10px', fontSize: 11, color: 'var(--amber)', fontWeight: 600 }}>
+                      <i className="fa-solid fa-chart-line" /> Harga beli akan dihitung rata-rata: stok lama + pembelian baru, lalu dibagi total qty.
                     </div>
                   )}
                 </div>
