@@ -35,20 +35,23 @@ const emptyBatchRow = {
 const QUICK_SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'LLL', '3XL', 'All Size'];
 const QUICK_COLORS = ['Hitam', 'Putih', 'Navy', 'Maroon', 'Sage Green', 'Rose', 'Mocca', 'Kuning', 'Cokelat'];
 
-const getSupplierProductOptions = (stokList, supplier) => {
+const getSupplierProductOptions = (stokList, supplier, searchText = '') => {
   const selectedSupplier = (supplier || '').trim().toLowerCase();
-  if (!selectedSupplier) return [];
+  const needle = (searchText || '').trim().toLowerCase();
 
   const options = (stokList || [])
     .filter(item => {
-      const itemSuppliers = [
+      const matchesSupplier = !selectedSupplier || [
         item?.supplier,
         item?.suplier,
         item?.nama_suplier,
         ...(Array.isArray(item?.supplierList) ? item.supplierList : [])
-      ].filter(Boolean).map(v => String(v).trim().toLowerCase());
+      ].filter(Boolean).some(v => String(v).trim().toLowerCase() === selectedSupplier);
 
-      return itemSuppliers.includes(selectedSupplier);
+      if (!matchesSupplier) return false;
+      if (!needle) return true;
+
+      return String(item?.nama_barang || '').toLowerCase().includes(needle);
     })
     .map(item => item?.nama_barang)
     .filter(Boolean);
@@ -106,8 +109,8 @@ const StokPage = () => {
   });
 
   const supplierProductOptions = useMemo(
-    () => getSupplierProductOptions(appData.stok, form.r_supplier),
-    [appData.stok, form.r_supplier]
+    () => getSupplierProductOptions(appData.stok, form.r_supplier, form.r_name),
+    [appData.stok, form.r_supplier, form.r_name]
   );
 
   const findExistingProduct = (supplier, productName) => {
@@ -130,7 +133,7 @@ const StokPage = () => {
       ].filter(Boolean).map(v => String(v).trim().toLowerCase());
 
       return itemSuppliers.includes(selectedSupplier);
-    }) || null;
+    }) || ((appData.stok || []).find(item => String(item?.nama_barang || '').trim().toLowerCase() === normalizedName) || null);
   };
 
   const applyProductSuggestion = (nextName, updater) => {
@@ -681,6 +684,11 @@ const StokPage = () => {
                         <option key={option} value={option} />
                       ))}
                     </datalist>
+                  )}
+                  {form.r_supplier && form.r_name && findExistingProduct(form.r_supplier, form.r_name) && (
+                    <div style={{ marginTop: 6, fontSize: 11, color: 'var(--emerald)', fontWeight: 700 }}>
+                      <i className="fa-solid fa-circle-check" /> Barang sudah ada di stok supplier ini, data akan diperbarui saat disimpan.
+                    </div>
                   )}
                 </div>
                 <div className="form-grid form-grid-2" style={{ marginBottom: 12 }}>
