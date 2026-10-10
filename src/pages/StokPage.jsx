@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import LabelPrintModal from '../components/LabelPrintModal';
 
@@ -34,6 +34,27 @@ const emptyBatchRow = {
 
 const QUICK_SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'LLL', '3XL', 'All Size'];
 const QUICK_COLORS = ['Hitam', 'Putih', 'Navy', 'Maroon', 'Sage Green', 'Rose', 'Mocca', 'Kuning', 'Cokelat'];
+
+const getSupplierProductOptions = (stokList, supplier) => {
+  const selectedSupplier = (supplier || '').trim().toLowerCase();
+  if (!selectedSupplier) return [];
+
+  const options = (stokList || [])
+    .filter(item => {
+      const itemSuppliers = [
+        item?.supplier,
+        item?.suplier,
+        item?.nama_suplier,
+        ...(Array.isArray(item?.supplierList) ? item.supplierList : [])
+      ].filter(Boolean).map(v => String(v).trim().toLowerCase());
+
+      return itemSuppliers.includes(selectedSupplier);
+    })
+    .map(item => item?.nama_barang)
+    .filter(Boolean);
+
+  return [...new Set(options)].sort((a, b) => a.localeCompare(b));
+};
 
 const StokPage = () => {
   const { appData, saveAndSync, toast } = useData();
@@ -84,7 +105,78 @@ const StokPage = () => {
     return matchSearch && (!catFilter || i.kategori === catFilter);
   });
 
-  const handleFormChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  const supplierProductOptions = useMemo(
+    () => getSupplierProductOptions(appData.stok, form.r_supplier),
+    [appData.stok, form.r_supplier]
+  );
+
+  const findExistingProduct = (supplier, productName) => {
+    const selectedSupplier = (supplier || '').trim().toLowerCase();
+    const normalizedName = (productName || '').trim().toLowerCase();
+
+    if (!normalizedName) return null;
+
+    return (appData.stok || []).find(item => {
+      const matchesName = String(item?.nama_barang || '').trim().toLowerCase() === normalizedName;
+      if (!matchesName) return false;
+
+      if (!selectedSupplier) return true;
+
+      const itemSuppliers = [
+        item?.supplier,
+        item?.suplier,
+        item?.nama_suplier,
+        ...(Array.isArray(item?.supplierList) ? item.supplierList : [])
+      ].filter(Boolean).map(v => String(v).trim().toLowerCase());
+
+      return itemSuppliers.includes(selectedSupplier);
+    }) || null;
+  };
+
+  const applyProductSuggestion = (nextName, updater) => {
+    const selectedItem = findExistingProduct(form.r_supplier, nextName);
+    if (!selectedItem) return updater;
+
+    return {
+      ...updater,
+      r_name: selectedItem.nama_barang,
+      r_category: selectedItem.kategori || updater.r_category,
+      r_cost: String(selectedItem.hargaModal ?? updater.r_cost),
+      r_price: String(selectedItem.hargaJual ?? updater.r_price),
+      r_min_grosir: selectedItem.minQtyGrosir ? String(selectedItem.minQtyGrosir) : updater.r_min_grosir,
+      r_price_grosir: selectedItem.hargaGrosir ? String(selectedItem.hargaGrosir) : updater.r_price_grosir,
+      r_variants: selectedItem.variasiText || updater.r_variants,
+      r_image_url: selectedItem.imageUrl || updater.r_image_url
+    };
+  };
+
+  const handleFormChange = e => {
+    const { name, value } = e.target;
+    setForm(f => {
+      if (name === 'r_supplier') {
+        return { ...f, r_supplier: value, r_name: '' };
+      }
+
+      if (name === 'r_name') {
+        const selectedItem = findExistingProduct(f.r_supplier, value);
+        if (selectedItem) {
+          return {
+            ...f,
+            r_name: selectedItem.nama_barang,
+            r_category: selectedItem.kategori || f.r_category,
+            r_cost: String(selectedItem.hargaModal ?? f.r_cost),
+            r_price: String(selectedItem.hargaJual ?? f.r_price),
+            r_min_grosir: selectedItem.minQtyGrosir ? String(selectedItem.minQtyGrosir) : f.r_min_grosir,
+            r_price_grosir: selectedItem.hargaGrosir ? String(selectedItem.hargaGrosir) : f.r_price_grosir,
+            r_variants: selectedItem.variasiText || f.r_variants,
+            r_image_url: selectedItem.imageUrl || f.r_image_url
+          };
+        }
+      }
+
+      return { ...f, [name]: value };
+    });
+  };
 
   const openRestock = () => {
     setEditItem(null);
@@ -496,7 +588,33 @@ const StokPage = () => {
                         <div className="form-grid form-grid-2" style={{ marginBottom: 10 }}>
                           <div className="form-group">
                             <label className="form-label">Nama Barang</label>
-                            <input className="form-input" value={row.name} onChange={e => updateBatchRow(idx, 'name', e.target.value)} placeholder="Nama produk..." />
+                            <input
+                              className="form-input"
+                              list={form.r_supplier ? `supplier-product-options-${idx}` : undefined}
+                              value={row.name}
+                              onChange={e => {
+                                const nextValue = e.target.value;
+                                updateBatchRow(idx, 'name', nextValue);
+                                const selectedItem = findExistingProduct(form.r_supplier, nextValue);
+                                if (selectedItem) {
+                                  updateBatchRow(idx, 'category', selectedItem.kategori || row.category);
+                                  updateBatchRow(idx, 'cost', String(selectedItem.hargaModal ?? row.cost));
+                                  updateBatchRow(idx, 'price', String(selectedItem.hargaJual ?? row.price));
+                                  updateBatchRow(idx, 'minGrosir', selectedItem.minQtyGrosir ? String(selectedItem.minQtyGrosir) : row.minGrosir);
+                                  updateBatchRow(idx, 'priceGrosir', selectedItem.hargaGrosir ? String(selectedItem.hargaGrosir) : row.priceGrosir);
+                                  updateBatchRow(idx, 'variants', selectedItem.variasiText || row.variants);
+                                  updateBatchRow(idx, 'imageUrl', selectedItem.imageUrl || row.imageUrl);
+                                }
+                              }}
+                              placeholder="Nama produk..."
+                            />
+                            {form.r_supplier && supplierProductOptions.length > 0 && (
+                              <datalist id={`supplier-product-options-${idx}`}>
+                                {supplierProductOptions.map(option => (
+                                  <option key={option} value={option} />
+                                ))}
+                              </datalist>
+                            )}
                           </div>
                           <div className="form-group">
                             <label className="form-label">Kategori</label>
@@ -546,7 +664,24 @@ const StokPage = () => {
                   <>
                 <div className="form-group">
                   <label className="form-label">Nama Barang / Produk</label>
-                  <input type="text" className="form-input" name="r_name" value={form.r_name} onChange={handleFormChange} required placeholder="Gamis Silk Premium..." readOnly={!!editItem} />
+                  <input
+                    type="text"
+                    className="form-input"
+                    name="r_name"
+                    value={form.r_name}
+                    onChange={handleFormChange}
+                    list={form.r_supplier && supplierProductOptions.length ? 'supplier-product-options' : undefined}
+                    required
+                    placeholder={form.r_supplier ? 'Pilih atau ketik nama barang...' : 'Gamis Silk Premium...'}
+                    readOnly={!!editItem}
+                  />
+                  {form.r_supplier && supplierProductOptions.length > 0 && (
+                    <datalist id="supplier-product-options">
+                      {supplierProductOptions.map(option => (
+                        <option key={option} value={option} />
+                      ))}
+                    </datalist>
+                  )}
                 </div>
                 <div className="form-grid form-grid-2" style={{ marginBottom: 12 }}>
                   <div className="form-group">
