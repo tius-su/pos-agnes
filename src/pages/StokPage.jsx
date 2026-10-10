@@ -159,6 +159,24 @@ const StokPage = () => {
     };
   };
 
+  const selectSuggestedProduct = (productName) => {
+    const selectedItem = findExistingProduct(form.r_supplier, productName);
+    if (!selectedItem) return;
+
+    setManualProductMode(false);
+    setForm(f => ({
+      ...f,
+      r_name: selectedItem.nama_barang,
+      r_category: selectedItem.kategori || f.r_category,
+      r_cost: String(selectedItem.hargaModal ?? f.r_cost),
+      r_price: String(selectedItem.hargaJual ?? f.r_price),
+      r_min_grosir: selectedItem.minQtyGrosir ? String(selectedItem.minQtyGrosir) : f.r_min_grosir,
+      r_price_grosir: selectedItem.hargaGrosir ? String(selectedItem.hargaGrosir) : f.r_price_grosir,
+      r_variants: selectedItem.variasiText || f.r_variants,
+      r_image_url: selectedItem.imageUrl || f.r_image_url
+    }));
+  };
+
   const handleFormChange = e => {
     const { name, value } = e.target;
     setForm(f => {
@@ -699,6 +717,34 @@ const StokPage = () => {
                       </button>
                     )}
                   </div>
+
+                  {form.r_supplier && supplierProductOptions.length > 0 && !manualProductMode && (
+                    <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {supplierProductOptions.slice(0, 5).map(option => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => selectSuggestedProduct(option)}
+                          style={{
+                            border: '1px solid rgba(124,58,237,.25)',
+                            background: 'linear-gradient(135deg, #f5f3ff 0%, #eef2ff 100%)',
+                            color: 'var(--brand)',
+                            borderRadius: 999,
+                            padding: '6px 10px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6
+                          }}
+                        >
+                          <i className="fa-solid fa-box" style={{ fontSize: 10 }} /> {option}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   {form.r_supplier && supplierProductOptions.length > 0 && !manualProductMode && (
                     <datalist id="supplier-product-options">
                       {supplierProductOptions.map(option => (
@@ -707,12 +753,12 @@ const StokPage = () => {
                     </datalist>
                   )}
                   {form.r_supplier && form.r_name && matchingProduct && (
-                    <div style={{ marginTop: 6, fontSize: 11, color: 'var(--emerald)', fontWeight: 700 }}>
+                    <div style={{ marginTop: 8, fontSize: 11, color: 'var(--emerald)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <i className="fa-solid fa-circle-check" /> Barang sudah ada di stok supplier ini. Sistem akan menambahkan qty dan menghitung harga modal rata-rata.
                     </div>
                   )}
                   {form.r_supplier && form.r_name && !matchingProduct && manualProductMode && (
-                    <div style={{ marginTop: 6, fontSize: 11, color: 'var(--amber)', fontWeight: 700 }}>
+                    <div style={{ marginTop: 8, fontSize: 11, color: 'var(--amber)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <i className="fa-solid fa-circle-plus" /> Mode barang baru aktif. Stok akan dibuat sebagai item baru untuk supplier ini.
                     </div>
                   )}
