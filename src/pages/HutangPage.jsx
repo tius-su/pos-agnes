@@ -520,7 +520,7 @@ const HutangPage = () => {
     <div className="tab-page active fade-up">
 
       {/* KPI Stats */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 16 }}>
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 16 }}>
         <div className="stat-card rose">
           <i className="stat-icon fa-solid fa-hand-holding-dollar" />
           <div className="stat-label">Piutang Pelanggan</div>
@@ -532,6 +532,21 @@ const HutangPage = () => {
           <div className="stat-label">Hutang Toko / Supplier</div>
           <div className="stat-value" style={{ fontSize: 16 }}>{formatRp(totalHutangToko)}</div>
           <div className="stat-meta">Kewajiban bayar supplier</div>
+        </div>
+        <div
+          className="stat-card"
+          style={{
+            borderLeft: '4px solid var(--rose)',
+            background: countOverdue > 0 ? 'rgba(239, 68, 68, 0.08)' : undefined,
+            cursor: 'pointer'
+          }}
+          onClick={() => { setStatusFilter('overdue'); setShowOverdueModal(true); }}
+          title="Klik untuk melihat daftar dan reminder overdue"
+        >
+          <i className="stat-icon fa-solid fa-triangle-exclamation" style={{ color: 'var(--rose)' }} />
+          <div className="stat-label" style={{ color: 'var(--rose)', fontWeight: 800 }}>⚠️ Overdue (Jatuh Tempo)</div>
+          <div className="stat-value" style={{ color: 'var(--rose)', fontSize: 16 }}>{countOverdue} data</div>
+          <div className="stat-meta" style={{ color: 'var(--rose)', fontWeight: 700 }}>{formatRp(totalOverdueNominal)}</div>
         </div>
         <div className="stat-card sky">
           <i className="stat-icon fa-solid fa-clock" />
@@ -599,16 +614,19 @@ const HutangPage = () => {
             <div className="card-subtitle">{filtered.length} data ditemukan</div>
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {countOverdue > 0 && (
-              <button
-                className="btn btn-sm"
-                onClick={() => setShowOverdueModal(true)}
-                style={{ background: '#ef4444', color: '#fff', border: 'none', fontWeight: 700 }}
-                title="Kelola & Kirim Reminder Tagihan Overdue"
-              >
-                <i className="fa-solid fa-bell" /> Reminder Overdue ({countOverdue})
-              </button>
-            )}
+            <button
+              className="btn btn-sm"
+              onClick={() => setShowOverdueModal(true)}
+              style={{
+                background: countOverdue > 0 ? '#ef4444' : 'var(--bg-hover)',
+                color: countOverdue > 0 ? '#fff' : 'var(--text-secondary)',
+                border: '1px solid ' + (countOverdue > 0 ? '#ef4444' : 'var(--border)'),
+                fontWeight: 700
+              }}
+              title="Kelola & Kirim Reminder Tagihan Overdue"
+            >
+              <i className="fa-solid fa-bell" /> Rekap Overdue ({countOverdue})
+            </button>
             <button className="btn btn-wa btn-sm" onClick={sendReportToStoreWA} title="Kirim rangkuman laporan ke WA Toko (6285117027358)">
               <i className="fa-brands fa-whatsapp" /> WA Toko
             </button>
