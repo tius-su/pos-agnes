@@ -37,11 +37,30 @@ const HutangPage = () => {
   const [statusFilter, setStatusFilter] = useState('semua'); // 'semua' | 'belum' | 'lunas'
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteId, setDeleteId] = useState(null);
+  const [showOverdueModal, setShowOverdueModal] = useState(false);
   
   // Date Presets
   const [datePreset, setDatePreset] = useState('all');
   const [dateStart, setDateStart]   = useState('');
   const [dateEnd, setDateEnd]       = useState('');
+
+  const isOverdue = (h) => {
+    if (!h.tanggalJatuhTempo || h.sisaHutang <= 0) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const jt = new Date(h.tanggalJatuhTempo);
+    jt.setHours(0, 0, 0, 0);
+    return jt < today;
+  };
+
+  const getOverdueDays = (h) => {
+    if (!h.tanggalJatuhTempo) return 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const jt = new Date(h.tanggalJatuhTempo);
+    jt.setHours(0, 0, 0, 0);
+    return Math.max(0, Math.ceil((today - jt) / (1000 * 60 * 60 * 24)));
+  };
 
   const getRange = () => {
     const today = new Date();
@@ -65,8 +84,9 @@ const HutangPage = () => {
       if (typeFilter !== 'semua' && hType !== typeFilter) return false;
 
       // Status Filter
-      if (statusFilter === 'lunas' && h.sisaHutang > 0)  return false;
-      if (statusFilter === 'belum' && h.sisaHutang <= 0) return false;
+      if (statusFilter === 'lunas' && h.sisaHutang > 0)    return false;
+      if (statusFilter === 'belum' && h.sisaHutang <= 0)   return false;
+      if (statusFilter === 'overdue' && !isOverdue(h))     return false;
 
       // Date Range Filter
       if (dStart && dEnd && h.tanggal) {
@@ -95,6 +115,9 @@ const HutangPage = () => {
   const totalHutangToko = rawList.filter(h => h.type === 'hutang').reduce((s, h) => s + (h.sisaHutang || 0), 0);
   const countBelumLunas = rawList.filter(h => h.sisaHutang > 0).length;
   const countLunas = rawList.filter(h => h.sisaHutang <= 0).length;
+  const overdueList = rawList.filter(h => isOverdue(h));
+  const totalOverdueNominal = overdueList.reduce((s, h) => s + (h.sisaHutang || 0), 0);
+  const countOverdue = overdueList.length;
 
   const openAdd = (type = 'piutang') => {
     setEditId(null);
@@ -236,6 +259,7 @@ const HutangPage = () => {
     msg += `─────────────────────────\n`;
     msg += `💰 *Total Piutang Pelanggan* : ${formatRp(totalPiutang)}\n`;
     msg += `🏬 *Total Hutang Toko/Supplier*: ${formatRp(totalHutangToko)}\n`;
+    msg += `⚠️ *Total Overdue (Jatuh Tempo)*: ${formatRp(totalOverdueNominal)} (${countOverdue} data)\n`;
     msg += `─────────────────────────\n`;
     msg += `📋 Total Record  : ${filtered.length} data\n`;
     msg += `⏳ Belum Lunas   : ${countBelumLunas} data\n`;
@@ -245,6 +269,58 @@ const HutangPage = () => {
 
     window.open(`https://wa.me/${STORE_OWNER_WA}?text=${encodeURIComponent(msg)}`, '_blank');
     toast(`📲 Rangkuman laporan dikirim ke WA Toko (${STORE_OWNER_WA})`, 'success');
+  };
+
+  // Kirim Reminder Khusus Overdue ke Pelanggan / Debitur
+  const sendOverdueReminderWA = (h) => {
+    const rawNo = h.noWa || '';
+    const no = formatWaNumber(rawNo);
+    const s = appData.settings || {};
+    const diffDays = getOverdueDays(h);
+    const nama = h.pelanggan || h.nama || h.supplier;
+
+    let msg = `Halo *${nama}*,\n`;
+    msg += `Pemberitahuan dari *${s.storeName || 'MELAN JAYA'}*:\n\n`;
+    msg += `⚠️ Tagihan Anda telah *MELEWATI JATUH TEMPO* (*terlambat ${diffDays} hari*).\n\n`;
+    msg += `📋 *Rincian Tagihan:*\n`;
+    msg += `• Keterangan   : ${h.keterangan || '-'}\n`;
+    msg += `• Tgl Catat    : ${h.tanggal}\n`;
+    msg += `• Jatuh Tempo  : *${h.tanggalJatuhTempo}*\n`;
+    msg += `• Jumlah Awal  : ${formatRp(h.jumlahAwal)}\n`;
+    msg += `• Total Dibayar: ${formatRp(h.jumlahAwal - h.sisaHutang)}\n`;
+    msg += `• *Sisa Tagihan: ${formatRp(h.sisaHutang)}*\n\n`;
+    msg += `Mohon segera melakukan konfirmasi dan penyelesaian pembayaran. Terima kasih atas pengertian dan kerjasamanya! 🙏\n`;
+    msg += `───────────────────\n`;
+    msg += `Terima Kasih Telah Berbelanja di Melan Jaya! Barang yang sudah dibeli tidak dapat ditukar.`;
+
+    const encoded = encodeURIComponent(msg);
+    if (no) {
+      window.open(`https://wa.me/${no}?text=${encoded}`, '_blank');
+      toast(`📲 Reminder Overdue terkirim ke WA ${nama}`, 'success');
+    } else {
+      window.open(`https://wa.me/${STORE_OWNER_WA}?text=${encoded}`, '_blank');
+      toast(`📲 No WA debitur belum ada, pesan dialihkan ke WA Toko`, 'info');
+    }
+  };
+
+  // Kirim Rekap Semua Tagihan Overdue ke WA Toko
+  const sendOverdueRekapWA = () => {
+    const s = appData.settings || {};
+    let msg = `*⚠️ LAPORAN TAGIHAN OVERDUE (JATUH TEMPO) — ${s.storeName?.toUpperCase() || 'MELAN JAYA'}*\n`;
+    msg += `Per Tanggal: ${new Date().toLocaleDateString('id-ID')}\n`;
+    msg += `Total Tagihan Overdue: *${formatRp(totalOverdueNominal)}* (${countOverdue} tagihan)\n`;
+    msg += `─────────────────────────\n`;
+    overdueList.forEach((h, i) => {
+      const diff = getOverdueDays(h);
+      msg += `${i + 1}. *${h.pelanggan || h.nama || h.supplier}* (Lewat ${diff} hr)\n`;
+      msg += `   Sisa: *${formatRp(h.sisaHutang)}* | JT: ${h.tanggalJatuhTempo}\n`;
+      if (h.noWa) msg += `   WA: ${h.noWa}\n`;
+    });
+    msg += `─────────────────────────\n`;
+    msg += `Harap segera difollow-up.\nDikirim dari Melan Jaya POS`;
+
+    window.open(`https://wa.me/${STORE_OWNER_WA}?text=${encodeURIComponent(msg)}`, '_blank');
+    toast(`📲 Rekap Overdue terkirim ke WA Toko (${STORE_OWNER_WA})`, 'success');
   };
 
   const jatuhTempoWarning = (h) => {
@@ -288,6 +364,51 @@ const HutangPage = () => {
         </div>
       </div>
 
+      {/* Overdue Alert Banner */}
+      {countOverdue > 0 && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.08)',
+          border: '1.5px solid var(--rose)',
+          borderRadius: 12,
+          padding: '12px 16px',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--rose)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+              <i className="fa-solid fa-triangle-exclamation" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, color: 'var(--rose)', fontSize: 14 }}>
+                Peringatan: {countOverdue} Tagihan Melewati Jatuh Tempo (Overdue)!
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                Total nominal tertunggak: <strong>{formatRp(totalOverdueNominal)}</strong>. Segera kirim reminder pembayaran ke pelanggan.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-sm btn-ghost"
+              style={{ border: '1px solid var(--rose)', color: 'var(--rose)', fontWeight: 700 }}
+              onClick={() => setShowOverdueModal(true)}
+            >
+              <i className="fa-solid fa-bell" /> Buka Reminder Overdue
+            </button>
+            <button
+              className="btn btn-sm btn-wa"
+              onClick={sendOverdueRekapWA}
+            >
+              <i className="fa-brands fa-whatsapp" /> Rekap ke WA Toko
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <div className="card-header" style={{ flexWrap: 'wrap', gap: 10 }}>
           <div>
@@ -295,6 +416,16 @@ const HutangPage = () => {
             <div className="card-subtitle">{filtered.length} data ditemukan</div>
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {countOverdue > 0 && (
+              <button
+                className="btn btn-sm"
+                onClick={() => setShowOverdueModal(true)}
+                style={{ background: '#ef4444', color: '#fff', border: 'none', fontWeight: 700 }}
+                title="Kelola & Kirim Reminder Tagihan Overdue"
+              >
+                <i className="fa-solid fa-bell" /> Reminder Overdue ({countOverdue})
+              </button>
+            )}
             <button className="btn btn-wa btn-sm" onClick={sendReportToStoreWA} title="Kirim rangkuman laporan ke WA Toko (6285117027358)">
               <i className="fa-brands fa-whatsapp" /> WA Toko
             </button>
@@ -368,9 +499,15 @@ const HutangPage = () => {
               {[
                 ['semua', 'Semua'],
                 ['belum', '🔴 Belum Lunas'],
+                ['overdue', `⚠️ Overdue (${countOverdue})`],
                 ['lunas', '✅ Lunas']
               ].map(([k, l]) => (
-                <button key={k} className={`btn btn-sm ${statusFilter === k ? 'btn-purple' : 'btn-ghost'}`} onClick={() => setStatusFilter(k)} style={{ fontSize: 11 }}>
+                <button
+                  key={k}
+                  className={`btn btn-sm ${statusFilter === k ? (k === 'overdue' ? 'btn-danger' : 'btn-purple') : 'btn-ghost'}`}
+                  onClick={() => setStatusFilter(k)}
+                  style={{ fontSize: 11 }}
+                >
                   {l}
                 </button>
               ))}
@@ -440,8 +577,10 @@ const HutangPage = () => {
                 const jtWarn = jatuhTempoWarning(h);
                 const namaDisp = h.pelanggan || h.nama || h.supplier;
 
+                const isOd = isOverdue(h);
+
                 return (
-                  <tr key={h.id}>
+                  <tr key={h.id} style={{ background: isOd ? 'rgba(239, 68, 68, 0.05)' : undefined }}>
                     <td>
                       <span className={`badge ${isPiutang ? 'badge-violet' : 'badge-amber'}`}>
                         {isPiutang ? '💰 Piutang' : '🏬 Hutang Toko'}
@@ -468,9 +607,15 @@ const HutangPage = () => {
                             <i className="fa-solid fa-money-bill-wave" /> Bayar
                           </button>
                         )}
-                        <button className="btn btn-wa btn-sm" title="Kirim Notifikasi WA" onClick={() => sendTagihanWA(h)} style={{ padding: '4px 8px', fontSize: 11 }}>
-                          <i className="fa-brands fa-whatsapp" /> WA
-                        </button>
+                        {isOd ? (
+                          <button className="btn btn-sm" title="Kirim Reminder Overdue WA" onClick={() => sendOverdueReminderWA(h)} style={{ padding: '4px 8px', fontSize: 11, background: '#ef4444', color: '#fff', border: 'none', fontWeight: 700 }}>
+                            <i className="fa-brands fa-whatsapp" /> Reminder
+                          </button>
+                        ) : (
+                          <button className="btn btn-wa btn-sm" title="Kirim Notifikasi WA" onClick={() => sendTagihanWA(h)} style={{ padding: '4px 8px', fontSize: 11 }}>
+                            <i className="fa-brands fa-whatsapp" /> WA
+                          </button>
+                        )}
                         <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => openEdit(h)} style={{ padding: '4px 8px' }}>
                           <i className="fa-solid fa-pen-to-square" />
                         </button>
@@ -497,9 +642,10 @@ const HutangPage = () => {
             const isPiutang = (h.type || 'piutang') === 'piutang';
             const jtWarn = jatuhTempoWarning(h);
             const namaDisp = h.pelanggan || h.nama || h.supplier;
+            const isOd = isOverdue(h);
 
             return (
-              <div key={h.id} className="trx-mobile-card" style={{ borderLeft: `3px solid ${h.sisaHutang <= 0 ? 'var(--emerald)' : isPiutang ? 'var(--brand)' : 'var(--amber)'}` }}>
+              <div key={h.id} className="trx-mobile-card" style={{ borderLeft: `3px solid ${h.sisaHutang <= 0 ? 'var(--emerald)' : isOd ? '#ef4444' : isPiutang ? 'var(--brand)' : 'var(--amber)'}`, background: isOd ? 'rgba(239, 68, 68, 0.03)' : undefined }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                   <div>
                     <span className={`badge ${isPiutang ? 'badge-violet' : 'badge-amber'}`} style={{ marginBottom: 4 }}>
@@ -525,9 +671,15 @@ const HutangPage = () => {
                       <i className="fa-solid fa-money-bill-wave" /> Bayar
                     </button>
                   )}
-                  <button className="btn btn-wa btn-sm" onClick={() => sendTagihanWA(h)} style={{ flex: 1 }}>
-                    <i className="fa-brands fa-whatsapp" /> WA Notif
-                  </button>
+                  {isOd ? (
+                    <button className="btn btn-sm" onClick={() => sendOverdueReminderWA(h)} style={{ flex: 1, background: '#ef4444', color: '#fff', border: 'none', fontWeight: 700 }}>
+                      <i className="fa-brands fa-whatsapp" /> Reminder WA
+                    </button>
+                  ) : (
+                    <button className="btn btn-wa btn-sm" onClick={() => sendTagihanWA(h)} style={{ flex: 1 }}>
+                      <i className="fa-brands fa-whatsapp" /> WA Notif
+                    </button>
+                  )}
                   <button className="btn btn-ghost btn-sm" onClick={() => openEdit(h)}>
                     <i className="fa-solid fa-pen-to-square" />
                   </button>
@@ -678,6 +830,70 @@ const HutangPage = () => {
               <button className="btn btn-danger" onClick={handleDelete} disabled={saving} style={{ flex: 1 }}>
                 {saving ? 'Menghapus...' : <><i className="fa-solid fa-trash" /> Hapus</>}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ OVERDUE REMINDER MODAL ══════════════════════════════════ */}
+      {showOverdueModal && (
+        <div className="modal-overlay" onClick={e => e.target.classList.contains('modal-overlay') && setShowOverdueModal(false)}>
+          <div className="modal" style={{ maxWidth: 640 }}>
+            <div className="modal-header">
+              <div className="modal-title" style={{ color: 'var(--rose)' }}>
+                <i className="fa-solid fa-triangle-exclamation" /> Daftar Tagihan Overdue &amp; Reminder WhatsApp
+              </div>
+              <button className="modal-close" onClick={() => setShowOverdueModal(false)}><i className="fa-solid fa-xmark" /></button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid var(--rose)', borderRadius: 8, padding: '10px 14px', fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  <strong>{overdueList.length} tagihan lewat jatuh tempo</strong> · Total: <span style={{ color: 'var(--rose)', fontWeight: 800 }}>{formatRp(totalOverdueNominal)}</span>
+                </div>
+                <button className="btn btn-wa btn-sm" onClick={sendOverdueRekapWA}>
+                  <i className="fa-brands fa-whatsapp" /> Rekap ke WA Toko
+                </button>
+              </div>
+              {overdueList.length === 0 ? (
+                <div className="empty-state" style={{ padding: 24 }}>
+                  <i className="fa-solid fa-circle-check" style={{ color: 'var(--emerald)' }} />
+                  <p>Tidak ada tagihan yang melewati jatuh tempo saat ini.</p>
+                </div>
+              ) : (
+                <div style={{ maxHeight: 380, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {overdueList.map(h => {
+                    const diffDays = getOverdueDays(h);
+                    const nama = h.pelanggan || h.nama || h.supplier;
+                    return (
+                      <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--bg-hover)', borderRadius: 8, border: '1px solid var(--border)', flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ flex: 1, minWidth: 200 }}>
+                          <div style={{ fontWeight: 800, fontSize: 13 }}>{nama}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            📱 {h.noWa || 'Tanpa no WA'} · JT: {h.tanggalJatuhTempo} (<span style={{ color: 'var(--rose)', fontWeight: 700 }}>Lewat {diffDays} hari</span>)
+                          </div>
+                          {h.keterangan && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>📌 {h.keterangan}</div>}
+                        </div>
+                        <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>SISA TAGIHAN</div>
+                            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--rose)' }}>{formatRp(h.sisaHutang)}</div>
+                          </div>
+                          <button
+                            className="btn btn-wa btn-sm"
+                            onClick={() => sendOverdueReminderWA(h)}
+                            title={`Kirim reminder tagihan ke ${nama}`}
+                          >
+                            <i className="fa-brands fa-whatsapp" /> Kirim Reminder
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowOverdueModal(false)}>Tutup</button>
             </div>
           </div>
         </div>

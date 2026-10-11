@@ -14,6 +14,7 @@ import HutangPage from './pages/HutangPage';
 import PengeluaranPage from './pages/PengeluaranPage';
 import SupplierPage from './pages/SupplierPage';
 import SettingsPage from './pages/SettingsPage';
+import AnalitikPage from './pages/AnalitikPage';
 import EKatalogPage from './components/EKatalogPage';
 import Sidebar from './components/Sidebar';
 
@@ -25,6 +26,7 @@ const PAGE_META = {
   pengeluaran:  { title: 'Pengeluaran Operasional',     sub: 'Pencatatan beban usaha & operasional toko',            icon: 'fa-receipt' },
   'stok-laporan': { title: 'Dashboard Laporan Stok',   sub: 'Analitik stok barang, tren, dan peringatan',           icon: 'fa-warehouse' },
   'laba-rugi':  { title: 'Laporan Laba Rugi',          sub: 'Analisis laba kotor, pengeluaran & laba bersih akhir',   icon: 'fa-scale-balanced' },
+  analitik:     { title: 'Analitik & Tren',            sub: 'Analisa barang laris, pelanggan terbaik, dan margin',   icon: 'fa-chart-pie' },
   pelanggan:    { title: 'Database Pelanggan',          sub: 'Kelola data dan riwayat belanja pelanggan',            icon: 'fa-users' },
   retur:        { title: 'Retur & Refund Barang',       sub: 'Proses pengembalian barang dan restore stok',          icon: 'fa-rotate-left' },
   hutang:       { title: 'Hutang & Piutang',            sub: 'Kelola piutang pelanggan dan hutang toko ke supplier',  icon: 'fa-hand-holding-dollar' },
@@ -126,6 +128,7 @@ const AppInner = () => {
       case 'pengeluaran':  return <PengeluaranPage />;
       case 'stok-laporan': return <StokLaporanPage />;
       case 'laba-rugi':    return <LabaRugiPage />;
+      case 'analitik':     return <AnalitikPage />;
       case 'pelanggan':    return <PelangganPage />;
       case 'retur':        return <ReturPage />;
       case 'hutang':       return <HutangPage />;

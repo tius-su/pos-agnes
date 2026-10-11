@@ -27,6 +27,7 @@ const MENU_GROUPS = [
       { key: 'laporan',     icon: 'fa-chart-line',           label: 'Laporan Keuangan', badge: null },
       { key: 'pengeluaran', icon: 'fa-receipt',              label: 'Pengeluaran',      badge: null },
       { key: 'laba-rugi',   icon: 'fa-scale-balanced',       label: 'Laba Rugi',        badge: null },
+      { key: 'analitik',    icon: 'fa-chart-pie',            label: 'Analitik & Tren',  badge: null },
       { key: 'pelanggan',   icon: 'fa-users',                label: 'Pelanggan',        badge: null },
       { key: 'hutang',      icon: 'fa-hand-holding-dollar',  label: 'Hutang & Piutang', badge: 'hutangCount' },
     ],
