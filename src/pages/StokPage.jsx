@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import LabelPrintModal from '../components/LabelPrintModal';
 import {
@@ -13,12 +13,51 @@ import {
   resolveImgBBUrl,
   resolveAllMediaList,
   getPrimaryImageUrl,
-  handleImageErrorWithFallback
+  handleImageErrorWithFallback,
+  isGoogleDriveUrl,
+  isGoogleDriveVideo,
+  getGoogleDriveThumbnail,
+  useResolvedMedia
 } from '../utils/mediaHelper';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 const CAT_EMOJI = { 'Pakaian Wanita': '👗', 'Pakaian Pria': '👕', 'Hijab': '🧕', 'Aksesoris': '💍', 'Lainnya': '📦' };
 const CATEGORIES = ['Pakaian Wanita', 'Pakaian Pria', 'Hijab', 'Aksesoris', 'Lainnya'];
+
+// Subkomponen Thumbnail Stok yang otomatis resolve gambar (Google Drive, ImgBB, dll)
+const StokProductThumb = ({ item, size = 36 }) => {
+  const mediaList = useResolvedMedia(item.imageUrl);
+  const primaryImg = getPrimaryImageUrl(mediaList.length > 0 ? mediaList.join(' + ') : item.imageUrl);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [item.imageUrl, primaryImg]);
+
+  if (!primaryImg || failed) {
+    return <span style={{ fontSize: size > 36 ? 22 : 20, flexShrink: 0 }}>{CAT_EMOJI[item.kategori] || '📦'}</span>;
+  }
+
+  return (
+    <img
+      key={primaryImg}
+      src={primaryImg}
+      alt={item.nama_barang}
+      referrerPolicy="no-referrer"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 8,
+        objectFit: 'cover',
+        border: '1px solid var(--border)',
+        flexShrink: 0,
+        background: '#fff'
+      }}
+      loading="lazy"
+      onError={(e) => handleImageErrorWithFallback(e, primaryImg, () => setFailed(true))}
+    />
+  );
+};
 
 const emptyForm = {
   r_date: new Date().toISOString().slice(0, 10),
@@ -277,6 +316,21 @@ const StokPage = () => {
         setResolvingMediaIdx(r => ({ ...r, [idx]: false }));
       }
     }
+  };
+
+  const toggleDriveMediaType = (idx) => {
+    setMediaInputs(prev => {
+      const copy = [...prev];
+      let current = copy[idx] || '';
+      if (!isGoogleDriveUrl(current)) return copy;
+      if (isGoogleDriveVideo(current)) {
+        copy[idx] = current.replace(/#video/gi, '').replace(/[?&]type=video/gi, '').trim();
+      } else {
+        copy[idx] = current + (current.includes('#') ? '' : '#video');
+      }
+      setForm(f => ({ ...f, r_image_url: joinMediaUrls(copy) }));
+      return copy;
+    });
   };
 
   const addMediaInputRow = () => {
@@ -716,17 +770,7 @@ const StokPage = () => {
                   <tr key={item.nama_barang}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        {getPrimaryImageUrl(item.imageUrl) ? (
-                          <img
-                            src={getPrimaryImageUrl(item.imageUrl)}
-                            alt={item.nama_barang}
-                            style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)', flexShrink: 0, background: '#fff' }}
-                            loading="lazy"
-                            onError={(e) => handleImageErrorWithFallback(e, getPrimaryImageUrl(item.imageUrl))}
-                          />
-                        ) : (
-                          <span style={{ fontSize: 20, flexShrink: 0 }}>{CAT_EMOJI[item.kategori] || '📦'}</span>
-                        )}
+                        <StokProductThumb item={item} size={36} />
                         <span className="cell-main">{item.nama_barang}</span>
                       </div>
                     </td>
@@ -775,17 +819,7 @@ const StokPage = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                      {getPrimaryImageUrl(item.imageUrl) ? (
-                        <img
-                          src={getPrimaryImageUrl(item.imageUrl)}
-                          alt={item.nama_barang}
-                          style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)', flexShrink: 0, background: '#fff' }}
-                          loading="lazy"
-                          onError={(e) => handleImageErrorWithFallback(e, getPrimaryImageUrl(item.imageUrl))}
-                        />
-                      ) : (
-                        <span style={{ fontSize: 22, flexShrink: 0 }}>{CAT_EMOJI[item.kategori] || '📦'}</span>
-                      )}
+                      <StokProductThumb item={item} size={40} />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nama_barang}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1235,7 +1269,9 @@ const StokPage = () => {
                   </div>
 
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
-                    💡 Bisa memuat lebih dari 1 gambar &amp; video. Link <b>imgbb.com</b> (seperti <code>https://ibb.co.com/...</code>) otomatis dikonversi ke gambar langsung. Gunakan tombol <b>+ Tambah Link</b> atau ketik tanda <b>+</b> untuk menambah link.
+                    💡 <b>Rekomendasi Google Drive:</b> Simpan foto &amp; video di Google Drive dan gunakan link lengkapnya (contoh: <code>https://drive.google.com/file/d/.../view?usp=sharing</code>). Pastikan akses file diatur ke <b>"Siapa saja yang memiliki link"</b>.
+                    <br />
+                    Bisa memuat lebih dari 1 media dengan tombol <b>+ Tambah Link</b> atau ketik tanda <b>+</b>.
                   </div>
 
                   {/* List Input Baris Media */}
@@ -1243,6 +1279,8 @@ const StokPage = () => {
                     {mediaInputs.map((url, idx) => {
                       const isVideo = isMediaVideo(url);
                       const isYT = isYouTubeUrl(url);
+                      const isGD = isGoogleDriveUrl(url);
+                      const isGDVideo = isGoogleDriveVideo(url);
                       const isResolving = resolvingMediaIdx[idx];
                       const cleanUrl = normalizeMediaUrl(url);
 
@@ -1257,15 +1295,26 @@ const StokPage = () => {
                             boxShadow: '0 1px 4px rgba(0,0,0,0.03)'
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 11, fontWeight: 700, color: idx === 0 ? 'var(--brand)' : 'var(--text-secondary)' }}>
                                 #{idx + 1} {idx === 0 ? '(Gambar Utama Kasir)' : 'Media Tambahan'}
                               </span>
                               {url && (
-                                <span className={`badge ${isVideo ? 'badge-amber' : 'badge-green'}`} style={{ fontSize: 9 }}>
-                                  {isYT ? '🎬 YouTube' : isVideo ? '🎬 Video MP4' : '🖼️ Foto'}
+                                <span className={`badge ${isVideo ? 'badge-amber' : isGD ? 'badge-sky' : 'badge-green'}`} style={{ fontSize: 9 }}>
+                                  {isYT ? '🎬 YouTube' : isGDVideo ? '🎬 Video Google Drive' : isGD ? '💾 Foto Google Drive' : isVideo ? '🎬 Video MP4' : '🖼️ Foto'}
                                 </span>
+                              )}
+                              {isGD && (
+                                <button
+                                  type="button"
+                                  className={`btn ${isGDVideo ? 'btn-amber' : 'btn-ghost'} btn-sm`}
+                                  onClick={() => toggleDriveMediaType(idx)}
+                                  style={{ fontSize: 9, padding: '1px 6px', height: 22 }}
+                                  title="Klik untuk ubah jenis media di Google Drive"
+                                >
+                                  {isGDVideo ? '🎬 Video (Ganti Foto)' : '🖼️ Foto (Ganti Video)'}
+                                </button>
                               )}
                               {isResolving && (
                                 <span className="badge badge-sky" style={{ fontSize: 9 }}>
@@ -1292,7 +1341,7 @@ const StokPage = () => {
                               className="form-input"
                               value={url}
                               onChange={e => handleMediaInputChange(idx, e.target.value)}
-                              placeholder={idx === 0 ? "Contoh: https://ibb.co.com/3yFQ0gVP atau https://youtu.be/..." : "URL foto / video berikutnya (atau pisahkan tanda +)..."}
+                              placeholder={idx === 0 ? "Full link Google Drive (https://drive.google.com/file/d/...) atau ImgBB" : "URL foto / video berikutnya (atau pisahkan tanda +)..."}
                               style={{ fontSize: 12, flex: 1 }}
                             />
                           </div>
@@ -1306,12 +1355,20 @@ const StokPage = () => {
                                     <img
                                       src={getYouTubeThumbnail(cleanUrl)}
                                       alt="YouTube Thumbnail"
+                                      referrerPolicy="no-referrer"
                                       style={{ width: 64, height: 40, borderRadius: 6, objectFit: 'cover' }}
                                     />
                                     <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                                       <i className="fa-brands fa-youtube" style={{ color: '#ef4444', marginRight: 4 }} />
                                       Video YouTube terdeteksi
                                     </div>
+                                  </div>
+                                ) : isGDVideo ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <i className="fa-solid fa-film" style={{ fontSize: 22, color: 'var(--amber)' }} />
+                                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                                      🎬 Video Google Drive (Siap diputar di E-Katalog)
+                                    </span>
                                   </div>
                                 ) : (
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1324,11 +1381,12 @@ const StokPage = () => {
                                   <img
                                     src={cleanUrl}
                                     alt="Preview"
+                                    referrerPolicy="no-referrer"
                                     style={{ width: 44, height: 44, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)', background: '#fff' }}
                                     onError={(e) => handleImageErrorWithFallback(e, cleanUrl)}
                                   />
                                   <span style={{ fontSize: 11, color: 'var(--emerald)', fontWeight: 600 }}>
-                                    <i className="fa-solid fa-circle-check" /> Preview foto siap tampil
+                                    <i className="fa-solid fa-circle-check" /> {isGD ? 'Foto Google Drive siap tampil' : 'Preview foto siap tampil'}
                                   </span>
                                 </div>
                               )}

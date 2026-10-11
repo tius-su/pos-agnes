@@ -96,11 +96,66 @@ export const getYouTubeThumbnail = (url) => {
 };
 
 /**
- * Cek apakah suatu URL adalah media video (Direct Video atau YouTube)
+ * Ekstrak ID file dari link Google Drive (semua format: /file/d/ID/view, open?id=ID, uc?id=ID, dll)
+ */
+export const getGoogleDriveFileId = (url) => {
+  if (!url) return null;
+  const str = String(url).trim();
+  const match = str.match(/\/file\/d\/([a-zA-Z0-9_-]+)/i) ||
+                str.match(/[?&]id=([a-zA-Z0-9_-]+)/i) ||
+                str.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/i);
+  return match ? match[1] : null;
+};
+
+/**
+ * Cek apakah URL adalah link Google Drive
+ */
+export const isGoogleDriveUrl = (url) => {
+  return Boolean(getGoogleDriveFileId(url));
+};
+
+/**
+ * Cek apakah link Google Drive ini ditandai sebagai video (#video atau ekstensi video)
+ */
+export const isGoogleDriveVideo = (url) => {
+  if (!isGoogleDriveUrl(url)) return false;
+  const str = String(url).toLowerCase();
+  return str.includes('#video') || str.includes('type=video') || /\.(mp4|mov|webm|avi|mkv|3gp)/i.test(str);
+};
+
+/**
+ * Dapatkan URL player embed video Google Drive
+ */
+export const getGoogleDriveEmbedUrl = (url) => {
+  const id = getGoogleDriveFileId(url);
+  if (!id) return url;
+  return `https://drive.google.com/file/d/${id}/preview`;
+};
+
+/**
+ * Dapatkan URL gambar langsung beresolusi tinggi dari Google Drive (drive.google.com/thumbnail)
+ */
+export const getGoogleDriveDirectImageUrl = (url) => {
+  const id = getGoogleDriveFileId(url);
+  if (!id) return url;
+  return `https://drive.google.com/thumbnail?id=${id}&sz=w1000`;
+};
+
+/**
+ * Dapatkan URL thumbnail dari Google Drive
+ */
+export const getGoogleDriveThumbnail = (url) => {
+  const id = getGoogleDriveFileId(url);
+  if (!id) return url;
+  return `https://drive.google.com/thumbnail?id=${id}&sz=w400`;
+};
+
+/**
+ * Cek apakah suatu URL adalah media video (Direct Video, YouTube, atau Video Google Drive)
  */
 export const isMediaVideo = (url) => {
   if (!url) return false;
-  return isDirectVideoUrl(url) || isYouTubeUrl(url);
+  return isDirectVideoUrl(url) || isYouTubeUrl(url) || isGoogleDriveVideo(url);
 };
 
 /**
@@ -110,12 +165,12 @@ export const normalizeMediaUrl = (url) => {
   if (!url) return '';
   let str = String(url).trim();
 
-  // 1. Google Drive view/share link -> direct image view
-  // Format: https://drive.google.com/file/d/FILE_ID/view...
-  const gDriveMatch = str.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i) ||
-                      str.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/i);
-  if (gDriveMatch && gDriveMatch[1]) {
-    return `https://lh3.googleusercontent.com/d/${gDriveMatch[1]}`;
+  // 1. Google Drive view/share link -> direct image view jika bukan video
+  if (isGoogleDriveUrl(str)) {
+    if (isGoogleDriveVideo(str)) {
+      return str; // Biarkan utuh dengan #video untuk pemutar embed video
+    }
+    return getGoogleDriveDirectImageUrl(str);
   }
 
   // 2. Dropbox share link -> direct download (raw=1)
@@ -218,10 +273,19 @@ export const getPrimaryImageUrl = (mediaInput) => {
   const urls = splitMediaUrls(mediaInput);
   if (urls.length === 0) return '';
 
-  // Cari yang pertama kali berformat gambar (bukan YouTube & bukan direct video)
+  // Cari yang pertama kali berformat gambar (bukan YouTube, bukan direct video, bukan Google Drive video)
   const imageItem = urls.find(u => !isMediaVideo(u));
   if (imageItem) {
+    if (isGoogleDriveUrl(imageItem)) {
+      return getGoogleDriveDirectImageUrl(imageItem);
+    }
     return normalizeMediaUrl(imageItem);
+  }
+
+  // Jika Google Drive Video, gunakan thumbnail Google Drive
+  const gDriveItem = urls.find(u => isGoogleDriveUrl(u));
+  if (gDriveItem) {
+    return getGoogleDriveThumbnail(gDriveItem);
   }
 
   // Jika semua video dan ada YouTube, pakai thumbnail YouTube
@@ -248,19 +312,42 @@ export const getWeservFallbackUrl = (url) => {
 
 /**
  * Helper error handler untuk elemen <img>
- * Coba weserv.nl sekali jika direct load gagal
+ * Coba Google Drive thumbnail, Google lh3, uc download, dan weserv.nl jika direct load gagal
  */
-export const handleImageErrorWithFallback = (e, originalUrl) => {
+export const handleImageErrorWithFallback = (e, originalUrl, onFallbackFailed) => {
   const target = e.currentTarget;
   if (!target) return;
+
+  if (isGoogleDriveUrl(originalUrl)) {
+    const fileId = getGoogleDriveFileId(originalUrl);
+    if (!target.dataset.triedGdriveThumb && fileId) {
+      target.dataset.triedGdriveThumb = 'true';
+      target.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+      return;
+    }
+    if (!target.dataset.triedGdriveLh3 && fileId) {
+      target.dataset.triedGdriveLh3 = 'true';
+      target.src = `https://lh3.googleusercontent.com/d/${fileId}=w1000`;
+      return;
+    }
+    if (!target.dataset.triedGdriveUc && fileId) {
+      target.dataset.triedGdriveUc = 'true';
+      target.src = `https://drive.google.com/uc?export=view&id=${fileId}`;
+      return;
+    }
+  }
 
   // Jika belum dicoba via weserv fallback
   if (!target.dataset.triedWeserv && originalUrl && !isMediaVideo(originalUrl)) {
     target.dataset.triedWeserv = 'true';
     target.src = getWeservFallbackUrl(originalUrl);
-  } else {
-    // Sembunyikan elemen jika tetap gagal
-    target.style.display = 'none';
+    return;
+  }
+
+  // Sembunyikan elemen jika semua fallback gagal
+  target.style.display = 'none';
+  if (typeof onFallbackFailed === 'function') {
+    onFallbackFailed();
   }
 };
 

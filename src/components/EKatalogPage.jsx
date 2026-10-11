@@ -75,6 +75,7 @@ const ProductCard = ({
           <img
             src={primaryImg}
             alt={item.nama_barang}
+            referrerPolicy="no-referrer"
             style={{
               width: '100%',
               height: '100%',
@@ -543,6 +544,7 @@ const EKatalogPage = ({ isStandalone = false }) => {
                     <img
                       src={currentMedia}
                       alt={selectedProduct.nama_barang}
+                      referrerPolicy="no-referrer"
                       style={{
                         maxWidth: '100%',
                         maxHeight: 380,
@@ -674,6 +676,7 @@ const EKatalogPage = ({ isStandalone = false }) => {
                           <img
                             src={thumbUrl}
                             alt={`Thumb ${idx + 1}`}
+                            referrerPolicy="no-referrer"
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             onError={(e) => handleImageErrorWithFallback(e, thumbUrl)}
                           />
