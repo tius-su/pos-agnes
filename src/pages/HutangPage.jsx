@@ -214,7 +214,8 @@ const HutangPage = () => {
     msg += `✅ Total Dibayar: ${formatRp(h.jumlahAwal - h.sisaHutang)}\n`;
     msg += `🔴 *Sisa Tagihan: ${formatRp(h.sisaHutang)}*\n`;
     if (h.tanggalJatuhTempo) msg += `📅 Jatuh Tempo: ${h.tanggalJatuhTempo}\n`;
-    msg += `\nTerima kasih atas kerjasamanya. 🙏`;
+    msg += `───────────────────\n`;
+    msg += `Terima Kasih Telah Berbelanja di Melan Jaya! Barang yang sudah dibeli tidak dapat ditukar.`;
 
     const encoded = encodeURIComponent(msg);
     if (no) {

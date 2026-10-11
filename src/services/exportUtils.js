@@ -55,6 +55,7 @@ export const printReportHTML = (title, subtitle, tableHtml) => {
       </head>
       <body>
         <div class="header">
+          <img src="${window.location.origin}${import.meta.env.BASE_URL}MJ-logo.jpg" alt="Logo Melan Jaya" style="max-height: 54px; max-width: 180px; object-fit: contain; margin-bottom: 8px;" onerror="this.style.display='none';" />
           <h1>${title}</h1>
           <p>${subtitle} · Dicetak pada ${new Date().toLocaleString('id-ID')}</p>
         </div>

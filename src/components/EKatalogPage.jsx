@@ -87,25 +87,42 @@ const EKatalogPage = ({ isStandalone = false }) => {
         position: 'relative',
         overflow: 'hidden'
       }}>
-        <div style={{ position: 'relative', zIndex: 2 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.18)', padding: '4px 12px', borderRadius: 99, fontSize: 11, fontWeight: 700, marginBottom: 10, backdropFilter: 'blur(4px)' }}>
-            <i className="fa-solid fa-sparkles" /> E-Katalog Digital Resmi
+        <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <img
+            src={settings.logoUrl || `${import.meta.env.BASE_URL}MJ-logo.jpg`}
+            alt={storeName}
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: 14,
+              objectFit: 'cover',
+              background: '#fff',
+              border: '2.5px solid rgba(255,255,255,0.4)',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+              flexShrink: 0
+            }}
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.18)', padding: '4px 12px', borderRadius: 99, fontSize: 11, fontWeight: 700, marginBottom: 8, backdropFilter: 'blur(4px)' }}>
+              <i className="fa-solid fa-sparkles" /> E-Katalog Digital Resmi
+            </div>
+            <h1 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 6px 0', letterSpacing: '-0.5px' }}>
+              {storeName}
+            </h1>
+            <p style={{ fontSize: 13, opacity: 0.88, margin: 0, maxWidth: 500 }}>
+              📍 {storeAddress} · 📱 WA: {storePhone}
+            </p>
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 6px 0', letterSpacing: '-0.5px' }}>
-            {storeName}
-          </h1>
-          <p style={{ fontSize: 13, opacity: 0.88, margin: 0, maxWidth: 500 }}>
-            📍 {storeAddress} · 📱 WA: {storePhone}
-          </p>
+        </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
-            <button className="btn btn-sm" onClick={copyCatalogLink} style={{ background: '#fff', color: '#5b21b6', fontWeight: 800 }}>
-              <i className="fa-solid fa-copy" /> Salin Link Katalog
-            </button>
-            <button className="btn btn-sm" onClick={shareCatalogToWa} style={{ background: '#25D366', color: '#fff', fontWeight: 800 }}>
-              <i className="fa-brands fa-whatsapp" /> Bagikan ke WhatsApp
-            </button>
-          </div>
+        <div style={{ position: 'relative', zIndex: 2, display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
+          <button className="btn btn-sm" onClick={copyCatalogLink} style={{ background: '#fff', color: '#5b21b6', fontWeight: 800 }}>
+            <i className="fa-solid fa-copy" /> Salin Link Katalog
+          </button>
+          <button className="btn btn-sm" onClick={shareCatalogToWa} style={{ background: '#25D366', color: '#fff', fontWeight: 800 }}>
+            <i className="fa-brands fa-whatsapp" /> Bagikan ke WhatsApp
+          </button>
         </div>
 
         {/* Decorative background circle */}

@@ -156,6 +156,23 @@ const AppInner = () => {
           <button className="topbar-menu-btn btn-icon" onClick={() => setSidebarOpen(s => !s)} id="btn-menu">
             <i className="fa-solid fa-bars" />
           </button>
+          <img
+            src={appData?.settings?.logoUrl || `${import.meta.env.BASE_URL}MJ-logo.jpg`}
+            alt="Melan Jaya"
+            className="topbar-logo-img"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              objectFit: 'cover',
+              background: '#fff',
+              border: '1.5px solid var(--border)',
+              marginRight: 10,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+              flexShrink: 0
+            }}
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
           <div className="topbar-title">
             <h2>
               <i className={`fa-solid ${meta.icon}`} style={{ color: 'var(--brand)', marginRight: 8 }} />

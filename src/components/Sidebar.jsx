@@ -42,7 +42,7 @@ const MENU_GROUPS = [
 const Sidebar = ({ activeTab, onTabChange, onClose, isOpen, hutangCount = 0, stokKritis = 0 }) => {
   const { appData, syncStatus, lastSync, forceSyncToFirebase } = useData();
   const { user } = useAuth();
-  const logoSrc = appData?.settings?.logoUrl || `${import.meta.env.BASE_URL}melanjaya.jpg`;
+  const logoSrc = appData?.settings?.logoUrl || `${import.meta.env.BASE_URL}MJ-logo.jpg`;
 
   const handleLogout = async () => {
     if (confirm('Keluar dari Melan Jaya POS?')) {

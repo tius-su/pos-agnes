@@ -26,8 +26,8 @@ const SettingsPage = () => {
   const [storeName, setStoreName]         = useState(appData.settings?.storeName     || 'Melan Jaya');
   const [storeAddress, setStoreAddress]   = useState(appData.settings?.storeAddress  || '');
   const [storePhone, setStorePhone]       = useState(appData.settings?.storePhone    || '');
-  const [receiptFooter, setReceiptFooter] = useState(appData.settings?.receiptFooter || '');
-  const [logoUrl, setLogoUrl]             = useState(appData.settings?.logoUrl       || `${import.meta.env.BASE_URL}melanjaya.jpg`);
+  const [receiptFooter, setReceiptFooter] = useState(appData.settings?.receiptFooter || 'Terima Kasih Telah Berbelanja di Melan Jaya! Barang yang sudah dibeli tidak dapat ditukar.');
+  const [logoUrl, setLogoUrl]             = useState(appData.settings?.logoUrl       || `${import.meta.env.BASE_URL}MJ-logo.jpg`);
   const [autoSendWa, setAutoSendWa]       = useState(appData.settings?.autoSendWa !== false);
   const [sendWaToStore, setSendWaToStore] = useState(appData.settings?.sendWaToStore !== false);
   const [syncing, setSyncing]             = useState(false);
@@ -273,9 +273,9 @@ const SettingsPage = () => {
           <div className="card-body">
             <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16, background: 'var(--bg-hover)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
               <img
-                src={logoUrl || `${import.meta.env.BASE_URL}melanjaya.jpg`}
+                src={logoUrl || `${import.meta.env.BASE_URL}MJ-logo.jpg`}
                 alt="Preview Logo"
-                onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}melanjaya.jpg`; }}
+                onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}MJ-logo.jpg`; }}
                 style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover', border: '2px solid var(--brand)', background: '#fff' }}
               />
               <div>
@@ -301,7 +301,7 @@ const SettingsPage = () => {
             </div>
             <div className="form-group">
               <label className="form-label">URL / Path Logo Toko</label>
-              <input type="text" className="form-input" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder={`${import.meta.env.BASE_URL}melanjaya.jpg`} id="store-logo-url" />
+              <input type="text" className="form-input" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder={`${import.meta.env.BASE_URL}MJ-logo.jpg`} id="store-logo-url" />
             </div>
             <div className="form-group">
               <label className="form-label">Pesan Footer Struk</label>

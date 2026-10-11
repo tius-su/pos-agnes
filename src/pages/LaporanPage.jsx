@@ -24,6 +24,8 @@ const LaporanPage = () => {
   const [editForm, setEditForm] = useState({});      // form state edit
   const [deleteTrx, setDeleteTrx] = useState(null); // transaksi yang akan dihapus
   const [saving, setSaving] = useState(false);
+  const [salesView, setSalesView] = useState('trx'); // 'trx' | 'item'
+  const [itemSearchTerm, setItemSearchTerm] = useState('');
 
   const getRange = () => {
     const todayStr = getTodayIso();
@@ -114,6 +116,51 @@ const LaporanPage = () => {
     });
     return Object.values(byDate).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
   }, [filteredSales]);
+
+  // ── Rincian Laba Rugi Per Item Barang ──────────────────────────────
+  const salesItemBreakdown = useMemo(() => {
+    const map = {};
+    filteredSales.forEach(t => {
+      (t.items || []).forEach(i => {
+        const key = i.barang;
+        if (!map[key]) {
+          const itemStok = (appData.stok || []).find(s => s.nama_barang === i.barang || s.nama_barang === i.originalName);
+          map[key] = {
+            barang: i.barang,
+            kategori: itemStok?.kategori || 'Lainnya',
+            totalQty: 0,
+            totalOmset: 0,
+            totalModal: 0,
+            trxCount: 0
+          };
+        }
+        const unitModal = i.hargaModal !== undefined
+          ? Number(i.hargaModal)
+          : Number((appData.stok || []).find(s => s.nama_barang === i.barang || s.nama_barang === i.originalName)?.hargaModal || 0);
+        const sub = Number(i.subtotal || i.hargaJual * i.jumlah);
+        const mod = Number(unitModal * i.jumlah);
+
+        map[key].totalQty += Number(i.jumlah || 0);
+        map[key].totalOmset += sub;
+        map[key].totalModal += mod;
+        map[key].trxCount += 1;
+      });
+    });
+
+    return Object.values(map).map(it => {
+      const laba = it.totalOmset - it.totalModal;
+      const margin = it.totalOmset > 0 ? ((laba / it.totalOmset) * 100).toFixed(1) : 0;
+      const avgHargaJual = it.totalQty > 0 ? Math.round(it.totalOmset / it.totalQty) : 0;
+      const avgHargaModal = it.totalQty > 0 ? Math.round(it.totalModal / it.totalQty) : 0;
+      return {
+        ...it,
+        laba,
+        margin,
+        avgHargaJual,
+        avgHargaModal
+      };
+    }).sort((a, b) => b.laba - a.laba);
+  }, [filteredSales, appData.stok]);
 
   // ── OPEN EDIT MODAL ──────────────────────────────────────────────────
   const openEdit = (trx) => {
@@ -215,6 +262,7 @@ const LaporanPage = () => {
   };
 
   // ── KIRIM ULANG STRUK VIA WHATSAPP ────────────────────────────────────
+  // ── KIRIM ULANG STRUK VIA WHATSAPP ────────────────────────────────────
   const sendStrukWA = (trx) => {
     const noWa = (trx.noWa || '').replace(/\D/g, '');
     if (!noWa) {
@@ -222,25 +270,37 @@ const LaporanPage = () => {
       return;
     }
     const s = appData.settings || {};
-    let msg = `*STRUK BELANJA ${(s.storeName || 'MELAN JAYA').toUpperCase()}*\n`;
-    msg += `${s.storeAddress || ''}\n`;
+    const storeName = (s.storeName || 'MELAN JAYA').replace(/Agnes\s*Fashion/gi, 'Melan Jaya').replace(/Agnes/gi, 'Melan Jaya');
+    const footerText = (s.receiptFooter || 'Terima Kasih Telah Berbelanja di Melan Jaya! Barang yang sudah dibeli tidak dapat ditukar.')
+      .replace(/Agnes\s*Fashion/gi, 'Melan Jaya')
+      .replace(/Agnes/gi, 'Melan Jaya');
+
+    let msg = `*STRUK BELANJA ${storeName.toUpperCase()}*\n`;
+    if (s.storeAddress) msg += `${s.storeAddress}\n`;
     msg += `───────────────────\n`;
     msg += `No TRX : ${trx.kodeTrx}\n`;
     msg += `Tanggal: ${trx.tanggal} ${trx.waktu || ''}\n`;
     msg += `Pelanggan: ${trx.pelanggan || 'Umum'}\n`;
     msg += `───────────────────\n`;
     (trx.items || []).forEach(i => {
-      msg += `${i.barang} x${i.jumlah}  ${formatRp(i.subtotal)}\n`;
+      msg += `${i.barang} x${i.jumlah}  ${formatRp(i.subtotal || i.hargaJual * i.jumlah)}\n`;
     });
     msg += `───────────────────\n`;
+    if (trx.diskonAmt > 0) {
+      msg += `Subtotal : ${formatRp(trx.subtotalSebelumDiskon || trx.totalPenjualan + trx.diskonAmt)}\n`;
+      msg += `Diskon   : -${formatRp(trx.diskonAmt)}\n`;
+    }
     msg += `*TOTAL: ${formatRp(trx.totalPenjualan)}*\n`;
     msg += `Metode: ${trx.metodeBayar}\n`;
     if (trx.metodeBayar === 'Tunai') {
       msg += `Bayar: ${formatRp(trx.uangDiterima)}\n`;
       msg += `Kembalian: ${formatRp(trx.kembalian)}\n`;
+    } else if (trx.metodeBayar === 'Hutang') {
+      if (trx.uangMuka > 0) msg += `Uang Muka / DP: ${formatRp(trx.uangMuka)}\n`;
+      msg += `Sisa Tagihan: ${formatRp(trx.sisaHutang !== undefined ? trx.sisaHutang : trx.totalPenjualan)}\n`;
     }
     msg += `───────────────────\n`;
-    msg += `${s.receiptFooter || 'Terima kasih!'}`;
+    msg += `${footerText}`;
     window.open(`https://wa.me/${noWa}?text=${encodeURIComponent(msg)}`, '_blank');
     toast('📤 Struk dikirim ke WhatsApp!', 'success');
   };
@@ -248,13 +308,15 @@ const LaporanPage = () => {
   // ── SHARE / EXPORT ───────────────────────────────────────────────────
   const shareReportWA = () => {
     const s = appData.settings || {};
-    let msg = `*LAPORAN PENJUALAN — ${s.storeName || 'Melan Jaya'}*\n`;
+    const storeName = (s.storeName || 'Melan Jaya').replace(/Agnes\s*Fashion/gi, 'Melan Jaya').replace(/Agnes/gi, 'Melan Jaya');
+    let msg = `*LAPORAN PENJUALAN — ${storeName}*\n`;
     msg += `Periode: ${start || 'Semua'} s/d ${end || 'Semua'}\n`;
     msg += `────────────────────\n`;
-    msg += `💰 Omset     : ${formatRp(totalOmset)}\n`;
-    msg += `📦 Modal Beli: ${formatRp(totalModal)}\n`;
-    msg += `✅ Laba Bersih: ${formatRp(totalLaba)} (${marginPct}%)\n`;
-    msg += `🧾 Transaksi : ${filteredSales.length} trx\n`;
+    msg += `💰 Total Omset     : ${formatRp(totalOmset)}\n`;
+    msg += `📦 Total Modal HPP : ${formatRp(totalModal)}\n`;
+    msg += `✅ Laba Bersih     : ${formatRp(totalLaba)} (${marginPct}%)\n`;
+    msg += `🧾 Total Transaksi : ${filteredSales.length} trx\n`;
+    msg += `📦 Item Terjual    : ${totalItemTerjual} pcs\n`;
     msg += `────────────────────\n`;
     msg += `Dikirim dari Melan Jaya POS`;
     const no = (s.storePhone || '').replace(/\D/g, '');
@@ -262,58 +324,65 @@ const LaporanPage = () => {
     window.open(url, '_blank');
   };
 
-  // Save Sales Report to PDF
+  // Save Sales Report to PDF (dengan logo & rincian laba rugi per item)
   const saveSalesToPDF = () => {
     const s = appData.settings || {};
+    const storeName = (s.storeName || 'MELAN JAYA POS').replace(/Agnes\s*Fashion/gi, 'Melan Jaya').replace(/Agnes/gi, 'Melan Jaya');
     
     // Create header
     const headerHtml = `
       <div style="text-align:center;margin-bottom:20px;">
-        <h2 style="color:#4c1d95;margin:0;font-size:18px;">${s.storeName?.toUpperCase() || 'MELAN JAYA POS'}</h2>
-        <p style="color:#666;margin:5px 0 0 0;font-size:12px;">${s.storeAddress || ''}</p>
+        <img src="${window.location.origin}${import.meta.env.BASE_URL}MJ-logo.jpg" alt="Logo" style="height:52px;max-width:180px;object-fit:contain;margin-bottom:8px;" onerror="this.style.display='none';"><br/>
+        <h2 style="color:#4c1d95;margin:0;font-size:18px;">${storeName.toUpperCase()}</h2>
+        <p style="color:#666;margin:4px 0 0 0;font-size:12px;">${s.storeAddress || ''}</p>
         <p style="color:#666;margin:0;font-size:12px;">${s.storePhone || ''}</p>
-        <hr style="border:1px solid #ddd;margin:15px 0;"/>
-        <h3 style="color:#059669;margin:0;font-size:14px;">LAPORAN RIWAYAT PENJUALAN</h3>
-        <p style="color:#666;margin:5px 0 15px 0;font-size:11px;">Periode: ${start || 'Semua'} s/d ${end || 'Semua'}</p>
+        <hr style="border:1px solid #ddd;margin:12px 0;"/>
+        <h3 style="color:#059669;margin:0;font-size:15px;">LAPORAN PENJUALAN &amp; LABA RUGI PER ITEM</h3>
+        <p style="color:#666;margin:4px 0 12px 0;font-size:11px;">Periode: ${start || 'Semua'} s/d ${end || 'Semua'}</p>
       </div>
     `;
 
     // Create summary table
     const summaryHtml = `
-      <table style="width:100%;margin-bottom:15px;">
-        <tr>
+      <table style="width:100%;margin-bottom:15px;border:1px solid #e5e7eb;border-collapse:collapse;">
+        <tr style="background:#f9fafb;">
           <td style="padding:6px 10px;font-weight:700;">Total Omset:</td>
           <td style="padding:6px 10px;text-align:right;color:#059669;font-weight:800;">${formatRp(totalOmset)}</td>
         </tr>
         <tr>
-          <td style="padding:6px 10px;font-weight:700;">Total Modal:</td>
-          <td style="padding:6px 10px;text-align:right;color:#d97706;font-weight:800;">${formatRp(totalModal)}</td>
+          <td style="padding:6px 10px;font-weight:700;">Total Modal (HPP):</td>
+          <td style="padding:6px 10px;text-align:right;color:#0284c7;font-weight:800;">${formatRp(totalModal)}</td>
         </tr>
-        <tr>
-          <td style="padding:6px 10px;font-weight:700;">Laba Bersih:</td>
-          <td style="padding:6px 10px;text-align:right;color:#7c3aed;font-weight:800;">${formatRp(totalLaba)} (${marginPct}%)</td>
+        <tr style="background:#f9fafb;">
+          <td style="padding:6px 10px;font-weight:700;">Laba Bersih Total:</td>
+          <td style="padding:6px 10px;text-align:right;color:#7c3aed;font-weight:900;font-size:14px;">${formatRp(totalLaba)} (Margin ${marginPct}%)</td>
         </tr>
         <tr>
           <td style="padding:6px 10px;font-weight:700;">Jumlah Transaksi:</td>
-          <td style="padding:6px 10px;text-align:right;font-weight:800;">${filteredSales.length} transaksi</td>
-        </tr>
-        <tr>
-          <td style="padding:6px 10px;font-weight:700;">Total Item Terjual:</td>
-          <td style="padding:6px 10px;text-align:right;font-weight:800;">${totalItemTerjual} pcs</td>
+          <td style="padding:6px 10px;text-align:right;font-weight:800;">${filteredSales.length} transaksi (${totalItemTerjual} pcs item)</td>
         </tr>
       </table>
     `;
 
-    // Create transactions table
-    let tableHtml = '<table style="width:100%;border-collapse:collapse;margin-top:10px;"><thead><tr style="border-bottom:2px solid #333;"><th style="text-align:left;padding:6px;">Kode TRX</th><th style="text-align:left;padding:6px;">Tanggal</th><th style="text-align:left;padding:6px;">Pelanggan</th><th style="text-align:right;padding:6px;">Omset</th><th style="text-align:right;padding:6px;">Laba</th></tr></thead><tbody>';
+    // Create transactions table with item profit/loss breakdown
+    let tableHtml = '<table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:11px;"><thead><tr style="border-bottom:2px solid #333;background:#f3f4f6;"><th style="text-align:left;padding:6px;">Kode TRX / Tgl</th><th style="text-align:left;padding:6px;">Pelanggan</th><th style="text-align:left;padding:6px;">Rincian Barang &amp; Laba Rugi per Item</th><th style="text-align:right;padding:6px;">Omset</th><th style="text-align:right;padding:6px;">Modal HPP</th><th style="text-align:right;padding:6px;">Laba Bersih</th></tr></thead><tbody>';
     
     filteredSales.forEach(t => {
-      tableHtml += `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px;">${t.kodeTrx}</td><td style="padding:6px;">${t.tanggal} ${t.waktu || ''}</td><td style="padding:6px;">${t.pelanggan || 'Umum'}</td><td style="text-align:right;padding:6px;">${formatRp(t.totalPenjualan)}</td><td style="text-align:right;padding:6px;color:#059669;">${formatRp(t.laba)}</td></tr>`;
+      let itemsHtml = '';
+      (t.items || []).forEach(i => {
+        const unitModal = i.hargaModal !== undefined ? Number(i.hargaModal) : Number((appData.stok || []).find(s => s.nama_barang === i.barang || s.nama_barang === i.originalName)?.hargaModal || 0);
+        const sub = Number(i.subtotal || i.hargaJual * i.jumlah);
+        const modTot = Number(unitModal * i.jumlah);
+        const itemLaba = sub - modTot;
+        itemsHtml += `<div style="margin-bottom:3px;">• <strong>${i.barang}</strong> x${i.jumlah} (Jual: ${formatRp(i.hargaJual)} | HPP: ${formatRp(unitModal)}) &rarr; <span style="color:${itemLaba >= 0 ? '#059669' : '#e11d48'};font-weight:bold;">${itemLaba >= 0 ? '+' : ''}${formatRp(itemLaba)}</span></div>`;
+      });
+
+      tableHtml += `<tr style="border-bottom:1px solid #eee;vertical-align:top;"><td style="padding:6px;"><strong>${t.kodeTrx}</strong><br/><span style="color:#666;font-size:10px;">${t.tanggal} ${t.waktu || ''}</span></td><td style="padding:6px;">${t.pelanggan || 'Umum'}</td><td style="padding:6px;">${itemsHtml}</td><td style="text-align:right;padding:6px;font-weight:bold;color:#059669;">${formatRp(t.totalPenjualan)}</td><td style="text-align:right;padding:6px;color:#0284c7;">${formatRp(t.totalModal)}</td><td style="text-align:right;padding:6px;font-weight:bold;color:${t.laba >= 0 ? '#7c3aed' : '#e11d48'};">${formatRp(t.laba)}</td></tr>`;
     });
     
-    tableHtml += '</tbody></table>';
+    tableHtml += `<tr style="border-top:2px solid #333;font-weight:bold;background:#f3f4f6;"><td colspan="3" style="padding:8px;">TOTAL KESELURUHAN</td><td style="text-align:right;padding:8px;color:#059669;">${formatRp(totalOmset)}</td><td style="text-align:right;padding:8px;color:#0284c7;">${formatRp(totalModal)}</td><td style="text-align:right;padding:8px;color:#7c3aed;font-size:13px;">${formatRp(totalLaba)}</td></tr></tbody></table>`;
 
-    const fullHtml = `<html><head><meta charset="UTF-8"><title>Laporan Penjualan - ${s.storeName || 'Melan Jaya'}</title></head><body>${headerHtml}${summaryHtml}${tableHtml}</body></html>`;
+    const fullHtml = `<html><head><meta charset="UTF-8"><title>Laporan Penjualan - ${storeName}</title></head><body>${headerHtml}${summaryHtml}${tableHtml}</body></html>`;
     
     // Create PDF using browser print
     const printWindow = window.open('', '_blank');
@@ -321,7 +390,6 @@ const LaporanPage = () => {
     printWindow.document.close();
     printWindow.focus();
     
-    // Wait for content to load, then print to PDF
     setTimeout(() => {
       printWindow.print();
     }, 250);
@@ -330,14 +398,21 @@ const LaporanPage = () => {
   };
 
   const exportCSV = () => {
-    let csv = 'Kode TRX,Tanggal,Waktu,Pelanggan,Metode,Omset,Modal,Laba\n';
+    let csv = '\uFEFFKode TRX,Tanggal,Waktu,Pelanggan,Metode Bayar,Nama Barang,Qty,Harga Jual,Harga Modal (HPP),Subtotal Omset,Total Modal Item,Laba Rugi Item,Status Item,Total Omset TRX,Total Modal TRX,Total Laba TRX\n';
     filteredSales.forEach(t => {
-      csv += `${t.kodeTrx},${t.tanggal},${t.waktu || ''},${t.pelanggan || ''},${t.metodeBayar},${t.totalPenjualan},${t.totalModal},${t.laba}\n`;
+      (t.items || []).forEach(i => {
+        const unitModal = i.hargaModal !== undefined ? Number(i.hargaModal) : Number((appData.stok || []).find(s => s.nama_barang === i.barang || s.nama_barang === i.originalName)?.hargaModal || 0);
+        const sub = Number(i.subtotal || i.hargaJual * i.jumlah);
+        const modTot = Number(unitModal * i.jumlah);
+        const itemLaba = sub - modTot;
+        const statusItem = itemLaba >= 0 ? 'Untung' : 'Rugi';
+        csv += `"${t.kodeTrx}","${t.tanggal}","${t.waktu || ''}","${(t.pelanggan || 'Umum').replace(/"/g, '""')}","${t.metodeBayar}","${(i.barang || '').replace(/"/g, '""')}",${i.jumlah},${i.hargaJual},${unitModal},${sub},${modTot},${itemLaba},"${statusItem}",${t.totalPenjualan},${t.totalModal},${t.laba}\n`;
+      });
     });
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `laporan-melan-jaya-${start || 'semua'}.csv`; a.click();
-    toast('File CSV berhasil diunduh', 'success');
+    a.download = `laporan-penjualan-melan-jaya-${start || 'semua'}.csv`; a.click();
+    toast('File CSV Laporan Penjualan (Rugi Laba Per Item & Total) berhasil diunduh', 'success');
   };
 
   const exportExpensesCSV = () => {
@@ -635,6 +710,25 @@ const LaporanPage = () => {
           )}
         </div>
 
+        {/* View Switcher: Per Transaksi vs Rincian Per Item Barang */}
+        <div style={{ padding: '0 16px 12px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>Tampilan Laporan:</span>
+          <button
+            className={`btn btn-sm ${salesView === 'trx' ? 'btn-purple' : 'btn-ghost'}`}
+            onClick={() => setSalesView('trx')}
+            style={{ fontSize: 11, padding: '5px 12px' }}
+          >
+            <i className="fa-solid fa-receipt" /> Riwayat Transaksi (Laba Per Item &amp; Total)
+          </button>
+          <button
+            className={`btn btn-sm ${salesView === 'item' ? 'btn-purple' : 'btn-ghost'}`}
+            onClick={() => setSalesView('item')}
+            style={{ fontSize: 11, padding: '5px 12px' }}
+          >
+            <i className="fa-solid fa-boxes-stacked" /> Rincian Laba Rugi Per Item Barang ({salesItemBreakdown.length})
+          </button>
+        </div>
+
         {/* Action Buttons */}
         <div className="report-actions">
           <button className="btn btn-purple btn-sm" onClick={shareReportWA} title="Bagikan via WhatsApp">
@@ -650,147 +744,354 @@ const LaporanPage = () => {
 
         <div style={{ padding: '0 16px 12px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <span className="badge badge-green">Omset {formatRp(totalOmset)}</span>
-          <span className="badge badge-violet">Total Item {totalItemTerjual} pcs</span>
-          <span className="badge badge-sky">Transaksi {filteredSales.length}</span>
+          <span className="badge badge-sky">Modal HPP {formatRp(totalModal)}</span>
+          <span className="badge badge-violet" style={{ fontWeight: 800 }}>Laba Total {formatRp(totalLaba)} ({marginPct}%)</span>
+          <span className="badge badge-amber">Total {totalItemTerjual} pcs item</span>
+          <span className="badge badge-ghost">Transaksi {filteredSales.length} trx</span>
         </div>
 
-        {/* ── DESKTOP TABLE ── */}
-        <div className="desktop-table-view">
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Kode TRX</th>
-                  <th>Tanggal &amp; Jam</th>
-                  <th>Pelanggan</th>
-                  <th>Item</th>
-                  <th>Metode</th>
-                  <th>Omset</th>
-                  <th>Laba</th>
-                  <th style={{ textAlign: 'center' }}>Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSales.length === 0 ? (
-                  <tr><td colSpan={8}>
-                    <div className="empty-state">
-                      <i className="fa-solid fa-receipt" />
-                      <p>Belum ada transaksi di periode ini.</p>
+        {/* ═════════ TAMPILAN 1: RIWAYAT TRANSAKSI DENGAN LABA PER ITEM ═════════ */}
+        {salesView === 'trx' && (
+          <>
+            {/* ── DESKTOP TABLE ── */}
+            <div className="desktop-table-view">
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Kode TRX</th>
+                      <th>Tanggal &amp; Jam</th>
+                      <th>Pelanggan</th>
+                      <th style={{ minWidth: 260 }}>Rincian Barang &amp; Laba Rugi Per Item</th>
+                      <th>Metode</th>
+                      <th style={{ textAlign: 'right' }}>Omset</th>
+                      <th style={{ textAlign: 'right' }}>Modal (HPP)</th>
+                      <th style={{ textAlign: 'right' }}>Laba Kotor</th>
+                      <th style={{ textAlign: 'center' }}>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredSales.length === 0 ? (
+                      <tr><td colSpan={9}>
+                        <div className="empty-state">
+                          <i className="fa-solid fa-receipt" />
+                          <p>Belum ada transaksi di periode ini.</p>
+                        </div>
+                      </td></tr>
+                    ) : filteredSales.map(t => (
+                      <tr key={t.id}>
+                        <td className="cell-main" style={{ fontFamily: 'monospace', fontSize: 11 }}>{t.kodeTrx}</td>
+                        <td>{t.tanggal}<br /><span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t.waktu}</span></td>
+                        <td>
+                          {t.pelanggan || '—'}
+                          {t.noWa && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t.noWa}</div>}
+                        </td>
+                        <td>
+                          {(t.items || []).map((i, ix) => {
+                            const modalUnit = i.hargaModal !== undefined
+                              ? Number(i.hargaModal)
+                              : Number((appData.stok || []).find(s => s.nama_barang === i.barang || s.nama_barang === i.originalName)?.hargaModal || 0);
+                            const itemSubtotal = Number(i.subtotal || (i.hargaJual * i.jumlah));
+                            const itemModalTotal = Number(modalUnit * i.jumlah);
+                            const itemLaba = itemSubtotal - itemModalTotal;
+                            const isUntung = itemLaba >= 0;
+
+                            return (
+                              <div key={ix} style={{ fontSize: 11, padding: '4px 0', borderBottom: ix < t.items.length - 1 ? '1px dashed var(--border)' : 'none' }}>
+                                <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                                  {i.barang} <span style={{ color: 'var(--brand)', fontWeight: 800 }}>×{i.jumlah}</span>
+                                </div>
+                                <div style={{ fontSize: 10, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 2 }}>
+                                  <span style={{ color: 'var(--text-muted)' }}>Jual: {formatRp(i.hargaJual)}</span>
+                                  <span style={{ color: 'var(--sky)' }}>HPP: {formatRp(modalUnit)}</span>
+                                  <span style={{
+                                    fontWeight: 800,
+                                    color: isUntung ? 'var(--emerald)' : 'var(--rose)',
+                                    background: isUntung ? 'rgba(5,150,105,0.08)' : 'rgba(225,29,72,0.08)',
+                                    padding: '1px 6px',
+                                    borderRadius: 4
+                                  }}>
+                                    {isUntung ? 'Laba: +' : 'Rugi: '}{formatRp(itemLaba)}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </td>
+                        <td><span className="badge badge-violet">{t.metodeBayar}</span></td>
+                        <td className="cell-amount cell-green" style={{ fontWeight: 800 }}>{formatRp(t.totalPenjualan)}</td>
+                        <td className="cell-amount" style={{ color: 'var(--sky)', fontSize: 11 }}>{formatRp(t.totalModal)}</td>
+                        <td className="cell-amount" style={{ color: (t.laba || 0) >= 0 ? 'var(--emerald)' : 'var(--rose)', fontWeight: 900 }}>
+                          {(t.laba || 0) >= 0 ? '+' : ''}{formatRp(t.laba)}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: 5, justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => openEdit(t)} style={{ padding: '4px 8px' }}>
+                              <i className="fa-solid fa-pen-to-square" />
+                            </button>
+                            <button className="btn btn-wa btn-sm" title={t.noWa ? `Kirim struk ke ${t.noWa}` : 'No WA tidak tersedia'} onClick={() => sendStrukWA(t)} style={{ padding: '4px 8px', opacity: t.noWa ? 1 : 0.45 }}>
+                              <i className="fa-brands fa-whatsapp" />
+                            </button>
+                            <button className="btn btn-danger btn-sm" title="Hapus" onClick={() => setDeleteTrx(t)} style={{ padding: '4px 8px' }}>
+                              <i className="fa-solid fa-trash" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+
+                    {/* Grand Total Row */}
+                    {filteredSales.length > 0 && (
+                      <tr style={{ background: 'var(--brand-dim)', fontWeight: 800, borderTop: '2px solid var(--brand)' }}>
+                        <td colSpan={5} style={{ fontWeight: 900, fontSize: 12 }}>
+                          TOTAL KESELURUHAN ({filteredSales.length} TRANSAKSI · {totalItemTerjual} PCS)
+                        </td>
+                        <td className="cell-amount cell-green" style={{ fontSize: 13, fontWeight: 900 }}>{formatRp(totalOmset)}</td>
+                        <td className="cell-amount" style={{ color: 'var(--sky)', fontSize: 12, fontWeight: 800 }}>{formatRp(totalModal)}</td>
+                        <td className="cell-amount" style={{ color: totalLaba >= 0 ? 'var(--emerald)' : 'var(--rose)', fontSize: 14, fontWeight: 900 }}>
+                          {totalLaba >= 0 ? '+' : ''}{formatRp(totalLaba)} ({marginPct}%)
+                        </td>
+                        <td></td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* ── MOBILE CARDS VIEW ── */}
+            <div className="mobile-cards-view" style={{ padding: '0 12px 12px' }}>
+              {filteredSales.length === 0 ? (
+                <div className="empty-state">
+                  <i className="fa-solid fa-receipt" />
+                  <p>Belum ada transaksi di periode ini.</p>
+                </div>
+              ) : filteredSales.map(t => (
+                <div key={t.id} className="trx-mobile-card">
+                  {/* Header card */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: 'var(--brand)' }}>{t.kodeTrx}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t.tanggal} · {t.waktu}</div>
                     </div>
-                  </td></tr>
-                ) : filteredSales.map(t => (
-                  <tr key={t.id}>
-                    <td className="cell-main" style={{ fontFamily: 'monospace', fontSize: 11 }}>{t.kodeTrx}</td>
-                    <td>{t.tanggal}<br /><span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t.waktu}</span></td>
-                    <td>
-                      {t.pelanggan || '—'}
-                      {t.noWa && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t.noWa}</div>}
-                    </td>
-                    <td>
-                      {(t.items || []).map((i, ix) => (
-                        <div key={ix} style={{ fontSize: 11 }}>{i.barang} ×{i.jumlah}</div>
-                      ))}
-                    </td>
-                    <td><span className="badge badge-violet">{t.metodeBayar}</span></td>
-                    <td className="cell-amount cell-green">{formatRp(t.totalPenjualan)}</td>
-                    <td className="cell-amount cell-violet">{formatRp(t.laba)}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: 5, justifyContent: 'center', flexWrap: 'wrap' }}>
-                        <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => openEdit(t)} style={{ padding: '4px 8px' }}>
-                          <i className="fa-solid fa-pen-to-square" />
-                        </button>
-                        <button className="btn btn-wa btn-sm" title={t.noWa ? `Kirim struk ke ${t.noWa}` : 'No WA tidak tersedia'} onClick={() => sendStrukWA(t)} style={{ padding: '4px 8px', opacity: t.noWa ? 1 : 0.45 }}>
-                          <i className="fa-brands fa-whatsapp" />
-                        </button>
-                        <button className="btn btn-danger btn-sm" title="Hapus" onClick={() => setDeleteTrx(t)} style={{ padding: '4px 8px' }}>
-                          <i className="fa-solid fa-trash" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* ── MOBILE CARDS VIEW ── */}
-        <div className="mobile-cards-view" style={{ padding: '0 12px 12px' }}>
-          {filteredSales.length === 0 ? (
-            <div className="empty-state">
-              <i className="fa-solid fa-receipt" />
-              <p>Belum ada transaksi di periode ini.</p>
-            </div>
-          ) : filteredSales.map(t => (
-            <div key={t.id} className="trx-mobile-card">
-              {/* Header card */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: 'var(--brand)' }}>{t.kodeTrx}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t.tanggal} · {t.waktu}</div>
-                </div>
-                <span className="badge badge-violet" style={{ fontSize: 10 }}>{t.metodeBayar}</span>
-              </div>
-
-              {/* Pelanggan */}
-              {(t.pelanggan && t.pelanggan !== 'Umum') && (
-                <div style={{ fontSize: 12, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <i className="fa-solid fa-user" style={{ color: 'var(--text-muted)', fontSize: 10 }} />
-                  <span style={{ fontWeight: 600 }}>{t.pelanggan}</span>
-                  {t.noWa && <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>· {t.noWa}</span>}
-                </div>
-              )}
-
-              {/* Items */}
-              <div style={{ marginBottom: 8 }}>
-                {(t.items || []).map((i, ix) => (
-                  <div key={ix} style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{i.barang} ×{i.jumlah}</span>
-                    <span>{formatRp(i.subtotal)}</span>
+                    <span className="badge badge-violet" style={{ fontSize: 10 }}>{t.metodeBayar}</span>
                   </div>
-                ))}
-              </div>
 
-              {/* Totals */}
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                <div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Omset</div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--emerald)' }}>{formatRp(t.totalPenjualan)}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Laba</div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--brand)' }}>{formatRp(t.laba)}</div>
-                </div>
-              </div>
+                  {/* Pelanggan */}
+                  {(t.pelanggan && t.pelanggan !== 'Umum') && (
+                    <div style={{ fontSize: 12, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <i className="fa-solid fa-user" style={{ color: 'var(--text-muted)', fontSize: 10 }} />
+                      <span style={{ fontWeight: 600 }}>{t.pelanggan}</span>
+                      {t.noWa && <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>· {t.noWa}</span>}
+                    </div>
+                  )}
 
-              {/* Action buttons — full width, always visible */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => openEdit(t)}
-                  style={{ padding: '7px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
-                >
-                  <i className="fa-solid fa-pen-to-square" /> Edit
-                </button>
-                <button
-                  className="btn btn-wa btn-sm"
-                  onClick={() => sendStrukWA(t)}
-                  style={{ padding: '7px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, opacity: t.noWa ? 1 : 0.45 }}
-                  title={t.noWa ? `Kirim ke ${t.noWa}` : 'No WA belum diisi'}
-                >
-                  <i className="fa-brands fa-whatsapp" /> Struk
-                </button>
-                <button
-                  className="btn btn-danger btn-sm"
-                  onClick={() => setDeleteTrx(t)}
-                  style={{ padding: '7px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
-                >
-                  <i className="fa-solid fa-trash" /> Hapus
-                </button>
+                  {/* Items with Rugi Laba per item */}
+                  <div style={{ marginBottom: 8, background: 'var(--bg-hover)', padding: '8px 10px', borderRadius: 8 }}>
+                    {(t.items || []).map((i, ix) => {
+                      const modalUnit = i.hargaModal !== undefined
+                        ? Number(i.hargaModal)
+                        : Number((appData.stok || []).find(s => s.nama_barang === i.barang || s.nama_barang === i.originalName)?.hargaModal || 0);
+                      const itemSubtotal = Number(i.subtotal || (i.hargaJual * i.jumlah));
+                      const itemModalTotal = Number(modalUnit * i.jumlah);
+                      const itemLaba = itemSubtotal - itemModalTotal;
+                      const isUntung = itemLaba >= 0;
+
+                      return (
+                        <div key={ix} style={{ fontSize: 11, padding: '4px 0', borderBottom: ix < t.items.length - 1 ? '1px dashed var(--border)' : 'none' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontWeight: 700 }}>{i.barang} ×{i.jumlah}</span>
+                            <span style={{ fontWeight: 700, color: 'var(--emerald)' }}>{formatRp(itemSubtotal)}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                            <span>HPP: {formatRp(itemModalTotal)}</span>
+                            <span style={{ fontWeight: 800, color: isUntung ? 'var(--emerald)' : 'var(--rose)' }}>
+                              {isUntung ? 'Laba +' : 'Rugi '}{formatRp(itemLaba)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Totals */}
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Omset</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--emerald)' }}>{formatRp(t.totalPenjualan)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Modal HPP</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sky)' }}>{formatRp(t.totalModal)}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Laba Bersih</div>
+                      <div style={{ fontSize: 13, fontWeight: 900, color: (t.laba || 0) >= 0 ? 'var(--emerald)' : 'var(--rose)' }}>
+                        {(t.laba || 0) >= 0 ? '+' : ''}{formatRp(t.laba)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => openEdit(t)}
+                      style={{ padding: '7px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                    >
+                      <i className="fa-solid fa-pen-to-square" /> Edit
+                    </button>
+                    <button
+                      className="btn btn-wa btn-sm"
+                      onClick={() => sendStrukWA(t)}
+                      style={{ padding: '7px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, opacity: t.noWa ? 1 : 0.45 }}
+                      title={t.noWa ? `Kirim ke ${t.noWa}` : 'No WA belum diisi'}
+                    >
+                      <i className="fa-brands fa-whatsapp" /> Struk
+                    </button>
+                    <button
+                      className="btn btn-danger btn-sm"
+                      onClick={() => setDeleteTrx(t)}
+                      style={{ padding: '7px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                    >
+                      <i className="fa-solid fa-trash" /> Hapus
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* ═════════ TAMPILAN 2: RINCIAN LABA RUGI PER ITEM BARANG ═════════ */}
+        {salesView === 'item' && (
+          <div style={{ padding: '0 16px 16px' }}>
+            <div style={{ marginBottom: 12 }}>
+              <div className="form-input-icon">
+                <i className="fa-solid fa-search" />
+                <input
+                  className="form-input"
+                  placeholder="Cari barang atau kategori..."
+                  value={itemSearchTerm}
+                  onChange={e => setItemSearchTerm(e.target.value)}
+                />
               </div>
             </div>
-          ))}
-        </div>
+
+            <div className="desktop-table-view">
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 40 }}>No</th>
+                      <th>Nama Barang</th>
+                      <th>Kategori</th>
+                      <th style={{ textAlign: 'center' }}>Qty Terjual</th>
+                      <th style={{ textAlign: 'right' }}>Rata2 HPP</th>
+                      <th style={{ textAlign: 'right' }}>Rata2 Jual</th>
+                      <th style={{ textAlign: 'right' }}>Total Omset</th>
+                      <th style={{ textAlign: 'right' }}>Total Modal (HPP)</th>
+                      <th style={{ textAlign: 'right' }}>Laba / Rugi</th>
+                      <th style={{ textAlign: 'center' }}>Margin</th>
+                      <th style={{ textAlign: 'center' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {salesItemBreakdown.filter(i => {
+                      const s = itemSearchTerm.toLowerCase().trim();
+                      if (!s) return true;
+                      return i.barang.toLowerCase().includes(s) || (i.kategori && i.kategori.toLowerCase().includes(s));
+                    }).length === 0 ? (
+                      <tr><td colSpan={11}><div className="empty-state"><i className="fa-solid fa-box-open" /><p>Belum ada produk terjual di periode ini.</p></div></td></tr>
+                    ) : salesItemBreakdown.filter(i => {
+                      const s = itemSearchTerm.toLowerCase().trim();
+                      if (!s) return true;
+                      return i.barang.toLowerCase().includes(s) || (i.kategori && i.kategori.toLowerCase().includes(s));
+                    }).map((it, idx) => {
+                      const isUntung = it.laba >= 0;
+                      return (
+                        <tr key={it.barang}>
+                          <td style={{ color: 'var(--text-muted)', fontSize: 11 }}>{idx + 1}</td>
+                          <td className="cell-main">{it.barang}</td>
+                          <td><span className="badge badge-ghost" style={{ fontSize: 10 }}>{it.kategori}</span></td>
+                          <td style={{ textAlign: 'center', fontWeight: 800 }}>{it.totalQty} pcs</td>
+                          <td className="cell-amount" style={{ color: 'var(--sky)', fontSize: 11 }}>{formatRp(it.avgHargaModal)}</td>
+                          <td className="cell-amount" style={{ color: 'var(--text-primary)', fontSize: 11 }}>{formatRp(it.avgHargaJual)}</td>
+                          <td className="cell-amount cell-green" style={{ fontWeight: 800 }}>{formatRp(it.totalOmset)}</td>
+                          <td className="cell-amount" style={{ color: 'var(--sky)', fontWeight: 700 }}>{formatRp(it.totalModal)}</td>
+                          <td className="cell-amount" style={{ fontWeight: 900, color: isUntung ? 'var(--emerald)' : 'var(--rose)', fontSize: 13 }}>
+                            {isUntung ? '+' : ''}{formatRp(it.laba)}
+                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: 800, color: isUntung ? 'var(--emerald)' : 'var(--rose)' }}>{it.margin}%</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={`badge ${isUntung ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 10, fontWeight: 800 }}>
+                              {isUntung ? 'Untung' : 'Rugi'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Summary Footer Row */}
+                    <tr style={{ background: 'var(--brand-dim)', fontWeight: 800, borderTop: '2px solid var(--brand)' }}>
+                      <td colSpan={3} style={{ fontWeight: 900 }}>TOTAL SELURUH ITEM ({salesItemBreakdown.length} SKU)</td>
+                      <td style={{ textAlign: 'center', fontWeight: 900 }}>{totalItemTerjual} pcs</td>
+                      <td colSpan={2}></td>
+                      <td className="cell-amount cell-green" style={{ fontSize: 13, fontWeight: 900 }}>{formatRp(totalOmset)}</td>
+                      <td className="cell-amount" style={{ color: 'var(--sky)', fontSize: 12, fontWeight: 800 }}>{formatRp(totalModal)}</td>
+                      <td className="cell-amount" style={{ color: totalLaba >= 0 ? 'var(--emerald)' : 'var(--rose)', fontSize: 14, fontWeight: 900 }}>
+                        {totalLaba >= 0 ? '+' : ''}{formatRp(totalLaba)}
+                      </td>
+                      <td style={{ textAlign: 'center', fontWeight: 900, color: 'var(--brand)' }}>{marginPct}%</td>
+                      <td></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile View for Items */}
+            <div className="mobile-cards-view">
+              {salesItemBreakdown.filter(i => {
+                const s = itemSearchTerm.toLowerCase().trim();
+                if (!s) return true;
+                return i.barang.toLowerCase().includes(s) || (i.kategori && i.kategori.toLowerCase().includes(s));
+              }).map((it, idx) => {
+                const isUntung = it.laba >= 0;
+                return (
+                  <div key={idx} className="trx-mobile-card" style={{ borderLeft: `3px solid ${isUntung ? 'var(--emerald)' : 'var(--rose)'}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 13 }}>{it.barang}</div>
+                        <span className="badge badge-ghost" style={{ fontSize: 9 }}>{it.kategori} · {it.totalQty} pcs terjual</span>
+                      </div>
+                      <span className={`badge ${isUntung ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 10, fontWeight: 800 }}>
+                        {isUntung ? `+${it.margin}%` : `${it.margin}%`}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginTop: 8, background: 'var(--bg-hover)', padding: '6px 8px', borderRadius: 8 }}>
+                      <div>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Omset</div>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--emerald)' }}>{formatRp(it.totalOmset)}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Modal HPP</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sky)' }}>{formatRp(it.totalModal)}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Laba Bersih</div>
+                        <div style={{ fontSize: 12, fontWeight: 900, color: isUntung ? 'var(--emerald)' : 'var(--rose)' }}>
+                          {isUntung ? '+' : ''}{formatRp(it.laba)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Pembelian Table */}

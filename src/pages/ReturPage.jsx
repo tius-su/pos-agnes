@@ -127,11 +127,25 @@ const ReturPage = () => {
         return { ...t, hasRetur: true, returId: returData.id };
       });
 
+      const nextHutang = (appData.hutang || []).map(h => {
+        if ((h.type || 'piutang') !== 'piutang') return h;
+        const sameCustomer = (h.pelanggan || h.nama || '').toLowerCase() === (selectedTrx.pelanggan || 'Umum').toLowerCase();
+        const sameWa = selectedTrx.noWa && h.noWa && String(h.noWa).replace(/\D/g, '') === String(selectedTrx.noWa).replace(/\D/g, '');
+        if (!sameCustomer && !sameWa) return h;
+        const sisaBaru = Math.max(0, Number(h.sisaHutang || 0) - totalRetur);
+        return {
+          ...h,
+          sisaHutang: sisaBaru,
+          riwayatBayar: [...(h.riwayatBayar || []), { tanggal: returData.tanggal, nominal: -totalRetur, keterangan: `Retur ${selectedTrx.kodeTrx}`, type: 'retur' }],
+        };
+      });
+
       await saveAndSync({
         ...appData,
         stok: newStok,
         penjualan: newPenjualan,
         retur: [...(appData.retur || []), returData],
+        hutang: nextHutang,
       });
 
       toast(`✅ Retur berhasil! ${formatRp(totalRetur)} — stok dikembalikan`, 'success');

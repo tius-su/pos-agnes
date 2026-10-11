@@ -43,6 +43,8 @@ export const SAMPLE_STOK = [
   { nama_barang: 'Bros Etnik Premium', kategori: 'Aksesoris', stokTersedia: 20, hargaModal: 10000, hargaJual: 20000, supplierList: ['Aksesoris Jogja'] }
 ];
 
+const MJ_LOGO_URL = `${import.meta.env.BASE_URL}MJ-logo.jpg`;
+
 export const INITIAL_DATA = {
   appName: 'Melan Jaya POS',
   lastUpdated: new Date().toISOString(),
@@ -58,7 +60,7 @@ export const INITIAL_DATA = {
     storeName:     'Melan Jaya',
     storeAddress:  'Pasar Baru Cikarang, Blok C',
     storePhone:    '0851-1702-1168',
-    logoUrl:       `${import.meta.env.BASE_URL}melanjaya.jpg`,
+    logoUrl:       MJ_LOGO_URL,
     monthlyTarget: 50000000,
     receiptFooter: 'Terima Kasih Telah Berbelanja di Melan Jaya! Barang yang sudah dibeli tidak dapat ditukar.'
   }
@@ -326,14 +328,27 @@ export const normalizeAppData = (data) => {
     rawPelanggan = Object.values(data.pelanggan);
   }
 
-  // Cleanup storeName dari data lama yang mungkin masih menggunakan Agnes
+  const oldStoreName = data.settings?.storeName || 'Melan Jaya';
+  const cleanedStoreName = String(oldStoreName)
+    .replace(/Agnes Fashion/gi, 'Melan Jaya')
+    .replace(/Agnes/gi, 'Melan Jaya')
+    .replace(/Fashion/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const cleanedLogo = String(data.settings?.logoUrl || MJ_LOGO_URL)
+    .replace(/melanjaya\.jpg/gi, 'MJ-logo.jpg')
+    .replace(/agnes.*\.(png|jpg|jpeg)/gi, 'MJ-logo.jpg')
+    .trim() || MJ_LOGO_URL;
+
   const cleanedSettings = data.settings ? {
     ...data.settings,
-    storeName: (data.settings.storeName || 'Melan Jaya')
-      .replace(/Agnes Fashion/gi, 'Melan Jaya')
+    storeName: cleanedStoreName || 'Melan Jaya',
+    logoUrl: cleanedLogo,
+    receiptFooter: String(data.settings?.receiptFooter || INITIAL_DATA.settings.receiptFooter)
+      .replace(/Agnes\s*Fashion/gi, 'Melan Jaya')
       .replace(/Agnes/gi, 'Melan Jaya')
-      .replace(/Fashion/gi, '')
-      .trim()
+      .trim() || 'Terima Kasih Telah Berbelanja di Melan Jaya! Barang yang sudah dibeli tidak dapat ditukar.'
   } : INITIAL_DATA.settings;
 
   return {
@@ -348,7 +363,10 @@ export const normalizeAppData = (data) => {
     pelanggan: rawPelanggan,
     settings: {
       ...INITIAL_DATA.settings,
-      ...cleanedSettings
+      ...cleanedSettings,
+      logoUrl: cleanedSettings.logoUrl || MJ_LOGO_URL,
+      storeName: cleanedSettings.storeName || 'Melan Jaya',
+      receiptFooter: cleanedSettings.receiptFooter || 'Terima Kasih Telah Berbelanja di Melan Jaya! Barang yang sudah dibeli tidak dapat ditukar.'
     }
   };
 };
@@ -365,17 +383,21 @@ export const loadLocalData = () => {
       // Perbaiki data lama yang mungkin masih menggunakan "Agnes Fashion"
       if (parsed.settings?.storeName) {
         parsed.settings.storeName = parsed.settings.storeName
-          .replace(/Agnes Fashion/gi, 'Melan Jaya')
+          .replace(/Agnes\s*Fashion/gi, 'Melan Jaya')
           .replace(/Agnes/gi, 'Melan Jaya')
-          .replace(/Fashion/gi, '')
+          .trim();
+      }
+      if (parsed.settings?.receiptFooter) {
+        parsed.settings.receiptFooter = parsed.settings.receiptFooter
+          .replace(/Agnes\s*Fashion/gi, 'Melan Jaya')
+          .replace(/Agnes/gi, 'Melan Jaya')
           .trim();
       }
       // Perbaiki juga di appName jika ada
       if (parsed.appName) {
         parsed.appName = parsed.appName
-          .replace(/Agnes Fashion/gi, 'Melan Jaya POS')
+          .replace(/Agnes\s*Fashion/gi, 'Melan Jaya POS')
           .replace(/Agnes/gi, 'Melan Jaya')
-          .replace(/Fashion/gi, '')
           .trim();
       }
       return normalizeAppData(parsed);

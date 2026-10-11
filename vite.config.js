@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-192.png', 'icon-512.png'],
+      includeAssets: ['MJ-logo.jpg'],
       manifest: {
         name: 'Melan Jaya POS & Stok',
         short_name: 'Melan Jaya',
@@ -21,27 +21,27 @@ export default defineConfig({
         id: '/pos-agnes/',
         icons: [
           {
-            src: 'icon-192.png',
+            src: 'MJ-logo.jpg',
             sizes: '192x192',
-            type: 'image/png',
+            type: 'image/jpeg',
             purpose: 'any'
           },
           {
-            src: 'icon-512.png',
+            src: 'MJ-logo.jpg',
             sizes: '512x512',
-            type: 'image/png',
+            type: 'image/jpeg',
             purpose: 'any'
           },
           {
-            src: 'icon-192.png',
+            src: 'MJ-logo.jpg',
             sizes: '192x192',
-            type: 'image/png',
+            type: 'image/jpeg',
             purpose: 'maskable'
           },
           {
-            src: 'icon-512.png',
+            src: 'MJ-logo.jpg',
             sizes: '512x512',
-            type: 'image/png',
+            type: 'image/jpeg',
             purpose: 'maskable'
           }
         ]
