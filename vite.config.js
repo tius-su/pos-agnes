@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['MJ-logo.jpg'],
+      includeAssets: ['MJ-logo.jpg', 'pos-MJ-logo.jpg'],
       manifest: {
         name: 'Melan Jaya POS & Stok',
         short_name: 'Melan Jaya',

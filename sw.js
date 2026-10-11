@@ -1,9 +1,10 @@
-const CACHE_NAME = 'melan-jaya-pos-v6';
+const CACHE_NAME = 'melan-jaya-pos-v7';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
   './MJ-logo.jpg',
+  './pos-MJ-logo.jpg',
   './icon-192.png',
   './icon-512.png',
   './assets/icon-192.png',

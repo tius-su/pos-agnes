@@ -336,10 +336,10 @@ export const normalizeAppData = (data) => {
     .replace(/\s+/g, ' ')
     .trim();
 
-  const cleanedLogo = String(data.settings?.logoUrl || MJ_LOGO_URL)
-    .replace(/melanjaya\.jpg/gi, 'MJ-logo.jpg')
-    .replace(/agnes.*\.(png|jpg|jpeg)/gi, 'MJ-logo.jpg')
-    .trim() || MJ_LOGO_URL;
+  let rawLogo = String(data.settings?.logoUrl || '').trim();
+  const cleanedLogo = (!rawLogo || rawLogo.includes('pos-MJ-logo') || rawLogo.includes('melanjaya') || rawLogo.includes('agnes') || (!rawLogo.startsWith('http') && !rawLogo.startsWith('data:')))
+    ? MJ_LOGO_URL
+    : rawLogo;
 
   const cleanedSettings = data.settings ? {
     ...data.settings,
