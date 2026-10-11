@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { printReportHTML } from '../services/exportUtils';
 import { getTodayIso, normalizeDateStr } from '../services/dataSync';
+import { getPrimaryImageUrl, handleImageErrorWithFallback } from '../utils/mediaHelper';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 const CAT_EMOJI = { 'Pakaian Wanita': '👗', 'Pakaian Pria': '👕', 'Hijab': '🧕', 'Aksesoris': '💍', 'Lainnya': '📦' };
@@ -825,6 +826,7 @@ const KasirPage = () => {
               const supplierText = Array.isArray(item.supplierList) && item.supplierList.length > 0
                 ? item.supplierList.join(', ')
                 : (item.supplier || item.suplier || item.nama_suplier || '');
+              const primaryImg = getPrimaryImageUrl(item.imageUrl);
 
               return (
                 <div
@@ -838,7 +840,19 @@ const KasirPage = () => {
                       : low ? <span className="badge badge-amber">Sisa {item.stokTersedia}</span>
                       : <span className="badge badge-green">{item.stokTersedia}</span>}
                   </div>
-                  <div className="product-emoji">{CAT_EMOJI[item.kategori] || '📦'}</div>
+                  {primaryImg ? (
+                    <div className="product-card-media" style={{ width: '100%', height: 100, borderRadius: 10, overflow: 'hidden', background: 'var(--bg-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                      <img
+                        src={primaryImg}
+                        alt={item.nama_barang}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.2s ease' }}
+                        loading="lazy"
+                        onError={(e) => handleImageErrorWithFallback(e, primaryImg)}
+                      />
+                    </div>
+                  ) : (
+                    <div className="product-emoji" style={{ fontSize: 32, margin: '6px 0' }}>{CAT_EMOJI[item.kategori] || '📦'}</div>
+                  )}
                   <div className="product-name">{item.nama_barang}</div>
                   {item.minQtyGrosir > 0 && item.hargaGrosir > 0 && (
                     <div style={{ fontSize: 9, color: 'var(--amber)', fontWeight: 700, textAlign: 'center' }}>

@@ -783,3 +783,22 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
   .cart-item { flex-wrap: wrap; }
   .cart-price-input { width: 75px !important; }
 }
+
+/* ============================================================ E-KATALOG & MEDIA GALLERY ============================================================ */
+.product-katalog-card {
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+.product-katalog-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px rgba(124, 58, 237, 0.16) !important;
+  border-color: rgba(124, 58, 237, 0.4) !important;
+}
+.product-katalog-card:hover img {
+  transform: scale(1.04);
+}
+.product-card-media img {
+  transition: transform 0.22s ease;
+}
+.product-card:hover .product-card-media img {
+  transform: scale(1.06);
+}

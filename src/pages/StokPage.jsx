@@ -1,6 +1,20 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import LabelPrintModal from '../components/LabelPrintModal';
+import {
+  splitMediaUrls,
+  joinMediaUrls,
+  isMediaVideo,
+  isYouTubeUrl,
+  getYouTubeEmbedUrl,
+  getYouTubeThumbnail,
+  normalizeMediaUrl,
+  isImgBBViewerUrl,
+  resolveImgBBUrl,
+  resolveAllMediaList,
+  getPrimaryImageUrl,
+  handleImageErrorWithFallback
+} from '../utils/mediaHelper';
 
 const formatRp = v => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v || 0);
 const CAT_EMOJI = { 'Pakaian Wanita': '👗', 'Pakaian Pria': '👕', 'Hijab': '🧕', 'Aksesoris': '💍', 'Lainnya': '📦' };
@@ -66,6 +80,8 @@ const StokPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState(null); // for edit
   const [form, setForm] = useState(emptyForm);
+  const [mediaInputs, setMediaInputs] = useState(['']);
+  const [resolvingMediaIdx, setResolvingMediaIdx] = useState({});
   const [deleting, setDeleting] = useState(null);
   const [customVariantInput, setCustomVariantInput] = useState('');
   const [printModalItems, setPrintModalItems] = useState(null);
@@ -188,6 +204,8 @@ const StokPage = () => {
       if (name === 'r_name') {
         const selectedItem = findExistingProduct(f.r_supplier, value);
         if (selectedItem) {
+          const sMedia = splitMediaUrls(selectedItem.imageUrl);
+          setMediaInputs(sMedia.length > 0 ? sMedia : ['']);
           return {
             ...f,
             r_name: selectedItem.nama_barang,
@@ -206,9 +224,79 @@ const StokPage = () => {
     });
   };
 
+  const handleMediaInputChange = async (idx, val) => {
+    // Jika user menempelkan teks dengan pemisah '+' (contoh: link1 + link2)
+    if (val && val.includes('+')) {
+      const parts = splitMediaUrls(val);
+      if (parts.length > 1) {
+        const next = [...mediaInputs];
+        next.splice(idx, 1, ...parts);
+        setMediaInputs(next);
+        setForm(f => ({ ...f, r_image_url: joinMediaUrls(next) }));
+
+        // Resolving any ibb links in parts
+        parts.forEach(async (part, pIdx) => {
+          const targetIndex = idx + pIdx;
+          if (isImgBBViewerUrl(part)) {
+            setResolvingMediaIdx(r => ({ ...r, [targetIndex]: true }));
+            const resolved = await resolveImgBBUrl(part);
+            setResolvingMediaIdx(r => ({ ...r, [targetIndex]: false }));
+            setMediaInputs(curr => {
+              const updated = [...curr];
+              updated[targetIndex] = resolved;
+              setForm(f => ({ ...f, r_image_url: joinMediaUrls(updated) }));
+              return updated;
+            });
+          }
+        });
+        return;
+      }
+    }
+
+    const next = [...mediaInputs];
+    next[idx] = val;
+    setMediaInputs(next);
+    setForm(f => ({ ...f, r_image_url: joinMediaUrls(next) }));
+
+    // Cek jika link adalah ImgBB viewer link (misal https://ibb.co.com/3yFQ0gVP)
+    if (isImgBBViewerUrl(val)) {
+      setResolvingMediaIdx(r => ({ ...r, [idx]: true }));
+      try {
+        const resolved = await resolveImgBBUrl(val);
+        setResolvingMediaIdx(r => ({ ...r, [idx]: false }));
+        setMediaInputs(curr => {
+          const updated = [...curr];
+          if (updated[idx] === val) {
+            updated[idx] = resolved;
+            setForm(f => ({ ...f, r_image_url: joinMediaUrls(updated) }));
+          }
+          return updated;
+        });
+        toast('✅ Link ImgBB berhasil diubah ke format gambar langsung!', 'success');
+      } catch {
+        setResolvingMediaIdx(r => ({ ...r, [idx]: false }));
+      }
+    }
+  };
+
+  const addMediaInputRow = () => {
+    setMediaInputs(prev => [...prev, '']);
+  };
+
+  const removeMediaInputRow = (idx) => {
+    setMediaInputs(prev => {
+      const next = prev.filter((_, i) => i !== idx);
+      const finalVal = next.length > 0 ? next : [''];
+      setForm(f => ({ ...f, r_image_url: joinMediaUrls(finalVal) }));
+      return finalVal;
+    });
+  };
+
   const openRestock = () => {
     setEditItem(null);
     setForm(emptyForm);
+    setMediaInputs(['']);
+    setResolvingMediaIdx({});
     setBatchMode(false);
     setBatchRows([{ ...emptyBatchRow }]);
     setShowModal(true);
@@ -217,6 +305,9 @@ const StokPage = () => {
   const openEdit = (item) => {
     setEditItem(item.nama_barang);
     setBatchMode(false);
+    const initialMedia = splitMediaUrls(item.imageUrl);
+    setMediaInputs(initialMedia.length > 0 ? initialMedia : ['']);
+    setResolvingMediaIdx({});
     setForm({
       r_date: new Date().toISOString().slice(0, 10),
       r_supplier: item.supplierList?.[0] || '',
@@ -331,16 +422,32 @@ const StokPage = () => {
     let newStok = [...(appData.stok || [])];
     let newPembelian = [...(appData.pembelian || [])];
 
+    // Resolving all media links sebelum simpan
+    let finalImageUrl = form.r_image_url;
+    try {
+      const resolvedList = await resolveAllMediaList(form.r_image_url);
+      finalImageUrl = joinMediaUrls(resolvedList);
+    } catch (err) {
+      console.warn('[StokPage] Media resolve error:', err);
+    }
+
     if (batchMode && !editItem) {
       const validRows = batchRows.filter(row => row.name.trim());
       if (validRows.length === 0) { toast('Isi minimal 1 nama barang', 'error'); return; }
-      validRows.forEach((row, idx) => {
+      for (let idx = 0; idx < validRows.length; idx++) {
+        const row = validRows[idx];
+        let rowImg = row.imageUrl;
+        try {
+          const resList = await resolveAllMediaList(row.imageUrl);
+          rowImg = joinMediaUrls(resList);
+        } catch {}
         ({ stokList: newStok, pembelianList: newPembelian } = applyStockInput(newStok, newPembelian, {
           ...row,
+          imageUrl: rowImg,
           supplier: form.r_supplier,
           date: form.r_date
         }, idx));
-      });
+      }
     } else if (editItem) {
       // MODE EDIT: langsung override harga modal dan harga jual dengan nilai baru
       if (!form.r_name.trim()) { toast('Nama barang harus diisi', 'error'); return; }
@@ -380,7 +487,7 @@ const StokPage = () => {
           variasiText: form.r_variants ? form.r_variants.trim() : '',
           stokTersedia: totalQty,
           kategori: form.r_category,
-          imageUrl: form.r_image_url || existingItem.imageUrl || '',
+          imageUrl: finalImageUrl || existingItem.imageUrl || '',
           supplierList: [...new Set([...(existingItem.supplierList || []), supplier].filter(Boolean))],
           purchaseHistory: updatedHistory,
           totalModalValue: newCost * totalQty,
@@ -416,7 +523,7 @@ const StokPage = () => {
         minGrosir: form.r_min_grosir,
         priceGrosir: form.r_price_grosir,
         variants: form.r_variants,
-        imageUrl: form.r_image_url,
+        imageUrl: finalImageUrl,
         supplier: form.r_supplier,
         date: form.r_date
       }));
@@ -608,8 +715,20 @@ const StokPage = () => {
                 return (
                   <tr key={item.nama_barang}>
                     <td>
-                      <span style={{ marginRight: 8 }}>{CAT_EMOJI[item.kategori] || '📦'}</span>
-                      <span className="cell-main">{item.nama_barang}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {getPrimaryImageUrl(item.imageUrl) ? (
+                          <img
+                            src={getPrimaryImageUrl(item.imageUrl)}
+                            alt={item.nama_barang}
+                            style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)', flexShrink: 0, background: '#fff' }}
+                            loading="lazy"
+                            onError={(e) => handleImageErrorWithFallback(e, getPrimaryImageUrl(item.imageUrl))}
+                          />
+                        ) : (
+                          <span style={{ fontSize: 20, flexShrink: 0 }}>{CAT_EMOJI[item.kategori] || '📦'}</span>
+                        )}
+                        <span className="cell-main">{item.nama_barang}</span>
+                      </div>
                     </td>
                     <td><span className="badge badge-violet">{item.kategori}</span></td>
                     <td><span className={`badge ${statusColor}`}>{item.stokTersedia} pcs</span></td>
@@ -655,8 +774,18 @@ const StokPage = () => {
               <div key={item.nama_barang} className="stok-mobile-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 18 }}>{CAT_EMOJI[item.kategori] || '📦'}</span>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {getPrimaryImageUrl(item.imageUrl) ? (
+                        <img
+                          src={getPrimaryImageUrl(item.imageUrl)}
+                          alt={item.nama_barang}
+                          style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)', flexShrink: 0, background: '#fff' }}
+                          loading="lazy"
+                          onError={(e) => handleImageErrorWithFallback(e, getPrimaryImageUrl(item.imageUrl))}
+                        />
+                      ) : (
+                        <span style={{ fontSize: 22, flexShrink: 0 }}>{CAT_EMOJI[item.kategori] || '📦'}</span>
+                      )}
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nama_barang}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1093,57 +1222,136 @@ const StokPage = () => {
                   </div>
                 )}
 
-                {/* ═══ FOTO PRODUK ═══ */}
-                <div style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginTop: 2 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>
-                    <i className="fa-solid fa-image" style={{ color: 'var(--brand)', marginRight: 6 }} />
-                    Foto Produk (ditampilkan di E-Katalog)
+                {/* ═══ FOTO & VIDEO PRODUK (MULTI-MEDIA) ═══ */}
+                <div style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px', marginTop: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <i className="fa-solid fa-photo-film" style={{ color: 'var(--brand)' }} />
+                      Foto &amp; Video Produk (E-Katalog &amp; Kasir)
+                    </div>
+                    <span className="badge badge-violet" style={{ fontSize: 10 }}>
+                      {mediaInputs.filter(Boolean).length} Media Terpasang
+                    </span>
                   </div>
 
-                  {/* Preview foto jika sudah ada URL */}
-                  {form.r_image_url && (
-                    <div style={{ marginBottom: 10, textAlign: 'center', position: 'relative' }}>
-                      <img
-                        src={form.r_image_url}
-                        alt="Preview"
-                        style={{ maxWidth: '100%', maxHeight: 160, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border)', background: '#fff' }}
-                        onError={e => e.target.style.display = 'none'}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setForm(f => ({ ...f, r_image_url: '' }))}
-                        style={{ position: 'absolute', top: 4, right: 4, background: 'var(--rose)', color: '#fff', border: 'none', borderRadius: 99, width: 22, height: 22, fontSize: 10, cursor: 'pointer' }}
-                        title="Hapus foto"
-                      >
-                        <i className="fa-solid fa-xmark" />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Upload dari perangkat */}
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 700 }}>
-                      📤 Upload dari HP: Foto produk → Share → copy link → paste di bawah
-                    </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                      Atau upload ke <b>imgbb.com</b> / <b>postimages.org</b> → copy link langsung
-                    </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
+                    💡 Bisa memuat lebih dari 1 gambar &amp; video. Link <b>imgbb.com</b> (seperti <code>https://ibb.co.com/...</code>) otomatis dikonversi ke gambar langsung. Gunakan tombol <b>+ Tambah Link</b> atau ketik tanda <b>+</b> untuk menambah link.
                   </div>
 
-                  {/* Atau paste URL langsung */}
-                  <div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 700 }}>
-                      🔗 Atau tempel URL foto dari internet:
-                    </div>
-                    <input
-                      type="url"
-                      className="form-input"
-                      name="r_image_url"
-                      value={form.r_image_url}
-                      onChange={handleFormChange}
-                      placeholder="https://contoh.com/foto-produk.jpg"
-                      style={{ fontSize: 12 }}
-                    />
+                  {/* List Input Baris Media */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+                    {mediaInputs.map((url, idx) => {
+                      const isVideo = isMediaVideo(url);
+                      const isYT = isYouTubeUrl(url);
+                      const isResolving = resolvingMediaIdx[idx];
+                      const cleanUrl = normalizeMediaUrl(url);
+
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            background: '#ffffff',
+                            border: '1px solid var(--border)',
+                            borderRadius: 10,
+                            padding: '10px 12px',
+                            boxShadow: '0 1px 4px rgba(0,0,0,0.03)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: idx === 0 ? 'var(--brand)' : 'var(--text-secondary)' }}>
+                                #{idx + 1} {idx === 0 ? '(Gambar Utama Kasir)' : 'Media Tambahan'}
+                              </span>
+                              {url && (
+                                <span className={`badge ${isVideo ? 'badge-amber' : 'badge-green'}`} style={{ fontSize: 9 }}>
+                                  {isYT ? '🎬 YouTube' : isVideo ? '🎬 Video MP4' : '🖼️ Foto'}
+                                </span>
+                              )}
+                              {isResolving && (
+                                <span className="badge badge-sky" style={{ fontSize: 9 }}>
+                                  <i className="fa-solid fa-spinner fa-spin" /> Mengonversi ImgBB...
+                                </span>
+                              )}
+                            </div>
+                            {mediaInputs.length > 1 && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => removeMediaInputRow(idx)}
+                                style={{ padding: '2px 8px', height: 24, color: 'var(--rose)' }}
+                                title="Hapus link media ini"
+                              >
+                                <i className="fa-solid fa-trash" /> Hapus
+                              </button>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              className="form-input"
+                              value={url}
+                              onChange={e => handleMediaInputChange(idx, e.target.value)}
+                              placeholder={idx === 0 ? "Contoh: https://ibb.co.com/3yFQ0gVP atau https://youtu.be/..." : "URL foto / video berikutnya (atau pisahkan tanda +)..."}
+                              style={{ fontSize: 12, flex: 1 }}
+                            />
+                          </div>
+
+                          {/* Preview Media */}
+                          {cleanUrl && !isResolving && (
+                            <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center', background: 'var(--bg-hover)', padding: '6px 10px', borderRadius: 8 }}>
+                              {isVideo ? (
+                                isYT ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <img
+                                      src={getYouTubeThumbnail(cleanUrl)}
+                                      alt="YouTube Thumbnail"
+                                      style={{ width: 64, height: 40, borderRadius: 6, objectFit: 'cover' }}
+                                    />
+                                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                                      <i className="fa-brands fa-youtube" style={{ color: '#ef4444', marginRight: 4 }} />
+                                      Video YouTube terdeteksi
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <i className="fa-solid fa-circle-play" style={{ fontSize: 24, color: 'var(--brand)' }} />
+                                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>File Video (.mp4/.webm)</span>
+                                  </div>
+                                )
+                              ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                  <img
+                                    src={cleanUrl}
+                                    alt="Preview"
+                                    style={{ width: 44, height: 44, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)', background: '#fff' }}
+                                    onError={(e) => handleImageErrorWithFallback(e, cleanUrl)}
+                                  />
+                                  <span style={{ fontSize: 11, color: 'var(--emerald)', fontWeight: 600 }}>
+                                    <i className="fa-solid fa-circle-check" /> Preview foto siap tampil
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Tombol + Tambah Link Media */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-purple btn-sm"
+                      onClick={addMediaInputRow}
+                      style={{ fontWeight: 700 }}
+                    >
+                      <i className="fa-solid fa-plus" /> Tambah Link Foto / Video (+)
+                    </button>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      Atau ketik <code>+</code> di dalam kotak link untuk menambah cepat.
+                    </span>
                   </div>
                 </div>
 
