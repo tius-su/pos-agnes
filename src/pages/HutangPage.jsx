@@ -25,7 +25,7 @@ const HutangPage = () => {
   const [bayarCatatan, setBayarCatatan] = useState('');
   const [returItems, setReturItems] = useState([]);
   const [alasanRetur, setAlasanRetur] = useState('');
-  
+
   // Form State
   const [form, setForm] = useState({
     type: 'piutang', // 'piutang' (Pelanggan berhutang ke toko) | 'hutang' (Toko berhutang ke supplier)
@@ -35,7 +35,7 @@ const HutangPage = () => {
     keterangan: '',
     tanggalJatuhTempo: ''
   });
-  
+
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [typeFilter, setTypeFilter] = useState('semua'); // 'semua' | 'piutang' | 'hutang'
@@ -43,11 +43,11 @@ const HutangPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteId, setDeleteId] = useState(null);
   const [showOverdueModal, setShowOverdueModal] = useState(false);
-  
+
   // Date Presets
   const [datePreset, setDatePreset] = useState('all');
-  const [dateStart, setDateStart]   = useState('');
-  const [dateEnd, setDateEnd]       = useState('');
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
 
   const isOverdue = (h) => {
     if (!h.tanggalJatuhTempo || h.sisaHutang <= 0) return false;
@@ -69,12 +69,12 @@ const HutangPage = () => {
 
   const getRange = () => {
     const today = new Date();
-    if (datePreset === 'today')     { const d = isoDate(today); return { start: d, end: d }; }
-    if (datePreset === 'yesterday') { const y = new Date(today); y.setDate(y.getDate()-1); const d = isoDate(y); return { start: d, end: d }; }
-    if (datePreset === 'week')      { const w = new Date(today); w.setDate(w.getDate()-6); return { start: isoDate(w), end: isoDate(today) }; }
-    if (datePreset === 'month')     { const m = new Date(today.getFullYear(), today.getMonth(), 1); return { start: isoDate(m), end: isoDate(today) }; }
-    if (datePreset === 'year')      { return { start: `${today.getFullYear()}-01-01`, end: isoDate(today) }; }
-    if (datePreset === 'custom')    { return { start: dateStart, end: dateEnd }; }
+    if (datePreset === 'today') { const d = isoDate(today); return { start: d, end: d }; }
+    if (datePreset === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); const d = isoDate(y); return { start: d, end: d }; }
+    if (datePreset === 'week') { const w = new Date(today); w.setDate(w.getDate() - 6); return { start: isoDate(w), end: isoDate(today) }; }
+    if (datePreset === 'month') { const m = new Date(today.getFullYear(), today.getMonth(), 1); return { start: isoDate(m), end: isoDate(today) }; }
+    if (datePreset === 'year') { return { start: `${today.getFullYear()}-01-01`, end: isoDate(today) }; }
+    if (datePreset === 'custom') { return { start: dateStart, end: dateEnd }; }
     return { start: '', end: '' };
   };
   const { start: dStart, end: dEnd } = getRange();
@@ -89,9 +89,9 @@ const HutangPage = () => {
       if (typeFilter !== 'semua' && hType !== typeFilter) return false;
 
       // Status Filter
-      if (statusFilter === 'lunas' && h.sisaHutang > 0)    return false;
-      if (statusFilter === 'belum' && h.sisaHutang <= 0)   return false;
-      if (statusFilter === 'overdue' && !isOverdue(h))     return false;
+      if (statusFilter === 'lunas' && h.sisaHutang > 0) return false;
+      if (statusFilter === 'belum' && h.sisaHutang <= 0) return false;
+      if (statusFilter === 'overdue' && !isOverdue(h)) return false;
 
       // Date Range Filter
       if (dStart && dEnd && h.tanggal) {
@@ -147,11 +147,11 @@ const HutangPage = () => {
     if (!form.nama.trim()) { toast('Nama wajib diisi', 'error'); return; }
     const jumlah = parseFloat(form.jumlah) || 0;
     if (jumlah <= 0) { toast('Jumlah harus > 0', 'error'); return; }
-    
+
     setSaving(true);
     const existing = appData.hutang || [];
     let newList;
-    
+
     if (editId) {
       newList = existing.map(h => h.id === editId ? {
         ...h,
@@ -182,7 +182,7 @@ const HutangPage = () => {
         riwayatBayar: [],
       }];
     }
-    
+
     await saveAndSync({ ...appData, hutang: newList });
     toast(editId ? '✅ Data berhasil diperbarui' : `✅ ${form.type === 'piutang' ? 'Piutang' : 'Hutang'} baru dicatat`, 'success');
     setShowForm(false);
@@ -676,10 +676,10 @@ const HutangPage = () => {
 
         {/* Filter Controls (Type, Status, Date & Search) */}
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-hover)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          
+
           {/* Row 1: Filter Jenis & Status & Search */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            
+
             {/* Filter Jenis */}
             <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>Jenis:</span>
@@ -907,7 +907,7 @@ const HutangPage = () => {
               <button className="modal-close" onClick={() => setShowForm(false)}><i className="fa-solid fa-xmark" /></button>
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              
+
               {/* Type Switcher */}
               <div className="form-group">
                 <label className="form-label">Kategori Transaksi</label>

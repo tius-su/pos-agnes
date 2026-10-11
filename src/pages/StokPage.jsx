@@ -275,7 +275,15 @@ const StokPage = () => {
         stokTersedia: totalQty,
         kategori: category,
         imageUrl: imageUrl || existingItem.imageUrl || '',
-        supplierList: [...new Set([...(existingItem.supplierList || []), supplier].filter(Boolean))]
+        supplierList: [...new Set([...(existingItem.supplierList || []), supplier].filter(Boolean))],
+        purchaseHistory: [{
+          tanggal: input.date || new Date().toISOString().slice(0, 10),
+          harga: averageCost,
+          qty: totalQty,
+          supplier: supplier || (existingItem.supplierList && existingItem.supplierList[0]) || 'Restock'
+        }],
+        totalModalValue: averageCost * totalQty,
+        totalQtyPurchased: totalQty
       };
     } else {
       stokList.push({
@@ -288,7 +296,15 @@ const StokPage = () => {
         variasiText: variants,
         imageUrl,
         stokTersedia: qty,
-        supplierList: supplier ? [supplier] : []
+        supplierList: supplier ? [supplier] : [],
+        purchaseHistory: [{
+          tanggal: input.date || new Date().toISOString().slice(0, 10),
+          harga: cost,
+          qty,
+          supplier: supplier || 'Initial'
+        }],
+        totalModalValue: cost * qty,
+        totalQtyPurchased: qty
       });
     }
 
@@ -326,26 +342,34 @@ const StokPage = () => {
         }, idx));
       });
     } else if (editItem) {
-      // MODE EDIT: langsung override harga, kategori, variasi, dll.
-      // Qty hanya ditambah jika user mengisi angka > 0
+      // MODE EDIT: langsung override harga modal dan harga jual dengan nilai baru
       if (!form.r_name.trim()) { toast('Nama barang harus diisi', 'error'); return; }
-      const cost = parseFloat(form.r_cost) || 0;
-      const price = parseFloat(form.r_price) || 0;
+      const cost = isNaN(parseFloat(form.r_cost)) ? 0 : parseFloat(form.r_cost);
+      const price = isNaN(parseFloat(form.r_price)) ? 0 : parseFloat(form.r_price);
       const qty = parseInt(form.r_qty) || 0;
       const minGrosir = parseInt(form.r_min_grosir) || 0;
       const priceGrosir = parseFloat(form.r_price_grosir) || 0;
       const supplier = (form.r_supplier || '').trim();
 
-      const existIdx = newStok.findIndex(s => s.nama_barang.toLowerCase() === form.r_name.trim().toLowerCase());
+      const targetName = String(editItem || form.r_name || '').trim().toLowerCase();
+      const existIdx = newStok.findIndex(s => String(s.nama_barang || '').trim().toLowerCase() === targetName);
       if (existIdx >= 0) {
         const existingItem = newStok[existIdx];
         const existingQty = existingItem.stokTersedia || 0;
         const totalQty = existingQty + qty;
 
-        // Hitung rata-rata hanya jika ada penambahan qty
+        // Jika qty ditambah (> 0), hitung rata-rata modal baru dengan modal lama
+        // Jika qty tidak ditambah (0), langsung ganti harga modal dengan nilai baru yang diinput
         const newCost = qty > 0
-          ? ((existingQty * (existingItem.hargaModal || 0)) + (qty * cost)) / totalQty
-          : cost; // langsung pakai harga baru tanpa rata-rata
+          ? Math.round(((existingQty * (existingItem.hargaModal || 0)) + (qty * cost)) / totalQty)
+          : cost;
+
+        const updatedHistory = [{
+          tanggal: form.r_date || new Date().toISOString().slice(0, 10),
+          harga: newCost,
+          qty: totalQty,
+          supplier: supplier || (existingItem.supplierList && existingItem.supplierList[0]) || 'Update'
+        }];
 
         newStok[existIdx] = {
           ...existingItem,
@@ -357,7 +381,10 @@ const StokPage = () => {
           stokTersedia: totalQty,
           kategori: form.r_category,
           imageUrl: form.r_image_url || existingItem.imageUrl || '',
-          supplierList: [...new Set([...(existingItem.supplierList || []), supplier].filter(Boolean))]
+          supplierList: [...new Set([...(existingItem.supplierList || []), supplier].filter(Boolean))],
+          purchaseHistory: updatedHistory,
+          totalModalValue: newCost * totalQty,
+          totalQtyPurchased: totalQty
         };
 
         // Catat pembelian hanya jika ada penambahan qty
@@ -806,19 +833,24 @@ const StokPage = () => {
                       ))}
                     </datalist>
                   )}
-                  {form.r_supplier && form.r_name && matchingProduct && (
+                  {!editItem && form.r_supplier && form.r_name && matchingProduct && (
                     <div style={{ marginTop: 8, fontSize: 11, color: 'var(--emerald)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <i className="fa-solid fa-circle-check" /> Barang sudah ada di stok supplier ini. Sistem akan menambahkan qty dan menghitung harga modal rata-rata.
                     </div>
                   )}
-                  {form.r_supplier && form.r_name && !matchingProduct && manualProductMode && (
+                  {!editItem && form.r_supplier && form.r_name && !matchingProduct && manualProductMode && (
                     <div style={{ marginTop: 8, fontSize: 11, color: 'var(--amber)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <i className="fa-solid fa-circle-plus" /> Mode barang baru aktif. Stok akan dibuat sebagai item baru untuk supplier ini.
                     </div>
                   )}
-                  {matchingProduct && (
+                  {!editItem && matchingProduct && (
                     <div style={{ marginTop: 8, background: 'var(--amber-dim)', border: '1px solid rgba(217,119,6,.2)', borderRadius: 8, padding: '8px 10px', fontSize: 11, color: 'var(--amber)', fontWeight: 600 }}>
                       <i className="fa-solid fa-chart-line" /> Harga beli akan dihitung rata-rata: stok lama + pembelian baru, lalu dibagi total qty.
+                    </div>
+                  )}
+                  {editItem && (
+                    <div style={{ marginTop: 8, background: 'var(--brand-dim)', border: '1px solid rgba(124,58,237,.2)', borderRadius: 8, padding: '8px 10px', fontSize: 11, color: 'var(--brand)', fontWeight: 600 }}>
+                      <i className="fa-solid fa-pen" /> <strong>Mode Edit Produk:</strong> Perubahan harga modal (harga beli) dan harga jual akan langsung diupdate ke produk ini.
                     </div>
                   )}
                 </div>

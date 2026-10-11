@@ -289,6 +289,8 @@ const KasirPage = () => {
     let clean = String(inputNo).replace(/\D/g, '');
     if (clean.startsWith('0')) {
       clean = '62' + clean.slice(1);
+    } else if (clean.startsWith('8')) {
+      clean = '62' + clean;
     }
     return clean;
   };
@@ -300,11 +302,21 @@ const KasirPage = () => {
 
   const sendWhatsApp = () => {
     if (!lastTrx) { toast('Tidak ada transaksi untuk dikirim', 'warning'); return; }
-    sendWhatsAppAuto(lastTrx);
+    const rawCustWa = lastTrx.noWa || customerWa;
+    let custWa = formatWaNumber(rawCustWa);
+    if (!custWa) {
+      const inputNo = window.prompt(
+        'Masukkan No WhatsApp Pelanggan (contoh: 08123456789)\nAtau kosongkan lalu klik OK untuk langsung bagikan via WhatsApp:',
+        ''
+      );
+      if (inputNo === null) return;
+      custWa = formatWaNumber(inputNo);
+    }
+    sendWhatsAppAuto({ ...lastTrx, noWa: custWa }, true);
   };
 
   // Fungsi untuk mengirim struk otomatis (dipanggil dari handleCheckout)
-  const sendWhatsAppAuto = (trxData) => {
+  const sendWhatsAppAuto = (trxData, isManual = false) => {
     const s = appData.settings || {};
     const storeName = (s.storeName || 'MELAN JAYA')
       .replace(/Agnes\s*Fashion/gi, 'Melan Jaya')
@@ -351,23 +363,26 @@ const KasirPage = () => {
 
     if (custWa) {
       // 1. Kirim ke nomor WhatsApp pelanggan
-      window.open(`https://wa.me/${custWa}?text=${encodedMsg}`, '_blank');
+      window.open(`https://api.whatsapp.com/send?phone=${custWa}&text=${encodedMsg}`, '_blank');
       // 2. Kirim juga salinan ke nomor toko (jika diaktifkan)
-      if (sendWaToStoreEnabled) {
+      if (sendWaToStoreEnabled && !isManual) {
         setTimeout(() => {
-          window.open(`https://wa.me/${ownerWa}?text=${encodedMsg}`, '_blank');
+          window.open(`https://api.whatsapp.com/send?phone=${ownerWa}&text=${encodedMsg}`, '_blank');
         }, 500);
         toast(`📲 Struk terkirim ke Pelanggan (${custWa}) & Toko (${ownerWa})`, 'success');
       } else {
         toast(`📲 Struk terkirim ke Pelanggan (${custWa})`, 'success');
       }
+    } else if (isManual) {
+      window.open(`https://api.whatsapp.com/send?text=${encodedMsg}`, '_blank');
+      toast('📲 Membuka WhatsApp untuk bagikan struk!', 'success');
     } else {
       // Hanya kirim ke nomor toko (jika diaktifkan)
       if (sendWaToStoreEnabled) {
-        window.open(`https://wa.me/${ownerWa}?text=${encodedMsg}`, '_blank');
+        window.open(`https://api.whatsapp.com/send?phone=${ownerWa}&text=${encodedMsg}`, '_blank');
         toast(`📲 Struk terkirim ke WhatsApp Toko (${ownerWa})`, 'info');
       } else {
-        toast('✅ Transaksi selesai (struk tidak terkirim ke WhatsApp)', 'success');
+        toast('✅ Transaksi selesai', 'success');
       }
     }
   };

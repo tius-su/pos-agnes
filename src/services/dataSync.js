@@ -242,9 +242,20 @@ export const normalizeAppData = (data) => {
     rawStok = SAMPLE_STOK;
   }
   
-  // Inisialisasi purchase history dan hitung harga modal rata-rata untuk item yang belum punya
+  // Pastikan hargaModal yang sudah diinput/diedit tidak ditimpa kembali oleh purchaseHistory lama
   rawStok = rawStok.map(item => {
-    // Jika item sudah memiliki purchaseHistory, hitung ulang harga modal rata-rata
+    if (!item || typeof item !== 'object') return null;
+    const explicitModal = Number(item.hargaModal ?? item.harga_modal ?? item.modal ?? item.cost ?? item.hargaBeli);
+    
+    // Jika harga modal sudah valid (termasuk 0), pertahankan nilai tersebut
+    if (!isNaN(explicitModal) && explicitModal >= 0) {
+      return {
+        ...item,
+        hargaModal: explicitModal
+      };
+    }
+    
+    // Jika harga modal belum ada / kosong, hitung dari purchaseHistory
     if (item.purchaseHistory && Array.isArray(item.purchaseHistory) && item.purchaseHistory.length > 0) {
       const avgPrice = calculateAverageModalPrice(item);
       return {
@@ -252,9 +263,9 @@ export const normalizeAppData = (data) => {
         hargaModal: Math.round(avgPrice)
       };
     }
-    // Jika belum punya purchaseHistory, inisialisasi
+    
     return initializePurchaseHistory(item);
-  });
+  }).filter(Boolean);
 
   let rawPenjualan = [];
   if (Array.isArray(data.penjualan)) {

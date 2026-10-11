@@ -262,13 +262,18 @@ const LaporanPage = () => {
   };
 
   // ── KIRIM ULANG STRUK VIA WHATSAPP ────────────────────────────────────
-  // ── KIRIM ULANG STRUK VIA WHATSAPP ────────────────────────────────────
-  const sendStrukWA = (trx) => {
-    const noWa = (trx.noWa || '').replace(/\D/g, '');
-    if (!noWa) {
-      toast('No WhatsApp pelanggan tidak tersedia untuk transaksi ini', 'warning');
-      return;
+  const formatWaNumber = (inputNo) => {
+    if (!inputNo) return '';
+    let clean = String(inputNo).replace(/\D/g, '');
+    if (clean.startsWith('0')) {
+      clean = '62' + clean.slice(1);
+    } else if (clean.startsWith('8')) {
+      clean = '62' + clean;
     }
+    return clean;
+  };
+
+  const sendStrukWA = (trx) => {
     const s = appData.settings || {};
     const storeName = (s.storeName || 'MELAN JAYA').replace(/Agnes\s*Fashion/gi, 'Melan Jaya').replace(/Agnes/gi, 'Melan Jaya');
     const footerText = (s.receiptFooter || 'Terima Kasih Telah Berbelanja di Melan Jaya! Barang yang sudah dibeli tidak dapat ditukar.')
@@ -301,8 +306,25 @@ const LaporanPage = () => {
     }
     msg += `───────────────────\n`;
     msg += `${footerText}`;
-    window.open(`https://wa.me/${noWa}?text=${encodeURIComponent(msg)}`, '_blank');
-    toast('📤 Struk dikirim ke WhatsApp!', 'success');
+
+    let targetNo = formatWaNumber(trx.noWa);
+
+    if (!targetNo) {
+      const inputNo = window.prompt(
+        'Masukkan No WhatsApp Pelanggan (contoh: 08123456789)\nAtau kosongkan lalu klik OK untuk langsung bagikan via WhatsApp:',
+        ''
+      );
+      if (inputNo === null) return; // Pengguna klik Cancel
+      targetNo = formatWaNumber(inputNo);
+    }
+
+    const encodedMsg = encodeURIComponent(msg);
+    const waUrl = targetNo 
+      ? `https://api.whatsapp.com/send?phone=${targetNo}&text=${encodedMsg}`
+      : `https://api.whatsapp.com/send?text=${encodedMsg}`;
+
+    window.open(waUrl, '_blank');
+    toast(targetNo ? `📲 Struk dikirim ke WhatsApp (${targetNo})!` : '📲 Membuka WhatsApp untuk bagikan struk!', 'success');
   };
 
   // ── SHARE / EXPORT ───────────────────────────────────────────────────
@@ -829,7 +851,7 @@ const LaporanPage = () => {
                             <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => openEdit(t)} style={{ padding: '4px 8px' }}>
                               <i className="fa-solid fa-pen-to-square" />
                             </button>
-                            <button className="btn btn-wa btn-sm" title={t.noWa ? `Kirim struk ke ${t.noWa}` : 'No WA tidak tersedia'} onClick={() => sendStrukWA(t)} style={{ padding: '4px 8px', opacity: t.noWa ? 1 : 0.45 }}>
+                            <button className="btn btn-wa btn-sm" title={t.noWa ? `Kirim struk ke ${t.noWa}` : 'Bagikan struk via WhatsApp'} onClick={() => sendStrukWA(t)} style={{ padding: '4px 8px' }}>
                               <i className="fa-brands fa-whatsapp" />
                             </button>
                             <button className="btn btn-danger btn-sm" title="Hapus" onClick={() => setDeleteTrx(t)} style={{ padding: '4px 8px' }}>
@@ -944,8 +966,8 @@ const LaporanPage = () => {
                     <button
                       className="btn btn-wa btn-sm"
                       onClick={() => sendStrukWA(t)}
-                      style={{ padding: '7px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, opacity: t.noWa ? 1 : 0.45 }}
-                      title={t.noWa ? `Kirim ke ${t.noWa}` : 'No WA belum diisi'}
+                      style={{ padding: '7px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                      title={t.noWa ? `Kirim ke ${t.noWa}` : 'Bagikan struk via WhatsApp'}
                     >
                       <i className="fa-brands fa-whatsapp" /> Struk
                     </button>
