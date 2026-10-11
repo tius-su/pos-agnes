@@ -325,6 +325,59 @@ const StokPage = () => {
           date: form.r_date
         }, idx));
       });
+    } else if (editItem) {
+      // MODE EDIT: langsung override harga, kategori, variasi, dll.
+      // Qty hanya ditambah jika user mengisi angka > 0
+      if (!form.r_name.trim()) { toast('Nama barang harus diisi', 'error'); return; }
+      const cost = parseFloat(form.r_cost) || 0;
+      const price = parseFloat(form.r_price) || 0;
+      const qty = parseInt(form.r_qty) || 0;
+      const minGrosir = parseInt(form.r_min_grosir) || 0;
+      const priceGrosir = parseFloat(form.r_price_grosir) || 0;
+      const supplier = (form.r_supplier || '').trim();
+
+      const existIdx = newStok.findIndex(s => s.nama_barang.toLowerCase() === form.r_name.trim().toLowerCase());
+      if (existIdx >= 0) {
+        const existingItem = newStok[existIdx];
+        const existingQty = existingItem.stokTersedia || 0;
+        const totalQty = existingQty + qty;
+
+        // Hitung rata-rata hanya jika ada penambahan qty
+        const newCost = qty > 0
+          ? ((existingQty * (existingItem.hargaModal || 0)) + (qty * cost)) / totalQty
+          : cost; // langsung pakai harga baru tanpa rata-rata
+
+        newStok[existIdx] = {
+          ...existingItem,
+          hargaModal: newCost,
+          hargaJual: price,
+          minQtyGrosir: minGrosir,
+          hargaGrosir: priceGrosir,
+          variasiText: form.r_variants ? form.r_variants.trim() : '',
+          stokTersedia: totalQty,
+          kategori: form.r_category,
+          imageUrl: form.r_image_url || existingItem.imageUrl || '',
+          supplierList: [...new Set([...(existingItem.supplierList || []), supplier].filter(Boolean))]
+        };
+
+        // Catat pembelian hanya jika ada penambahan qty
+        if (qty > 0 && supplier) {
+          newPembelian.push({
+            id: Date.now(),
+            tanggal: form.r_date,
+            waktu: new Date().toLocaleTimeString('id-ID'),
+            supplier,
+            barang: form.r_name.trim(),
+            kategori: form.r_category,
+            jumlah: qty,
+            hargaModal: cost,
+            totalModal: cost * qty
+          });
+        }
+      } else {
+        toast('Barang tidak ditemukan di stok', 'error');
+        return;
+      }
     } else {
       if (!form.r_name.trim()) { toast('Nama barang harus diisi', 'error'); return; }
       ({ stokList: newStok, pembelianList: newPembelian } = applyStockInput(newStok, newPembelian, {
@@ -343,6 +396,7 @@ const StokPage = () => {
     }
 
     await saveAndSync({ ...appData, stok: newStok, pembelian: newPembelian });
+    toast('Data berhasil disimpan', 'success');
     setShowModal(false);
   };
 
