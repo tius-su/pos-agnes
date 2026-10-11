@@ -18,8 +18,13 @@ const formatWaNumber = (inputNo) => {
 const HutangPage = () => {
   const { appData, saveAndSync, toast } = useData();
   const [showForm, setShowForm] = useState(false);
-  const [showBayar, setShowBayar] = useState(null);
-  const [bayarInput, setBayarInput] = useState('');
+  const [pelunasanTarget, setPelunasanTarget] = useState(null);
+  const [pelunasanTab, setPelunasanTab] = useState('bayar'); // 'bayar' | 'retur' | 'kombinasi'
+  const [bayarNominal, setBayarNominal] = useState('');
+  const [bayarMetode, setBayarMetode] = useState('Tunai');
+  const [bayarCatatan, setBayarCatatan] = useState('');
+  const [returItems, setReturItems] = useState([]);
+  const [alasanRetur, setAlasanRetur] = useState('');
   
   // Form State
   const [form, setForm] = useState({
@@ -184,29 +189,207 @@ const HutangPage = () => {
     setSaving(false);
   };
 
-  const handleBayar = async () => {
-    const nominal = parseFloat(bayarInput) || 0;
-    if (nominal <= 0) { toast('Nominal bayar harus > 0', 'error'); return; }
-    if (!showBayar) return;
-    if (nominal > showBayar.sisaHutang) { toast('Pembayaran melebihi sisa sisa tagihan', 'error'); return; }
-    
+  const openPelunasan = (h) => {
+    setPelunasanTarget(h);
+    setPelunasanTab('bayar');
+    setBayarNominal('');
+    setBayarMetode('Tunai');
+    setBayarCatatan('');
+    setAlasanRetur('');
+
+    // Inisialisasi daftar barang yang pernah dibeli jika tercatat
+    if (h.items && Array.isArray(h.items) && h.items.length > 0) {
+      setReturItems(h.items.map(it => ({
+        barang: it.barang || it.nama_barang || 'Barang',
+        hargaJual: Number(it.hargaJual || it.harga || 0),
+        returQty: 0,
+        maxQty: Number(it.jumlah || 99)
+      })));
+    } else {
+      setReturItems([]);
+    }
+  };
+
+  const handleAddStokToRetur = (stokItem) => {
+    if (!stokItem) return;
+    const existing = returItems.find(it => it.barang === stokItem.nama_barang);
+    if (existing) {
+      setReturItems(prev => prev.map(it => it.barang === stokItem.nama_barang ? { ...it, returQty: it.returQty + 1 } : it));
+    } else {
+      setReturItems(prev => [...prev, {
+        barang: stokItem.nama_barang,
+        hargaJual: Number(stokItem.hargaJual || 0),
+        returQty: 1,
+        maxQty: Number(stokItem.stokTersedia || 999)
+      }]);
+    }
+  };
+
+  const handleRemoveReturItem = (index) => {
+    setReturItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateReturQty = (index, val) => {
+    setReturItems(prev => prev.map((it, i) => i === index ? { ...it, returQty: Math.max(0, parseInt(val) || 0) } : it));
+  };
+
+  const adjustReturQty = (index, delta) => {
+    setReturItems(prev => prev.map((it, i) => i === index ? { ...it, returQty: Math.max(0, (parseInt(it.returQty) || 0) + delta) } : it));
+  };
+
+  // Kirim Bukti Transaksi Pelunasan & Retur ke WhatsApp
+  const sendPelunasanReturWA = (target, uangBayar, returnedItems, totalRetur, newSisa, alasan) => {
+    const rawNo = target.noWa || '';
+    const no = formatWaNumber(rawNo);
+    const s = appData.settings || {};
+    const nama = target.pelanggan || target.nama || target.supplier;
+
+    let msg = `Halo *${nama}*,\n`;
+    msg += `Berikut bukti transaksi *Pelunasan / Pengembalian Barang* di *${s.storeName || 'MELAN JAYA'}*:\n\n`;
+    msg += `📋 *Rincian Transaksi:*\n`;
+    msg += `• Tanggal      : ${new Date().toLocaleDateString('id-ID')}\n`;
+    if (target.keterangan) msg += `• Keterangan   : ${target.keterangan}\n`;
+    msg += `• Tagihan Awal : ${formatRp(target.sisaHutang)}\n`;
+
+    if (uangBayar > 0) {
+      msg += `• 💵 Bayar Uang : ${formatRp(uangBayar)}\n`;
+    }
+
+    if (totalRetur > 0 && returnedItems.length > 0) {
+      msg += `• 🔄 Retur Barang : ${formatRp(totalRetur)}\n`;
+      returnedItems.forEach(it => {
+        msg += `   - ${it.barang} (${it.returQty} pcs @ ${formatRp(it.hargaJual)})\n`;
+      });
+      if (alasan) msg += `   Alasan: ${alasan}\n`;
+    }
+
+    msg += `─────────────────────────\n`;
+    if (newSisa <= 0) {
+      msg += `✅ *STATUS: LUNAS PENUH*\n`;
+    } else {
+      msg += `🔴 *SISA TAGIHAN: ${formatRp(newSisa)}*\n`;
+    }
+    msg += `─────────────────────────\n`;
+    msg += `Terima Kasih Telah Berbelanja di Melan Jaya! Barang yang sudah dibeli tidak dapat ditukar.`;
+
+    const encoded = encodeURIComponent(msg);
+    if (no) {
+      window.open(`https://wa.me/${no}?text=${encoded}`, '_blank');
+      toast(`📲 Bukti transaksi dikirim ke WA ${nama}`, 'success');
+    } else {
+      window.open(`https://wa.me/${STORE_OWNER_WA}?text=${encoded}`, '_blank');
+      toast(`📲 Bukti transaksi dikirim ke WA Toko (${STORE_OWNER_WA})`, 'info');
+    }
+  };
+
+  const handleSimpanPelunasan = async () => {
+    if (!pelunasanTarget) return;
+
+    const totalReturNilai = returItems.reduce((sum, it) => sum + ((Number(it.hargaJual) || 0) * (Number(it.returQty) || 0)), 0);
+    const nominalUang = pelunasanTab === 'retur' ? 0 : (parseFloat(bayarNominal) || 0);
+    const effectiveRetur = pelunasanTab === 'bayar' ? 0 : totalReturNilai;
+    const totalPotongan = nominalUang + effectiveRetur;
+    const currentSisa = Number(pelunasanTarget.sisaHutang || 0);
+    const newSisa = Math.max(0, currentSisa - totalPotongan);
+
+    if (totalPotongan <= 0) {
+      toast('Tentukan nominal pembayaran uang atau jumlah barang yang diretur!', 'warning');
+      return;
+    }
+    if (totalPotongan > currentSisa) {
+      toast(`Total potongan (${formatRp(totalPotongan)}) melebihi sisa tagihan (${formatRp(currentSisa)})!`, 'error');
+      return;
+    }
+    if ((pelunasanTab === 'retur' || pelunasanTab === 'kombinasi') && effectiveRetur > 0 && !alasanRetur.trim()) {
+      toast('Alasan pengembalian barang wajib diisi!', 'warning');
+      return;
+    }
+
     setSaving(true);
     const today = isoDate(new Date());
-    const newList = (appData.hutang || []).map(h => {
-      if (h.id !== showBayar.id) return h;
-      const newSisa = Math.max(0, h.sisaHutang - nominal);
+    const returnedItemsActive = returItems.filter(it => (Number(it.returQty) || 0) > 0);
+
+    // 1. Kembalikan stok barang ke inventori toko jika ada barang yang diretur
+    let nextStok = appData.stok || [];
+    if (returnedItemsActive.length > 0) {
+      nextStok = (appData.stok || []).map(s => {
+        const match = returnedItemsActive.find(it =>
+          it.barang === s.nama_barang ||
+          it.originalName === s.nama_barang ||
+          (it.barang && it.barang.startsWith(s.nama_barang))
+        );
+        if (!match) return s;
+        return { ...s, stokTersedia: (s.stokTersedia || 0) + Number(match.returQty) };
+      });
+    }
+
+    // 2. Buat catatan di riwayat retur toko jika ada barang yang diretur
+    let nextRetur = appData.retur || [];
+    if (returnedItemsActive.length > 0) {
+      const returEntry = {
+        id: Date.now(),
+        idTrxAsli: pelunasanTarget.trxId || pelunasanTarget.id,
+        kodeTrxAsli: pelunasanTarget.kodeTrx || `HUTANG-${pelunasanTarget.id}`,
+        tanggal: today,
+        waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        pelanggan: pelunasanTarget.pelanggan || pelunasanTarget.nama || 'Pelanggan',
+        alasan: alasanRetur.trim() || 'Pengembalian barang & pemotongan hutang',
+        items: returnedItemsActive.map(it => ({
+          barang: it.barang,
+          jumlah: it.returQty,
+          hargaJual: it.hargaJual,
+          subtotal: it.hargaJual * it.returQty
+        })),
+        totalRetur: effectiveRetur,
+        keterangan: `Pemotongan hutang pelanggan. Sisa hutang baru: ${formatRp(newSisa)}`
+      };
+      nextRetur = [returEntry, ...nextRetur];
+    }
+
+    // 3. Update data hutang pelanggan
+    const newBayarLogs = [];
+    if (nominalUang > 0) {
+      newBayarLogs.push({
+        tanggal: today,
+        nominal: nominalUang,
+        type: 'bayar',
+        metode: bayarMetode,
+        keterangan: `Pembayaran ${bayarMetode}${bayarCatatan ? ` - ${bayarCatatan}` : ''}`
+      });
+    }
+    if (effectiveRetur > 0 && returnedItemsActive.length > 0) {
+      const itemNames = returnedItemsActive.map(it => `${it.barang} (${it.returQty} pcs)`).join(', ');
+      newBayarLogs.push({
+        tanggal: today,
+        nominal: effectiveRetur,
+        type: 'retur',
+        keterangan: `Retur Barang: ${itemNames} (${alasanRetur || 'Retur'})`
+      });
+    }
+
+    const nextHutang = (appData.hutang || []).map(h => {
+      if (h.id !== pelunasanTarget.id) return h;
       return {
         ...h,
         sisaHutang: newSisa,
-        riwayatBayar: [...(h.riwayatBayar || []), { tanggal: today, nominal }],
+        riwayatBayar: [...(h.riwayatBayar || []), ...newBayarLogs]
       };
     });
-    
-    await saveAndSync({ ...appData, hutang: newList });
-    toast(`✅ Pembayaran ${formatRp(nominal)} tercatat`, 'success');
-    setShowBayar(null);
-    setBayarInput('');
+
+    await saveAndSync({
+      ...appData,
+      stok: nextStok,
+      retur: nextRetur,
+      hutang: nextHutang
+    });
+
     setSaving(false);
+    toast(`✅ Transaksi berhasil! Sisa hutang ${pelunasanTarget.pelanggan || pelunasanTarget.nama}: ${newSisa <= 0 ? 'LUNAS PENUH' : formatRp(newSisa)}`, 'success');
+
+    // Kirim nota bukti transaksi ke WhatsApp
+    sendPelunasanReturWA(pelunasanTarget, nominalUang, returnedItemsActive, effectiveRetur, newSisa, alasanRetur);
+
+    setPelunasanTarget(null);
   };
 
   const handleDelete = async () => {
@@ -603,8 +786,8 @@ const HutangPage = () => {
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap' }}>
                         {h.sisaHutang > 0 && (
-                          <button className="btn btn-purple btn-sm" title="Catat Pembayaran" onClick={() => { setShowBayar(h); setBayarInput(''); }} style={{ padding: '4px 8px', fontSize: 11 }}>
-                            <i className="fa-solid fa-money-bill-wave" /> Bayar
+                          <button className="btn btn-purple btn-sm" title="Catat Pelunasan / Retur Barang" onClick={() => openPelunasan(h)} style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700 }}>
+                            <i className="fa-solid fa-hand-holding-dollar" /> Pelunasan / Retur
                           </button>
                         )}
                         {isOd ? (
@@ -667,8 +850,8 @@ const HutangPage = () => {
 
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {h.sisaHutang > 0 && (
-                    <button className="btn btn-purple btn-sm" onClick={() => { setShowBayar(h); setBayarInput(''); }} style={{ flex: 1 }}>
-                      <i className="fa-solid fa-money-bill-wave" /> Bayar
+                    <button className="btn btn-purple btn-sm" onClick={() => openPelunasan(h)} style={{ flex: 1, fontWeight: 700 }}>
+                      <i className="fa-solid fa-hand-holding-dollar" /> Pelunasan / Retur
                     </button>
                   )}
                   {isOd ? (
@@ -765,56 +948,278 @@ const HutangPage = () => {
         </div>
       )}
 
-      {/* ═══ BAYAR MODAL ════════════════════════════════════════════ */}
-      {showBayar && (
-        <div className="modal-overlay" onClick={e => e.target.classList.contains('modal-overlay') && setShowBayar(null)}>
-          <div className="modal" style={{ maxWidth: 400 }}>
-            <div className="modal-header">
-              <div className="modal-title"><i className="fa-solid fa-money-bill-wave" style={{ color: 'var(--emerald)' }} /> Catat Pembayaran</div>
-              <button className="modal-close" onClick={() => setShowBayar(null)}><i className="fa-solid fa-xmark" /></button>
-            </div>
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ background: 'var(--bg-hover)', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
-                <b>{showBayar.pelanggan || showBayar.nama || showBayar.supplier}</b>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Sisa Tagihan</span>
-                  <span style={{ fontWeight: 800, color: 'var(--rose)', fontSize: 16 }}>{formatRp(showBayar.sisaHutang)}</span>
+      {/* ═══ PELUNASAN & RETUR BARANG MODAL ════════════════════════ */}
+      {pelunasanTarget && (() => {
+        const totalReturNilai = returItems.reduce((sum, it) => sum + ((Number(it.hargaJual) || 0) * (Number(it.returQty) || 0)), 0);
+        const nominalUang = pelunasanTab === 'retur' ? 0 : (parseFloat(bayarNominal) || 0);
+        const effectiveRetur = pelunasanTab === 'bayar' ? 0 : totalReturNilai;
+        const totalPotongan = nominalUang + effectiveRetur;
+        const currentSisa = Number(pelunasanTarget.sisaHutang || 0);
+        const newSisa = Math.max(0, currentSisa - totalPotongan);
+        const namaDisp = pelunasanTarget.pelanggan || pelunasanTarget.nama || pelunasanTarget.supplier;
+        const returnedItemsActive = returItems.filter(it => (Number(it.returQty) || 0) > 0);
+
+        return (
+          <div className="modal-overlay" onClick={e => e.target.classList.contains('modal-overlay') && setPelunasanTarget(null)}>
+            <div className="modal" style={{ maxWidth: 560, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+              <div className="modal-header">
+                <div className="modal-title">
+                  <i className="fa-solid fa-hand-holding-dollar" style={{ color: 'var(--brand)' }} /> Pelunasan &amp; Retur Barang
                 </div>
+                <button className="modal-close" onClick={() => setPelunasanTarget(null)}><i className="fa-solid fa-xmark" /></button>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Nominal Pembayaran (Rp) *</label>
-                <input className="form-input" type="number" value={bayarInput} onChange={e => setBayarInput(e.target.value)} placeholder="0" min="0" max={showBayar.sisaHutang} id="hutang-bayar" />
-              </div>
-
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[showBayar.sisaHutang, Math.round(showBayar.sisaHutang / 2), 50000, 100000].filter((v, i, arr) => v > 0 && arr.indexOf(v) === i).slice(0, 4).map(v => (
-                  <button key={v} className="btn btn-ghost btn-sm" onClick={() => setBayarInput(String(v))} style={{ fontSize: 11 }}>{formatRp(v)}</button>
-                ))}
-              </div>
-
-              {/* Riwayat bayar */}
-              {showBayar.riwayatBayar?.length > 0 && (
-                <div>
-                  <div className="form-label">Riwayat Pembayaran</div>
-                  {showBayar.riwayatBayar.map((r, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>{r.tanggal}</span>
-                      <span style={{ fontWeight: 700, color: 'var(--emerald)' }}>+{formatRp(r.nominal)}</span>
+              <div className="modal-body" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Info Pelanggan & Tagihan */}
+                <div style={{ background: 'var(--bg-hover)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 14 }}>{namaDisp}</div>
+                      {pelunasanTarget.noWa && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>📱 {pelunasanTarget.noWa}</div>}
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                        Tgl: {pelunasanTarget.tanggal} {pelunasanTarget.tanggalJatuhTempo ? `· JT: ${pelunasanTarget.tanggalJatuhTempo}` : ''}
+                      </div>
                     </div>
-                  ))}
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>SISA TAGIHAN</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--rose)' }}>{formatRp(currentSisa)}</div>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowBayar(null)} disabled={saving}>Batal</button>
-              <button className="btn btn-green" onClick={handleBayar} disabled={saving || !bayarInput} style={{ flex: 1 }}>
-                {saving ? <><i className="fa-solid fa-circle-notch animate-spin" /> Menyimpan...</> : <><i className="fa-solid fa-check" /> Catat Pembayaran</>}
-              </button>
+
+                {/* Pilihan Metode Pelunasan / Tab Switcher */}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${pelunasanTab === 'bayar' ? 'btn-purple' : 'btn-ghost'}`}
+                    onClick={() => setPelunasanTab('bayar')}
+                    style={{ flex: 1, fontSize: 11, fontWeight: 700 }}
+                  >
+                    <i className="fa-solid fa-money-bill-wave" /> 💵 Bayar Uang
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${pelunasanTab === 'retur' ? 'btn-purple' : 'btn-ghost'}`}
+                    onClick={() => setPelunasanTab('retur')}
+                    style={{ flex: 1, fontSize: 11, fontWeight: 700 }}
+                  >
+                    <i className="fa-solid fa-rotate-left" /> 🔄 Retur Barang
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${pelunasanTab === 'kombinasi' ? 'btn-purple' : 'btn-ghost'}`}
+                    onClick={() => setPelunasanTab('kombinasi')}
+                    style={{ flex: 1, fontSize: 11, fontWeight: 700 }}
+                  >
+                    <i className="fa-solid fa-layer-group" /> ⚡ Bayar + Retur
+                  </button>
+                </div>
+
+                {/* ─── SECTION 1: RETUR BARANG (jika tab retur / kombinasi) ─── */}
+                {(pelunasanTab === 'retur' || pelunasanTab === 'kombinasi') && (
+                  <div style={{ background: 'rgba(245, 158, 11, 0.05)', borderRadius: 10, padding: '12px 14px', border: '1.5px solid rgba(245, 158, 11, 0.3)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontWeight: 800, fontSize: 12, color: 'var(--amber)' }}>
+                        <i className="fa-solid fa-boxes-stacked" style={{ marginRight: 6 }} /> Barang yang Dikembalikan (Retur)
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Stok otomatis di-restore (+stok)</span>
+                    </div>
+
+                    {/* List Item Retur */}
+                    {returItems.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontSize: 11, background: 'var(--bg-card)', borderRadius: 6, marginBottom: 8 }}>
+                        Belum ada barang di daftar retur. Pilih barang dari stok toko di bawah.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                        {returItems.map((it, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-card)', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                            <div style={{ flex: 1, minWidth: 120 }}>
+                              <div style={{ fontWeight: 700, fontSize: 12 }}>{it.barang}</div>
+                              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{formatRp(it.hargaJual)} / pcs</div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <button type="button" className="btn btn-ghost btn-sm" onClick={() => adjustReturQty(idx, -1)} style={{ padding: '2px 6px', height: 26 }}>-</button>
+                              <input
+                                type="number"
+                                className="form-input"
+                                style={{ width: 44, textAlign: 'center', height: 26, fontSize: 11, padding: 2 }}
+                                value={it.returQty}
+                                onChange={e => updateReturQty(idx, e.target.value)}
+                                min="0"
+                                max={it.maxQty}
+                              />
+                              <button type="button" className="btn btn-ghost btn-sm" onClick={() => adjustReturQty(idx, 1)} style={{ padding: '2px 6px', height: 26 }}>+</button>
+                              <span style={{ fontSize: 11, fontWeight: 800, minWidth: 65, textAlign: 'right', color: 'var(--amber)' }}>
+                                {formatRp(it.hargaJual * it.returQty)}
+                              </span>
+                              <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleRemoveReturItem(idx)} style={{ color: 'var(--rose)', padding: '2px 6px' }}>
+                                <i className="fa-solid fa-trash" style={{ fontSize: 10 }} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Dropdown tambah barang dari stok toko */}
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                        + TAMBAH BARANG DARI STOK TOKO:
+                      </label>
+                      <select
+                        className="form-input"
+                        style={{ fontSize: 11, height: 32 }}
+                        value=""
+                        onChange={e => {
+                          const found = (appData.stok || []).find(s => String(s.id) === e.target.value || s.nama_barang === e.target.value);
+                          if (found) handleAddStokToRetur(found);
+                        }}
+                      >
+                        <option value="">-- Cari / pilih barang dari katalog stok toko --</option>
+                        {(appData.stok || []).map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.nama_barang} ({formatRp(s.hargaJual)}) · Sisa Stok: {s.stokTersedia} pcs
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Input Alasan Retur */}
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                        ALASAN PENGEMBALIAN BARANG *
+                      </label>
+                      <input
+                        className="form-input"
+                        style={{ fontSize: 11, height: 32 }}
+                        placeholder="Contoh: Ukuran tidak muat, barang dikembalikan, tidak cocok"
+                        value={alasanRetur}
+                        onChange={e => setAlasanRetur(e.target.value)}
+                      />
+                      <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                        {['Ukuran tidak pas', 'Barang dikembalikan', 'Cacat / Rusak', 'Tidak jadi beli'].map(t => (
+                          <button key={t} type="button" className="btn btn-ghost btn-sm" onClick={() => setAlasanRetur(t)} style={{ fontSize: 9, padding: '2px 6px' }}>
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ─── SECTION 2: PEMBAYARAN UANG (jika tab bayar / kombinasi) ─── */}
+                {(pelunasanTab === 'bayar' || pelunasanTab === 'kombinasi') && (
+                  <div style={{ background: 'rgba(16, 185, 129, 0.05)', borderRadius: 10, padding: '12px 14px', border: '1.5px solid rgba(16, 185, 129, 0.3)' }}>
+                    <label className="form-label" style={{ fontWeight: 700, color: 'var(--emerald)', marginBottom: 6, fontSize: 12 }}>
+                      <i className="fa-solid fa-money-bill-wave" style={{ marginRight: 6 }} /> Nominal Pembayaran Uang (Rp)
+                    </label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      style={{ fontSize: 14, fontWeight: 700 }}
+                      value={bayarNominal}
+                      onChange={e => setBayarNominal(e.target.value)}
+                      placeholder="0"
+                      min="0"
+                      max={currentSisa - (pelunasanTab === 'kombinasi' ? totalReturNilai : 0)}
+                    />
+
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                      {[
+                        currentSisa - (pelunasanTab === 'kombinasi' ? totalReturNilai : 0),
+                        Math.round((currentSisa - (pelunasanTab === 'kombinasi' ? totalReturNilai : 0)) / 2),
+                        50000,
+                        100000
+                      ].filter((v, i, arr) => v > 0 && arr.indexOf(v) === i).slice(0, 4).map(v => (
+                        <button key={v} type="button" className="btn btn-ghost btn-sm" onClick={() => setBayarNominal(String(v))} style={{ fontSize: 10, padding: '3px 8px' }}>
+                          {formatRp(v)}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+                      <div>
+                        <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>METODE BAYAR</label>
+                        <select className="form-input" style={{ fontSize: 11, height: 30 }} value={bayarMetode} onChange={e => setBayarMetode(e.target.value)}>
+                          <option value="Tunai">💵 Tunai / Cash</option>
+                          <option value="Transfer Bank">🏦 Transfer Bank</option>
+                          <option value="QRIS">📱 QRIS</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>CATATAN (OPSIONAL)</label>
+                        <input className="form-input" style={{ fontSize: 11, height: 30 }} placeholder="Contoh: BCA / Kasir" value={bayarCatatan} onChange={e => setBayarCatatan(e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ─── SECTION 3: RINGKASAN PEMOTONGAN HUTANG ─── */}
+                <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: '12px 14px', border: '1.5px solid var(--border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Tagihan Hutang Saat Ini:</span>
+                    <span style={{ fontWeight: 700 }}>{formatRp(currentSisa)}</span>
+                  </div>
+                  {pelunasanTab !== 'retur' && nominalUang > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4, color: 'var(--emerald)' }}>
+                      <span>(-) Pembayaran Uang ({bayarMetode}):</span>
+                      <span style={{ fontWeight: 700 }}>{formatRp(nominalUang)}</span>
+                    </div>
+                  )}
+                  {pelunasanTab !== 'bayar' && effectiveRetur > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4, color: 'var(--amber)' }}>
+                      <span>(-) Retur Barang ({returnedItemsActive.length} item):</span>
+                      <span style={{ fontWeight: 700 }}>{formatRp(effectiveRetur)}</span>
+                    </div>
+                  )}
+                  <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 6, marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 800, fontSize: 13 }}>Sisa Tagihan Baru:</span>
+                    <span style={{ fontWeight: 900, fontSize: 16, color: newSisa <= 0 ? 'var(--emerald)' : 'var(--rose)' }}>
+                      {newSisa <= 0 ? '✅ LUNAS PENUH' : formatRp(newSisa)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Riwayat Transaksi Sebelumnya */}
+                {pelunasanTarget.riwayatBayar?.length > 0 && (
+                  <div>
+                    <div className="form-label" style={{ fontSize: 11, fontWeight: 700, marginBottom: 4 }}>Riwayat Pembayaran &amp; Retur Sebelumnya</div>
+                    <div style={{ maxHeight: 120, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px' }}>
+                      {pelunasanTarget.riwayatBayar.map((r, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                          <span>
+                            <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>{r.tanggal}</span>
+                            <span style={{ color: r.type === 'retur' ? 'var(--amber)' : 'var(--text-secondary)' }}>
+                              {r.type === 'retur' ? '🔄 ' : '💵 '}{r.keterangan || (r.type === 'retur' ? 'Retur Barang' : 'Pembayaran')}
+                            </span>
+                          </span>
+                          <span style={{ fontWeight: 700, color: r.type === 'retur' ? 'var(--amber)' : 'var(--emerald)' }}>
+                            {formatRp(Math.abs(r.nominal))}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-ghost" onClick={() => setPelunasanTarget(null)} disabled={saving}>Batal</button>
+                <button
+                  type="button"
+                  className="btn btn-green"
+                  onClick={handleSimpanPelunasan}
+                  disabled={saving || totalPotongan <= 0}
+                  style={{ flex: 1 }}
+                >
+                  {saving ? <><i className="fa-solid fa-circle-notch animate-spin" /> Menyimpan...</> : <><i className="fa-brands fa-whatsapp" /> Simpan &amp; Kirim Nota ke WhatsApp</>}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ═══ DELETE MODAL ════════════════════════════════════════════ */}
       {deleteId && (

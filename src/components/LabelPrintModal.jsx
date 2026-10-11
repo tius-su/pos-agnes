@@ -7,7 +7,7 @@ const LabelPrintModal = ({ items = [], storeName = 'Melan Jaya', onClose }) => {
   const printAreaRef = useRef(null);
 
   // Config state
-  const [paperType, setPaperType] = useState('67x35'); // '67x35' | '50x30' | '40x30' | 'a4'
+  const [paperType, setPaperType] = useState('57x30'); // '57x30' | '50x30' | '40x30' | 'a4'
   const [showStore, setShowStore] = useState(true);
   const [showBarcode, setShowBarcode] = useState(true);
   const [showPrice, setShowPrice] = useState(true);
@@ -85,7 +85,7 @@ const LabelPrintModal = ({ items = [], storeName = 'Melan Jaya', onClose }) => {
   };
 
   const getLabelSize = () => {
-    if (paperType === '67x35') return { w: '67mm', minH: 140, barcodeH: 42 };
+    if (paperType === '57x30') return { w: '57mm', minH: 130, barcodeH: 38 };
     if (paperType === '50x30') return { w: '50mm', minH: 120, barcodeH: 34 };
     if (paperType === '40x30') return { w: '40mm', minH: 100, barcodeH: 28 };
     return { w: 'auto', minH: 120, barcodeH: 34 }; // a4
@@ -120,7 +120,7 @@ const LabelPrintModal = ({ items = [], storeName = 'Melan Jaya', onClose }) => {
             <div>
               <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>Format Ukuran Kertas</label>
               <select className="form-input" value={paperType} onChange={e => setPaperType(e.target.value)}>
-                <option value="67x35">🏷️ Stiker 67mm × 35mm (Standar Swalayan)</option>
+                <option value="57x30">🏷️ Stiker Thermal 57mm (Standar 57/58mm POS)</option>
                 <option value="50x30">Stiker Thermal 50mm × 30mm (Standard POS)</option>
                 <option value="40x30">Stiker Thermal 40mm × 30mm (Kecil)</option>
                 <option value="a4">Lembar A4 Grid (3 Kolom × 8 Baris)</option>
@@ -257,7 +257,7 @@ const LabelPrintModal = ({ items = [], storeName = 'Melan Jaya', onClose }) => {
                   )}
 
                   <div style={{
-                    fontSize: paperType === '67x35' ? 12 : 11,
+                    fontSize: paperType === '57x30' ? 11 : 11,
                     fontWeight: 800,
                     color: '#111',
                     lineHeight: 1.3,
@@ -275,14 +275,14 @@ const LabelPrintModal = ({ items = [], storeName = 'Melan Jaya', onClose }) => {
 
                   {showBarcode && (
                     <div style={{ margin: '4px 0' }}>
-                      <BarcodeSVG text={codeText} height={labelSize.barcodeH} widthModule={paperType === '67x35' ? 1.8 : 1.5} showText={true} />
+                      <BarcodeSVG text={codeText} height={labelSize.barcodeH} widthModule={paperType === '57x30' ? 1.6 : 1.5} showText={true} />
                     </div>
                   )}
 
                   {showPrice && (
                     <div style={{ marginTop: 2, paddingTop: 3, borderTop: '1.5px solid #ddd' }}>
                       <div style={{
-                        fontSize: paperType === '67x35' ? 16 : 12,
+                        fontSize: paperType === '57x30' ? 15 : 12,
                         fontWeight: 900,
                         color: '#000',
                         letterSpacing: -0.5
@@ -342,9 +342,9 @@ const LabelPrintModal = ({ items = [], storeName = 'Melan Jaya', onClose }) => {
             .label-grid {
               gap: 4px !important;
             }
-            .paper-67x35 {
+            .paper-57x30 {
               grid-template-columns: 1fr !important;
-              width: 67mm;
+              width: 57mm;
             }
             .paper-50x30 {
               grid-template-columns: 1fr !important;
