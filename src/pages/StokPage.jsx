@@ -449,6 +449,71 @@ const StokPage = () => {
   const habis = (appData.stok || []).filter(i => i.stokTersedia <= 0).length;
   const menipis = (appData.stok || []).filter(i => i.stokTersedia > 0 && i.stokTersedia <= 5).length;
 
+  const formatWaNumber = (inputNo) => {
+    if (!inputNo) return '';
+    let clean = String(inputNo).replace(/\D/g, '');
+    if (clean.startsWith('0')) {
+      clean = '62' + clean.slice(1);
+    } else if (clean.startsWith('8')) {
+      clean = '62' + clean;
+    }
+    return clean;
+  };
+
+  const shareStokWA = () => {
+    const s = appData.settings || {};
+    const storeName = (s.storeName || 'MELAN JAYA')
+      .replace(/Agnes\s*Fashion/gi, 'Melan Jaya')
+      .replace(/Agnes/gi, 'Melan Jaya');
+
+    let msg = `*LAPORAN STOK BARANG — ${storeName.toUpperCase()}*\n`;
+    msg += `Tanggal  : ${new Date().toISOString().slice(0, 10)}\n`;
+    if (catFilter) msg += `Kategori : ${catFilter}\n`;
+    if (search)    msg += `Pencarian: ${search}\n`;
+    msg += `────────────────────\n`;
+    msg += `📦 Total SKU         : ${totalSkus} jenis produk\n`;
+    msg += `🔢 Total Item Stok   : ${totalItems} pcs\n`;
+    msg += `💰 Total Nilai Modal : ${formatRp(nilaiStok)}\n`;
+    msg += `⚠️ Stok Menipis (≤5) : ${menipis} produk\n`;
+    msg += `🚫 Stok Habis (0 pcs): ${habis} produk\n`;
+    msg += `────────────────────\n`;
+
+    const warningItems = (filtered || []).filter(i => i.stokTersedia <= 5);
+    if (warningItems.length > 0) {
+      msg += `*Daftar Perlu Perhatian (Habis / Menipis):*\n`;
+      warningItems.slice(0, 8).forEach((it, idx) => {
+        const icon = it.stokTersedia <= 0 ? '🚫 Habis' : '⚠️ Sisa';
+        msg += `${idx + 1}. ${it.nama_barang} (${icon} ${it.stokTersedia} pcs)\n`;
+      });
+      if (warningItems.length > 8) {
+        msg += `   ...dan ${warningItems.length - 8} produk lainnya\n`;
+      }
+      msg += `────────────────────\n`;
+    }
+
+    msg += `Dikirim dari ${storeName} POS`;
+
+    const defaultPhone = formatWaNumber(s.storePhone);
+    const defaultPlaceholder = defaultPhone ? (defaultPhone.startsWith('62') ? '0' + defaultPhone.slice(2) : defaultPhone) : '';
+
+    const inputNo = window.prompt(
+      'Masukkan No WhatsApp tujuan (contoh: 08123456789)\nAtau kosongkan lalu klik OK untuk langsung pilih kontak di WhatsApp:',
+      defaultPlaceholder
+    );
+    if (inputNo === null) return;
+
+    const targetNo = formatWaNumber(inputNo);
+    const encodedMsg = encodeURIComponent(msg);
+    const waUrl = targetNo 
+      ? `https://api.whatsapp.com/send?phone=${targetNo}&text=${encodedMsg}`
+      : `https://api.whatsapp.com/send?text=${encodedMsg}`;
+
+    window.open(waUrl, '_blank');
+    if (toast) {
+      toast(targetNo ? `📲 Ringkasan Stok dikirim ke WhatsApp (${targetNo})!` : '📲 Membuka WhatsApp untuk bagikan stok!', 'success');
+    }
+  };
+
   return (
     <div className="tab-page active fade-up">
       {/* Stat Cards */}
@@ -501,6 +566,9 @@ const StokPage = () => {
               <option value="">Semua Kategori</option>
               {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
+            <button className="btn btn-ghost btn-sm" onClick={shareStokWA} title="Bagikan Ringkasan Stok via WhatsApp">
+              <i className="fa-brands fa-whatsapp" style={{ color: '#25D366' }} /> Share WA
+            </button>
             <button className="btn btn-ghost btn-sm" onClick={() => setPrintModalItems(filtered)} title="Cetak Barcode untuk semua produk di list">
               <i className="fa-solid fa-barcode" style={{ color: 'var(--brand)' }} /> Cetak Label Barcode
             </button>

@@ -19,7 +19,7 @@ const CAT_EMOJI = { 'Pakaian Wanita': '👗', 'Pakaian Pria': '👕', 'Hijab': '
 const PIE_COLORS = ['#7c3aed', '#0284c7', '#059669', '#d97706', '#e11d48', '#8b5cf6'];
 
 const StokLaporanPage = () => {
-  const { appData } = useData();
+  const { appData, toast } = useData();
   const allStok = appData.stok || [];
   const allPenjualan = appData.penjualan || [];
   const [supplierFilter, setSupplierFilter] = useState('');
@@ -189,6 +189,98 @@ const StokLaporanPage = () => {
     );
   };
 
+  const formatWaNumber = (inputNo) => {
+    if (!inputNo) return '';
+    let clean = String(inputNo).replace(/\D/g, '');
+    if (clean.startsWith('0')) {
+      clean = '62' + clean.slice(1);
+    } else if (clean.startsWith('8')) {
+      clean = '62' + clean;
+    }
+    return clean;
+  };
+
+  // ── Share Laporan Stok via WhatsApp ──────────────────────────────────
+  const shareStokLaporanWA = () => {
+    const s = appData.settings || {};
+    const storeName = (s.storeName || 'MELAN JAYA')
+      .replace(/Agnes\s*Fashion/gi, 'Melan Jaya')
+      .replace(/Agnes/gi, 'Melan Jaya');
+
+    let msg = `*DASHBOARD LAPORAN STOK — ${storeName.toUpperCase()}*\n`;
+    msg += `Tanggal  : ${getTodayIso()}\n`;
+    if (supplierFilter) msg += `Supplier : ${supplierFilter}\n`;
+    if (catFilter)      msg += `Kategori : ${catFilter}\n`;
+    if (searchFilter)   msg += `Pencarian: ${searchFilter}\n`;
+    msg += `────────────────────\n`;
+    msg += `📦 Total SKU         : ${totalSkus} jenis produk\n`;
+    msg += `🔢 Total Item Stok   : ${totalItems} pcs\n`;
+    msg += `💰 Nilai Modal (HPP) : ${formatRp(nilaiModal)}\n`;
+    msg += `🏷️ Nilai Jual Stok   : ${formatRp(nilaiJual)}\n`;
+    msg += `📈 Potensi Laba      : ${formatRp(potensiLaba)}\n`;
+    msg += `────────────────────\n`;
+
+    // Status / Alert
+    msg += `*Status Kondisi Stok:*\n`;
+    msg += `• Stok Aman    : ${Math.max(0, totalSkus - habis - menipis)} produk\n`;
+    msg += `• ⚠️ Stok Menipis (≤5) : ${menipis} produk\n`;
+    msg += `• 🚫 Stok Habis (0 pcs): ${habis} produk\n`;
+    msg += `────────────────────\n`;
+
+    // Warning items
+    if (warningList.length > 0) {
+      msg += `*Daftar Perlu Restock (Stok Habis / Menipis):*\n`;
+      warningList.slice(0, 6).forEach((it, idx) => {
+        const icon = it.stokTersedia <= 0 ? '🚫 Habis' : '⚠️ Sisa';
+        msg += `${idx + 1}. ${it.nama_barang} (${icon} ${it.stokTersedia} pcs)\n`;
+      });
+      if (warningList.length > 6) {
+        msg += `   ...dan ${warningList.length - 6} produk lainnya\n`;
+      }
+      msg += `────────────────────\n`;
+    }
+
+    // Fast moving
+    if (fastMovingList.length > 0) {
+      msg += `*🚀 Fast-Moving (Paling Laris):*\n`;
+      fastMovingList.slice(0, 5).forEach((it, idx) => {
+        msg += `${idx + 1}. ${it.nama_barang} — Terjual: ${it.terjual} pcs (Sisa: ${it.stokTersedia})\n`;
+      });
+      msg += `────────────────────\n`;
+    }
+
+    // Slow moving
+    if (slowMovingList.length > 0) {
+      msg += `*🐢 Slow-Moving (Stok Mati):*\n`;
+      slowMovingList.slice(0, 5).forEach((it, idx) => {
+        msg += `${idx + 1}. ${it.nama_barang} — Sisa: ${it.stokTersedia} pcs\n`;
+      });
+      msg += `────────────────────\n`;
+    }
+
+    msg += `Dikirim dari ${storeName} POS`;
+
+    const defaultPhone = formatWaNumber(s.storePhone);
+    const defaultPlaceholder = defaultPhone ? (defaultPhone.startsWith('62') ? '0' + defaultPhone.slice(2) : defaultPhone) : '';
+
+    const inputNo = window.prompt(
+      'Masukkan No WhatsApp tujuan (contoh: 08123456789)\nAtau kosongkan lalu klik OK untuk langsung pilih kontak di WhatsApp:',
+      defaultPlaceholder
+    );
+    if (inputNo === null) return;
+
+    const targetNo = formatWaNumber(inputNo);
+    const encodedMsg = encodeURIComponent(msg);
+    const waUrl = targetNo 
+      ? `https://api.whatsapp.com/send?phone=${targetNo}&text=${encodedMsg}`
+      : `https://api.whatsapp.com/send?text=${encodedMsg}`;
+
+    window.open(waUrl, '_blank');
+    if (toast) {
+      toast(targetNo ? `📲 Laporan Stok dikirim ke WhatsApp (${targetNo})!` : '📲 Membuka WhatsApp untuk bagikan laporan stok!', 'success');
+    }
+  };
+
   return (
     <div className="tab-page active fade-up">
 
@@ -242,8 +334,15 @@ const StokLaporanPage = () => {
             <option value="">Semua Kategori</option>
             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          {/* Export Buttons */}
+          {/* Export & Share Buttons */}
           <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              className="btn btn-purple btn-sm"
+              onClick={shareStokLaporanWA}
+              title="Bagikan Laporan Stok via WhatsApp"
+            >
+              <i className="fa-brands fa-whatsapp" /> Share WA
+            </button>
             <button
               className="btn btn-ghost btn-sm"
               onClick={() => {

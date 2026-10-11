@@ -18,7 +18,7 @@ const pct = (laba, omset) => omset > 0 ? ((laba / omset) * 100).toFixed(1) : '0.
 const PIE_COLORS = ['#7c3aed','#0284c7','#059669','#d97706','#e11d48','#8b5cf6','#06b6d4','#84cc16'];
 
 const LabaRugiPage = () => {
-  const { appData } = useData();
+  const { appData, toast } = useData();
   const [view, setView]     = useState('item');      // 'item' | 'supplier'
   const [preset, setPreset] = useState('month');
   const [dateStart, setDateStart] = useState('');
@@ -172,6 +172,79 @@ const LabaRugiPage = () => {
     a.click();
   };
 
+  const formatWaNumber = (inputNo) => {
+    if (!inputNo) return '';
+    let clean = String(inputNo).replace(/\D/g, '');
+    if (clean.startsWith('0')) {
+      clean = '62' + clean.slice(1);
+    } else if (clean.startsWith('8')) {
+      clean = '62' + clean;
+    }
+    return clean;
+  };
+
+  // ── Share Laba Rugi via WhatsApp ─────────────────────────────────────
+  const shareLabaRugiWA = () => {
+    const s = appData.settings || {};
+    const storeName = (s.storeName || 'MELAN JAYA')
+      .replace(/Agnes\s*Fashion/gi, 'Melan Jaya')
+      .replace(/Agnes/gi, 'Melan Jaya');
+    const nettMargin = totalOmset > 0 ? ((labaBersihAkhir / totalOmset) * 100).toFixed(1) : '0.0';
+
+    let msg = `*LAPORAN LABA RUGI — ${storeName.toUpperCase()}*\n`;
+    msg += `Periode: ${start || 'Semua'} s/d ${end || 'Semua'}\n`;
+    msg += `Tampilan: Per ${view === 'item' ? 'Produk' : 'Supplier'}\n`;
+    msg += `────────────────────\n`;
+    msg += `💰 Total Omset        : ${formatRp(totalOmset)}\n`;
+    msg += `📦 Total Modal (HPP)  : ${formatRp(totalModal)}\n`;
+    msg += `📈 Laba Kotor         : ${formatRp(totalLabaKotor)} (${pct(totalLabaKotor, totalOmset)}%)\n`;
+    msg += `🧾 Biaya Operasional  : ${formatRp(totalPengeluaran)} (${filteredExpenses.length} catatan)\n`;
+    msg += `────────────────────\n`;
+    msg += `⚖️ *LABA BERSIH AKHIR : ${formatRp(labaBersihAkhir)}*\n`;
+    msg += `📊 *Nett Margin       : ${nettMargin}%*\n`;
+    msg += `────────────────────\n`;
+
+    if (view === 'item' && displayItems.length > 0) {
+      msg += `*Top 5 Produk (Laba Tertinggi):*\n`;
+      const topItems = [...displayItems].sort((a, b) => b.laba - a.laba).slice(0, 5);
+      topItems.forEach((it, idx) => {
+        msg += `${idx + 1}. ${it.nama}\n`;
+        msg += `   Terjual: ${it.qty} pcs | Omset: ${formatRp(it.omset)} | Laba: ${formatRp(it.laba)} (${pct(it.laba, it.omset)}%)\n`;
+      });
+      msg += `────────────────────\n`;
+    } else if (view === 'supplier' && displaySuppliers.length > 0) {
+      msg += `*Top 5 Supplier (Laba Tertinggi):*\n`;
+      const topSuppliers = [...displaySuppliers].sort((a, b) => b.laba - a.laba).slice(0, 5);
+      topSuppliers.forEach((sup, idx) => {
+        msg += `${idx + 1}. ${sup.supplier}\n`;
+        msg += `   Terjual: ${sup.qty} pcs | Omset: ${formatRp(sup.omset)} | Laba: ${formatRp(sup.laba)} (${pct(sup.laba, sup.omset)}%)\n`;
+      });
+      msg += `────────────────────\n`;
+    }
+
+    msg += `Dikirim dari ${storeName} POS`;
+
+    const defaultPhone = formatWaNumber(s.storePhone);
+    const defaultPlaceholder = defaultPhone ? (defaultPhone.startsWith('62') ? '0' + defaultPhone.slice(2) : defaultPhone) : '';
+
+    const inputNo = window.prompt(
+      'Masukkan No WhatsApp tujuan (contoh: 08123456789)\nAtau kosongkan lalu klik OK untuk langsung pilih kontak di WhatsApp:',
+      defaultPlaceholder
+    );
+    if (inputNo === null) return; // user cancelled
+
+    const targetNo = formatWaNumber(inputNo);
+    const encodedMsg = encodeURIComponent(msg);
+    const waUrl = targetNo 
+      ? `https://api.whatsapp.com/send?phone=${targetNo}&text=${encodedMsg}`
+      : `https://api.whatsapp.com/send?text=${encodedMsg}`;
+
+    window.open(waUrl, '_blank');
+    if (toast) {
+      toast(targetNo ? `📲 Laporan Laba Rugi dikirim ke WhatsApp (${targetNo})!` : '📲 Membuka WhatsApp untuk bagikan laporan!', 'success');
+    }
+  };
+
   const PRESET_BTNS = [['today','Hari Ini'],['yesterday','Kemarin'],['week','7 Hari'],['month','Bulan Ini'],['year','Tahun Ini'],['all','Semua'],['custom','Custom']];
 
   return (
@@ -243,9 +316,12 @@ const LabaRugiPage = () => {
 
       {/* ── Filter & View toggle ── */}
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header" style={{ padding: '12px 16px' }}>
+        <div className="card-header" style={{ padding: '12px 16px', flexWrap: 'wrap', gap: 10 }}>
           <div className="card-title"><i className="fa-solid fa-filter" /> Filter Periode</div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button className="btn btn-purple btn-sm" onClick={shareLabaRugiWA} title="Bagikan Laporan Laba Rugi via WhatsApp">
+              <i className="fa-brands fa-whatsapp" /> Share WA
+            </button>
             <button className="btn btn-ghost btn-sm" onClick={exportCSV}>
               <i className="fa-solid fa-file-csv" style={{ color: 'var(--emerald)' }} /> Export CSV
             </button>
